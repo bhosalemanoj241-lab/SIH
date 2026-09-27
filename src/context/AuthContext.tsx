@@ -3,6 +3,7 @@ import { User, UserRole, PatientProfile, DoctorProfile, HospitalAccount, Languag
 import { db } from '../services/mockDatabase';
 import { LocationHospitalService } from '../services/locationHospitalService';
 import { cloudDataService, FirebaseAuthService } from '../services/firebaseService';
+import { centralAuthService } from '../services/centralAuthService';
 
 export interface RegisterPatientData {
   fullName: string;
@@ -191,57 +192,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Please enter your registered Email or Patient ID.' };
     }
 
-    // 1. Instant Platform Administrator resolution (bypass remote network timeouts)
-    if (cleanId.toLowerCase() === 'admin@medibridge.gov.in' || cleanId.toLowerCase() === 'admin@medibridge.in') {
-      let adminUser: User | undefined = db.findUserByIdentifier(cleanId);
-      if (!adminUser) {
-        const newAdmin: User = {
-          id: 'usr-admin-root',
-          email: cleanId.toLowerCase(),
-          password: password || 'Admin@2026',
-          phone: '+91 11 2300 0000',
-          fullName: 'National Health Administrator',
-          role: 'SYSTEM_ADMIN',
-          createdAt: new Date().toISOString()
-        };
-        db.createUser(newAdmin);
-        adminUser = newAdmin;
-      }
-      if (adminUser.password && password && adminUser.password.trim() !== password.trim()) {
-        return { success: false, message: 'Incorrect password. Please check your credentials.' };
-      }
-      setCurrentUser(adminUser);
-      setIsAuthenticated(true);
-      db.logAction(adminUser.id, adminUser.fullName, adminUser.role, 'LOGIN', 'AdminPortal', adminUser.id, 'Platform administrator logged in');
-      return { success: true };
-    }
-
-    // 2. Resolve user locally first for instantaneous, lag-free authentication
-    let user = db.findUserByIdentifier(cleanId);
-    let authData: { user: User; patient?: PatientProfile; hospitalAccount?: any } | undefined;
-
-    if (!user) {
-      authData = await cloudDataService.findUserByIdentifier(cleanId);
-      user = authData?.user;
-    }
-
-    if (!user) {
+    // 1. Centralized Cloud Authentication Call
+    const res = await centralAuthService.login(cleanId, password);
+    if (!res.success || !res.user) {
       return {
         success: false,
-        message: `No registered account found for "${cleanId}". Please check your credentials or click 'Create Account' to register.`
+        message: res.message || `No registered account found for "${cleanId}". Please check your credentials or click 'Create Account' to register.`
       };
     }
 
-    // 3. Verify password if stored on account
-    if (user.password && password) {
-      if (user.password.trim() !== password.trim()) {
-        return { success: false, message: 'Incorrect password. Please check your password and try again.' };
-      }
-    }
+    const user = res.user;
 
-    // 4. Load profile
+    // 2. Load and set appropriate profile
     if (user.role === 'PATIENT') {
-      const p = db.getPatientByUserId(user.id) || db.getPatientByPatientId(cleanId) || authData?.patient;
+      const p = res.patientProfile || db.getPatientByUserId(user.id) || db.getPatientByPatientId(cleanId);
       if (p) {
         setPatientProfile(p);
         db.createPatientProfile(p);
@@ -249,13 +213,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setDoctorProfile(undefined);
       setHospitalAccount(undefined);
     } else if (user.role === 'DOCTOR') {
-      const d = db.getDoctorByUserId(user.id);
-      if (d) setDoctorProfile(d);
+      const d = res.doctorProfile || db.getDoctorByUserId(user.id);
+      if (d) {
+        setDoctorProfile(d);
+        db.createDoctorProfile(d);
+      }
       setPatientProfile(undefined);
       setHospitalAccount(undefined);
     } else if (user.role === 'HOSPITAL_ADMIN' || user.role === 'HOSPITAL') {
-      const hacct = db.getHospitalAccountByUserId(user.id) || authData?.hospitalAccount;
-      setHospitalAccount(hacct || undefined);
+      const hacct = res.hospitalAccount || db.getHospitalAccountByUserId(user.id);
+      if (hacct) {
+        setHospitalAccount(hacct);
+        db.createHospitalAccount(hacct);
+      }
       setPatientProfile(undefined);
       setDoctorProfile(undefined);
     } else {
@@ -275,7 +245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'LOGIN',
       'AuthSession',
       user.id,
-      `User signed in successfully via: ${cleanId}`
+      `User signed in successfully across devices via: ${cleanId}`
     );
 
     // Synchronize Firebase Auth session if active
@@ -288,74 +258,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Register New Patient with Unique Patient ID
   const registerPatient = async (data: RegisterPatientData): Promise<{ success: boolean; patientId?: string; message?: string }> => {
-    const existing = db.findUserByEmail(data.email);
-    if (existing) {
-      return { success: false, message: 'An account with this email address already exists. Please sign in.' };
+    const res = await centralAuthService.registerPatient(data);
+    if (!res.success || !res.user || !res.patientProfile) {
+      return {
+        success: false,
+        message: res.message || 'Failed to create patient account in central database.'
+      };
     }
 
-    const userId = `usr-pat-${Date.now()}`;
-    const generatedPatientId = db.generateUniquePatientId();
+    const newUser = res.user;
+    const newProfile = res.patientProfile;
 
-    const newUser: User = {
-      id: userId,
-      email: data.email.trim().toLowerCase(),
-      password: data.password,
-      phone: data.phone,
-      fullName: data.fullName.trim(),
-      role: 'PATIENT',
-      createdAt: new Date().toISOString()
-    };
-    db.createUser(newUser);
-
-    // Calculate age from DOB if given
-    let calculatedAge = 35;
-    if (data.dob) {
-      const birthYear = new Date(data.dob).getFullYear();
-      if (!isNaN(birthYear)) calculatedAge = new Date().getFullYear() - birthYear;
-    }
-
-    const newProfile: PatientProfile = {
-      id: `pat-${Date.now()}`,
-      userId: userId,
-      patientId: generatedPatientId,
-      abhaId: `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
-      abhaAddress: `${data.fullName.toLowerCase().replace(/\s+/g, '.') || 'patient'}@abdm`,
-      fullName: data.fullName.trim(),
-      email: data.email.trim().toLowerCase(),
-      phone: data.phone,
-      dob: data.dob || '1990-01-01',
-      age: calculatedAge,
-      gender: data.gender,
-      bloodGroup: data.bloodGroup || 'B+',
-      emergencyContactName: data.emergencyContactName || 'Family Member',
-      emergencyContactPhone: data.emergencyContactPhone || data.phone,
-      emergencyContactRelation: data.emergencyContactRelation || 'Next of Kin',
-      address: data.address || 'Registered Residential Address',
-      city: data.city || 'Mumbai',
-      pincode: data.pincode || '400001',
-      createdAt: new Date().toISOString()
-    };
-    
-    // Persist to Firebase Auth & Cloud Database Service
-    FirebaseAuthService.registerUser(newUser.email, newUser.password, newUser).catch(() => {});
-    const regResult = await cloudDataService.registerPatient(newProfile, newUser);
-    if (!regResult.success) {
-      return { success: false, message: regResult.error || 'Failed to create patient profile in database.' };
-    }
-
-    // Set authenticated session
     setCurrentUser(newUser);
     setPatientProfile(newProfile);
     setIsAuthenticated(true);
-
-    localStorage.setItem(
-      AUTH_STORAGE_KEY,
-      JSON.stringify({
-        isAuthenticated: true,
-        user: newUser,
-        patientProfile: newProfile
-      })
-    );
 
     db.logAction(
       newUser.id,
@@ -364,51 +280,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'LOGIN',
       'PatientProfile',
       newProfile.id,
-      `New patient account registered and issued Patient ID: ${generatedPatientId}`
+      `New patient account registered centrally with Patient ID: ${newProfile.patientId}`
     );
 
-    return { success: true, patientId: generatedPatientId };
+    return { success: true, patientId: newProfile.patientId };
   };
 
   // Register New Staff / Doctor / Admin
   const registerStaff = async (data: RegisterStaffData): Promise<{ success: boolean; message?: string }> => {
-    const existing = db.findUserByEmail(data.email);
-    if (existing) {
-      return { success: false, message: 'An account with this email address already exists.' };
-    }
-
-    const userId = `usr-staff-${Date.now()}`;
-    const newUser: User = {
-      id: userId,
-      email: data.email.trim().toLowerCase(),
-      password: data.password,
-      phone: data.phone,
-      fullName: data.fullName.trim(),
-      role: data.role,
-      createdAt: new Date().toISOString()
-    };
-    db.createUser(newUser);
-    FirebaseAuthService.registerUser(newUser.email, newUser.password, newUser).catch(() => {});
-
-    if (data.role === 'DOCTOR') {
-      const newDoctor = {
-        id: `doc-${Date.now()}`,
-        userId: userId,
-        registrationNumber: data.registrationNumber || `MCI-2026-${Math.floor(10000 + Math.random() * 90000)}`,
-        qualification: 'MBBS, MD',
-        specialization: data.specialization || 'General & Emergency Medicine',
-        hospitalId: data.hospitalId || '',
-        hospitalName: data.hospitalName || 'Registered Medical Facility',
-        departmentId: 'dept-001',
-        departmentName: 'Emergency & Critical Care',
-        experienceYears: 10,
-        isAvailable: true,
-        activePatientsCount: 0
+    const res = await centralAuthService.registerStaff(data);
+    if (!res.success || !res.user) {
+      return {
+        success: false,
+        message: res.message || 'Failed to register staff account in central database.'
       };
-      db.createDoctorProfile(newDoctor);
-      setDoctorProfile(newDoctor);
     }
 
+    const newUser = res.user;
+    if (res.doctorProfile) {
+      setDoctorProfile(res.doctorProfile);
+    }
     setCurrentUser(newUser);
     setIsAuthenticated(true);
 
@@ -419,7 +310,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'LOGIN',
       'StaffProfile',
       newUser.id,
-      `Staff registered with role: ${data.role}`
+      `Staff registered centrally with role: ${data.role}`
     );
 
     return { success: true };
@@ -427,58 +318,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Register New Hospital (Portal Account & Shared Hospital Registry)
   const registerHospital = async (data: RegisterHospitalData): Promise<{ success: boolean; hospitalId?: string; message?: string }> => {
-    const existing = db.findUserByEmail(data.email);
-    if (existing) {
-      return { success: false, message: 'A hospital account with this email already exists. Please sign in.' };
+    const res = await centralAuthService.registerHospital(data);
+    if (!res.success || !res.user || !res.hospitalAccount) {
+      return {
+        success: false,
+        message: res.message || 'Failed to create hospital account in central database.'
+      };
     }
 
-    const userId = `usr-hosp-${Date.now()}`;
-    const hospitalId = db.generateUniqueHospitalId(); // e.g. HOSP-2026-XXXXX
-
-    // Resolve coordinates if not provided directly
-    let coords = data.coordinates;
-    if (!coords || (coords.lat === 0 && coords.lng === 0)) {
-      const query = `${data.address} ${data.location} ${data.city} ${data.pincode || ''}`.trim();
-      const geocoded = await LocationHospitalService.geocodeHospitalLocation(query);
-      if (geocoded) {
-        coords = { lat: geocoded.lat, lng: geocoded.lng };
-      }
-    }
-
-    const newUser: User = {
-      id: userId,
-      email: data.email.trim().toLowerCase(),
-      password: data.password,
-      phone: data.emergencyContact,
-      fullName: data.hospitalName.trim(),
-      role: 'HOSPITAL_ADMIN',
-      createdAt: new Date().toISOString()
-    };
-    db.createUser(newUser);
-    FirebaseAuthService.registerUser(newUser.email, newUser.password, newUser).catch(() => {});
-
-    const newHospitalAccount: HospitalAccount = {
-      id: hospitalId,
-      userId: userId,
-      hospitalName: data.hospitalName.trim(),
-      registrationId: data.registrationId.trim(),
-      address: data.address.trim(),
-      city: data.city.trim(),
-      location: data.location.trim(),
-      emergencyContact: data.emergencyContact.trim(),
-      email: data.email.trim().toLowerCase(),
-      ambulanceAvailable: data.ambulanceAvailable,
-      coordinates: coords,
-      departments: data.departments || ['Emergency & Trauma', 'General Medicine', 'Cardiology', 'ICU'],
-      linkedHospitalId: hospitalId,
-      createdAt: new Date().toISOString()
-    };
-    
-    // Persist to Cloud Database Service
-    const regResult = await cloudDataService.registerHospital(newHospitalAccount, newUser);
-    if (!regResult.success) {
-      return { success: false, message: regResult.error || 'Failed to create hospital account in database.' };
-    }
+    const newUser = res.user;
+    const newHospitalAccount = res.hospitalAccount;
 
     setCurrentUser(newUser);
     setHospitalAccount(newHospitalAccount);
@@ -490,11 +339,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'HOSPITAL_ADMIN',
       'LOGIN',
       'HospitalAccount',
-      hospitalId,
-      `Hospital registered: ${data.hospitalName} (Unique ID: ${hospitalId}, Reg: ${data.registrationId})`
+      res.hospitalId || newHospitalAccount.id,
+      `Hospital registered centrally: ${data.hospitalName} (ID: ${res.hospitalId || newHospitalAccount.id})`
     );
 
-    return { success: true, hospitalId: hospitalId };
+    return { success: true, hospitalId: res.hospitalId || newHospitalAccount.id };
   };
 
   // Role switching is strictly disabled; role is determined solely by authenticated credentials
@@ -516,6 +365,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     }
     setIsAuthenticated(false);
+    centralAuthService.clearSession();
     FirebaseAuthService.logout().catch(() => {});
     setCurrentUser(null);
     setPatientProfile(undefined);

@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "migrate:firebase": "tsx --env-file=.env scripts/migrate_supabase_to_firebase.ts",
-    "verify:firebase": "tsx --env-file=.env scratch/verify_firebase_integration.ts"
+    "verify:firebase": "tsx --env-file=.env scratch/verify_firebase_integration.ts",
+    "test:auth": "node test_central_api.mjs && node test_hospital_auth.mjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
