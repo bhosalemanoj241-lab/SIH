@@ -10,7 +10,7 @@ import {
 import { db } from '../../services/mockDatabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
-import { cloudDataService, syncRelay } from '../../services/supabaseService';
+import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { PatientProfile, ClinicalSession, MedicalDocument, Hospital, AccessRequest } from '../../types';
 
 interface BedCategory {
@@ -73,8 +73,8 @@ export const HospitalPortalSuite: React.FC = () => {
   const [admissionType, setAdmissionType] = useState<'OPD' | 'EMERGENCY' | 'ICU' | 'DAYCARE'>('EMERGENCY');
   const [admissionDept, setAdmissionDept] = useState('Emergency Medicine / Trauma');
 
-  const currentHospitalId = hospitalAccount?.id || currentUser?.id || 'HOSP-2026-00101';
-  const currentHospitalName = hospitalAccount?.hospitalName || currentUser?.fullName || 'Apex Super Speciality Hospital';
+  const currentHospitalId = hospitalAccount?.id || currentUser?.id || '';
+  const currentHospitalName = hospitalAccount?.hospitalName || currentUser?.fullName || 'Hospital Facility';
 
   // Real-time listener for permission approval/denial from patient device
   useEffect(() => {
@@ -299,14 +299,19 @@ export const HospitalPortalSuite: React.FC = () => {
   // ==========================================
   // 3. SPECIALIST & DOCTOR ROSTER STATE
   // ==========================================
-  const [doctors, setDoctors] = useState<OnDutyDoctor[]>([
-    { id: 'doc-1', name: 'Dr. Anand Deshmukh, MD', specialty: 'Emergency & Critical Care', department: 'ER / Trauma', phone: '+91 98220 11928', activePatients: 6, status: 'ON_DUTY', shift: 'Morning (08:00 - 16:00)' },
-    { id: 'doc-2', name: 'Dr. Neha Kulkarni, DM', specialty: 'Interventional Cardiology', department: 'Cath Lab / CCU', phone: '+91 98231 88472', activePatients: 4, status: 'ON_DUTY', shift: 'Morning (08:00 - 16:00)' },
-    { id: 'doc-3', name: 'Dr. Sameer Patil, MCh', specialty: 'Neurotrauma & Spine', department: 'Neurosurgery', phone: '+91 98501 33918', activePatients: 2, status: 'IN_SURGERY', shift: 'On Call (24 Hours)' },
-    { id: 'doc-4', name: 'Dr. Pooja Sawant, DNB', specialty: 'Pulmonology & ICU', department: 'Respiratory ICU', phone: '+91 97630 44819', activePatients: 5, status: 'ON_DUTY', shift: 'Morning (08:00 - 16:00)' },
-    { id: 'doc-5', name: 'Dr. Rajesh Verma, MS', specialty: 'Orthopedics & Polytrauma', department: 'Trauma Surgery', phone: '+91 98901 66291', activePatients: 3, status: 'ON_CALL', shift: 'Evening (16:00 - 00:00)' },
-    { id: 'doc-6', name: 'Dr. Shalini Mehta, MD', specialty: 'Pediatric Emergency', department: 'NICU / PICU', phone: '+91 98229 55018', activePatients: 4, status: 'ON_DUTY', shift: 'Morning (08:00 - 16:00)' },
-  ]);
+  const [doctors, setDoctors] = useState<OnDutyDoctor[]>(() => {
+    const regDoctors = db.getDoctors().filter(d => !currentHospitalId || d.hospitalId === currentHospitalId);
+    return regDoctors.map(d => ({
+      id: d.id,
+      name: d.doctorName || 'Registered Doctor',
+      specialty: d.specialization || 'General Medicine',
+      department: d.departmentName || 'Clinical Department',
+      phone: d.phone || '+91 98000 00000',
+      activePatients: d.activePatientsCount || 0,
+      status: (d.isAvailable ? 'ON_DUTY' : 'ON_CALL') as 'ON_DUTY' | 'ON_CALL' | 'IN_SURGERY',
+      shift: 'Day Shift (08:00 - 16:00)'
+    }));
+  });
 
   const toggleDoctorStatus = (id: string) => {
     setDoctors(prev => prev.map(d => {
@@ -331,7 +336,7 @@ export const HospitalPortalSuite: React.FC = () => {
       patientName: p.fullName || 'Registered Patient',
       testName: idx === 0 ? 'Cardiac Troponin I & 12-Lead ECG' : idx === 1 ? 'Complete Blood Count & Serum Electrolytes' : idx === 2 ? 'Chest CT Angiography (HRCT)' : 'Comprehensive Metabolic Panel',
       department: idx === 0 ? 'CARDIOLOGY' : idx === 1 ? 'PATHOLOGY' : idx === 2 ? 'RADIOLOGY' : 'BIOCHEMISTRY',
-      orderedBy: 'Dr. Anand Deshmukh, MD',
+      orderedBy: currentUser?.fullName || 'Attending Physician',
       orderedAt: `${(idx + 1) * 10} mins ago`,
       urgency: idx === 0 ? 'STAT' : 'ROUTINE',
       status: 'IN_PROGRESS'
@@ -375,7 +380,7 @@ export const HospitalPortalSuite: React.FC = () => {
                 Hospital Operations Hub
               </span>
               <span className="text-[10px] text-teal-200/80 font-mono">
-                NABH &amp; ABDM HFR: HOSP-IN-98204
+                {hospitalAccount?.registrationId ? `ABDM HFR: ${hospitalAccount.registrationId}` : 'Verified ABDM Healthcare Facility'}
               </span>
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> Live Operations
@@ -384,7 +389,7 @@ export const HospitalPortalSuite: React.FC = () => {
 
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
               <Building2 className="w-8 h-8 text-teal-400" />
-              <span>{hospitalAccount?.hospitalName || 'MediBridge General & Trauma Hospital'}</span>
+              <span>{hospitalAccount?.hospitalName || currentHospitalName || 'Hospital Command Facility'}</span>
             </h2>
 
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">

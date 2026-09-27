@@ -71,7 +71,7 @@ export const EmergencyCommandCenter: React.FC = () => {
               ER Bay Occupancy
             </span>
             <span className="text-2xl font-black text-slate-900 font-mono mt-1 block">
-              {activeHospital.emergencyCapacityOccupied} / {activeHospital.emergencyCapacityTotal}
+              {activeHospital ? `${activeHospital.emergencyCapacityOccupied} / ${activeHospital.emergencyCapacityTotal}` : '0 / 0'}
             </span>
           </div>
           <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl">
@@ -85,7 +85,7 @@ export const EmergencyCommandCenter: React.FC = () => {
               ICU Beds Available
             </span>
             <span className="text-2xl font-black text-teal-700 font-mono mt-1 block">
-              {activeHospital.icuBedsAvailable} Beds
+              {activeHospital ? `${activeHospital.icuBedsAvailable} Beds` : '0 Beds'}
             </span>
           </div>
           <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl">
@@ -99,7 +99,7 @@ export const EmergencyCommandCenter: React.FC = () => {
               General Ward Beds
             </span>
             <span className="text-2xl font-black text-slate-900 font-mono mt-1 block">
-              {activeHospital.generalBedsAvailable} Beds
+              {activeHospital ? `${activeHospital.generalBedsAvailable} Beds` : '0 Beds'}
             </span>
           </div>
           <div className="p-3 bg-slate-100 text-slate-600 rounded-2xl">
@@ -123,68 +123,78 @@ export const EmergencyCommandCenter: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {alerts.map(a => {
-              const isSelected = selectedAlert?.id === a.id;
-              return (
-                <div
-                  key={a.id}
-                  onClick={() => setSelectedAlert(a)}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col justify-between gap-2 shadow-sm ${
-                    isSelected
-                      ? 'bg-red-50/70 border-red-500 ring-2 ring-red-500/30'
-                      : 'bg-white border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
-                        {a.patientName} ({a.patientAge}y • {a.patientGender})
-                      </h4>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                        Alert ID: {a.id}
-                      </p>
-                    </div>
-                    <span className="bg-red-600 text-white font-black text-[9px] uppercase px-2 py-0.5 rounded animate-pulse shadow-sm">
-                      {a.priority} STAT
-                    </span>
-                  </div>
-
-                  {a.originalMessage ? (
-                    <div className="space-y-1">
-                      <p className="text-xs text-red-800 font-medium line-clamp-2 italic">
-                        "{a.originalMessage}"
-                      </p>
-                      <div className="flex items-center gap-1.5 text-[10px] text-teal-800">
-                        <span className="bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 font-mono font-bold">
-                          {a.detectedLanguage ? a.detectedLanguage.toUpperCase() : 'EN'}
-                        </span>
-                        <span className="text-slate-400">•</span>
-                        <span className="truncate font-semibold">{a.detectedEmergencyConcern || a.triggerReason}</span>
+            {alerts.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-2">
+                <Siren className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-semibold text-slate-700">No active emergency alerts in queue.</p>
+                <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                  When patient intake or ER dispatch triggers an emergency, real-time telemetry will appear here instantly.
+                </p>
+              </div>
+            ) : (
+              alerts.map(a => {
+                const isSelected = selectedAlert?.id === a.id;
+                return (
+                  <div
+                    key={a.id}
+                    onClick={() => setSelectedAlert(a)}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col justify-between gap-2 shadow-sm ${
+                      isSelected
+                        ? 'bg-red-50/70 border-red-500 ring-2 ring-red-500/30'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {a.patientName} ({a.patientAge}y • {a.patientGender})
+                        </h4>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                          Alert ID: {a.id}
+                        </p>
                       </div>
+                      <span className="bg-red-600 text-white font-black text-[9px] uppercase px-2 py-0.5 rounded animate-pulse shadow-sm">
+                        {a.priority} STAT
+                      </span>
                     </div>
-                  ) : (
-                    <p className="text-xs text-red-800 font-medium line-clamp-2">
-                      {a.triggerReason}
-                    </p>
-                  )}
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-[11px]">
-                    <span className="text-slate-600">
-                      ETA: <span className="font-bold text-slate-900">{a.ambulanceAssigned?.etaMinutes || 5} mins</span>
-                    </span>
-                    <span className="text-teal-700 font-bold uppercase">
-                      {a.status.replace(/_/g, ' ')}
-                    </span>
+                    {a.originalMessage ? (
+                      <div className="space-y-1">
+                        <p className="text-xs text-red-800 font-medium line-clamp-2 italic">
+                          "{a.originalMessage}"
+                        </p>
+                        <div className="flex items-center gap-1.5 text-[10px] text-teal-800">
+                          <span className="bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 font-mono font-bold">
+                            {a.detectedLanguage ? a.detectedLanguage.toUpperCase() : 'EN'}
+                          </span>
+                          <span className="text-slate-400">•</span>
+                          <span className="truncate font-semibold">{a.detectedEmergencyConcern || a.triggerReason}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-800 font-medium line-clamp-2">
+                        {a.triggerReason}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-[11px]">
+                      <span className="text-slate-600">
+                        ETA: <span className="font-bold text-slate-900">{a.ambulanceAssigned?.etaMinutes || 5} mins</span>
+                      </span>
+                      <span className="text-teal-700 font-bold uppercase">
+                        {a.status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
         {/* Right: Selected Alert Live Detail & Telemetry Map */}
         <div className="lg:col-span-2 space-y-6">
-          {selectedAlert && (
+          {selectedAlert ? (
             <>
               <AmbulanceDispatchMap alert={selectedAlert} />
 
@@ -226,6 +236,14 @@ export const EmergencyCommandCenter: React.FC = () => {
                 </div>
               </div>
             </>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400 space-y-3 shadow-sm">
+              <Activity className="w-12 h-12 text-slate-300 mx-auto" />
+              <h4 className="font-bold text-slate-800 text-base">Live Emergency Telemetry Feed</h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                No active emergency dispatch selected. When a patient triggers a STAT emergency or ambulance dispatch, the live route map, real-time vitals telemetry, and ER bay handover controls will appear here.
+              </p>
+            </div>
           )}
         </div>
       </div>

@@ -107,7 +107,7 @@ export const EmergencyStatusCard: React.FC<EmergencyStatusCardProps> = ({
     const pId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
     const currentAlert = alertId
       ? alerts.find(a => a.id === alertId)
-      : alerts.find(a => (a.patientId === pId || a.patientName === currentUser?.fullName) && a.status !== 'RESOLVED') || alerts[0];
+      : alerts.find(a => (a.patientId === pId || a.patientName === currentUser?.fullName) && a.status !== 'RESOLVED');
 
     if (currentAlert) {
       setAlert(currentAlert);
@@ -254,7 +254,7 @@ export const EmergencyStatusCard: React.FC<EmergencyStatusCardProps> = ({
                     {isActiveSiren ? `🚨 ${t('emergency_active')}` : '🟢 AMBULANCE ARRIVED — RESPONSE RESOLVED'}
                   </span>
                   <span className="text-xs text-red-700 font-mono font-semibold">
-                    CODE: {alert.triggerReason.split(' ')[0] || 'RED'}
+                    CODE: {alert.triggerReason ? (alert.triggerReason.split(' ')[0] || 'RED') : 'RED'}
                   </span>
                   {alert.detectedLanguage && (
                     <span className="text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded uppercase">

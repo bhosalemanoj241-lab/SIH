@@ -188,6 +188,115 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
           )}
         </div>
 
+        {/* 🌿 Ayurvedic Dashavidha Pariksha Clinical Panel (Rendered for Ayurveda or when present) */}
+        {summary.dashavidhaPariksha && (
+          <div className="bg-gradient-to-br from-emerald-50/80 via-teal-50/50 to-amber-50/30 p-5 rounded-2xl border border-emerald-200 space-y-3.5 shadow-sm">
+            <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-emerald-600 text-white rounded-lg text-xs shadow-sm">🌿</span>
+                <div>
+                  <h4 className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider">
+                    Ayurvedic Clinical Intake: दशविध परीक्षा (Dashavidha Pariksha)
+                  </h4>
+                  <p className="text-[11px] text-emerald-800">
+                    Ten-fold classical clinical diagnostic assessment &amp; doshic evaluation
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
+                AYUSH Verified Schema
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+              <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">1. प्रकृति (Prakriti / Base Constitution)</span>
+                <span className="font-bold text-slate-900 mt-0.5 block">{summary.dashavidhaPariksha.prakriti || 'Sama Prakriti'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-amber-200 shadow-2xs">
+                <span className="text-[10px] font-bold text-amber-800 uppercase block">2. विकृति (Vikriti / Dosha Imbalance)</span>
+                <span className="font-bold text-amber-950 mt-0.5 block">{summary.dashavidhaPariksha.vikriti || 'Moderate Vitiation'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">3. सार (Sara / Tissue Essence)</span>
+                <span className="font-bold text-slate-900 mt-0.5 block">{summary.dashavidhaPariksha.sara || 'Madhyama Sara'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">4. संहनन (Samhanana / Compactness)</span>
+                <span className="font-bold text-slate-900 mt-0.5 block">{summary.dashavidhaPariksha.samhanana || 'Madhyama Samhanana'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">5. प्रमाण (Pramana / Anthropometrics)</span>
+                <span className="font-bold text-slate-900 mt-0.5 block">{summary.dashavidhaPariksha.pramana || 'Pramana Yukta'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">6. सात्म्य (Satmya / Habituation)</span>
+                <span className="font-bold text-slate-900 mt-0.5 block">{summary.dashavidhaPariksha.satmya || 'Mishra Satmya'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">7. सत्त्व (Sattva / Mental Resilience)</span>
+                <span className="font-bold text-slate-900 mt-0.5 block">{summary.dashavidhaPariksha.sattva || 'Madhyama Sattva'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-teal-200 shadow-2xs">
+                <span className="text-[10px] font-bold text-teal-800 uppercase block">8. आहार शक्ति (Ahara Shakti / Agni & Digestion)</span>
+                <span className="font-bold text-teal-950 mt-0.5 block">{summary.dashavidhaPariksha.aharaShakti || 'Mandagni'}</span>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">9. व्यायाम शक्ति (Vyayama / Endurance)</span>
+                <span className="font-bold text-slate-900 mt-0.5 block">{summary.dashavidhaPariksha.vyayamaShakti || 'Madhyama'}</span>
+              </div>
+            </div>
+
+            {summary.dashavidhaPariksha.aharaViharaNotes && (
+              <div className="p-3 bg-white/90 rounded-xl border border-emerald-100 text-xs text-slate-700">
+                <span className="font-bold text-emerald-900 block mb-0.5">आहार-विहार (Dietary & Circadian Lifestyle Observations):</span>
+                <span>{summary.dashavidhaPariksha.aharaViharaNotes}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Systemic Involvement & Differential Considerations */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {summary.suspectedSystemicInvolvement && summary.suspectedSystemicInvolvement.length > 0 && (
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider mb-2">
+                {summary.medicalSystem === 'AYURVEDA' ? 'Involved Srotas (स्रोतस)' : 'Systemic Involvement'}
+              </h4>
+              <div className="flex flex-wrap gap-1.5">
+                {summary.suspectedSystemicInvolvement.map((sys, idx) => (
+                  <span key={idx} className="text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 px-2.5 py-1 rounded-lg">
+                    {sys}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {summary.differentialConsiderations && summary.differentialConsiderations.length > 0 && (
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider mb-2">
+                {summary.medicalSystem === 'AYURVEDA' ? 'Differential Vyadhi (व्याधि विमर्श)' : 'Differential Considerations'}
+              </h4>
+              <ul className="text-xs text-slate-700 space-y-1 list-disc list-inside">
+                {summary.differentialConsiderations.map((diff, idx) => (
+                  <li key={idx} className="font-medium text-slate-800">
+                    {diff}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
         {/* Doctor Consultation Notes & Clinical Additions */}
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
           <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">

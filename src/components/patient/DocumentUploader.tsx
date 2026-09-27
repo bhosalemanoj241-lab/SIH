@@ -6,6 +6,8 @@ import {
 import { MedicalDocument, DocumentExtraction, LabResultItem } from '../../types';
 import { OCRService } from '../../services/ocrService';
 import { db } from '../../services/mockDatabase';
+import { FirebaseStorageService } from '../../services/firebaseStorageService';
+import { cloudDataService } from '../../services/firebaseService';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { Modal } from '../common/Modal';
@@ -26,7 +28,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
     setIsUploading(true);
     showToast('OCR Processing', `Extracting medical entities from ${file.name}...`, 'INFO');
 
-    const patientId = patientProfile?.id || patientProfile?.patientId || (currentUser ? `pat-${currentUser.id}` : 'pat-001');
+    const patientId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
 
     try {
       const { document, timelineEvents } = await OCRService.processDocument(
@@ -34,7 +36,14 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
         patientId
       );
 
-      // Save to database
+      // 1. Upload to Firebase Storage
+      const storageMeta = await FirebaseStorageService.uploadMedicalDocument(file, patientId);
+      if (storageMeta?.downloadUrl) {
+        document.fileUrl = storageMeta.downloadUrl;
+      }
+
+      // 2. Save to Firebase Firestore & local database
+      await cloudDataService.saveMedicalDocument(document);
       db.addDocument(document);
       timelineEvents.forEach(evt => db.addTimelineEvent(evt));
       db.logAction(
@@ -70,7 +79,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
     }
   };
 
-  const patientId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : 'pat-user');
+  const patientId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
   const existingDocs = db.getDocuments(patientId);
 
   return (

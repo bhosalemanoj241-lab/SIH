@@ -34,11 +34,17 @@ export const ConsentManager: React.FC = () => {
   };
 
   const handleGrantConsent = (scope: ConsentRecord['scope']) => {
+    const regHospitals = db.getHospitals();
+    if (regHospitals.length === 0) {
+      showToast('No Hospitals Registered', 'Consent can only be granted to registered healthcare facilities. Please wait until a hospital registers.', 'INFO');
+      return;
+    }
+    const targetHosp = regHospitals[0];
     const newConsent: ConsentRecord = {
       id: `cns-${Date.now()}`,
       patientId: patientId,
-      hospitalId: 'hosp-001',
-      hospitalName: 'Apex Super Speciality Hospital',
+      hospitalId: targetHosp.id,
+      hospitalName: targetHosp.name,
       scope,
       grantedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString(), // 1 year

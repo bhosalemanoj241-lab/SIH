@@ -205,7 +205,7 @@ export const SharedPatientsPanel: React.FC<SharedPatientsPanelProps> = ({ hospit
 
   const filtered = searchQuery.trim()
     ? authorizedPatients.filter(p =>
-        p.user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.user?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.profile.patientId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.profile.city?.toLowerCase().includes(searchQuery.toLowerCase())
       )

@@ -125,6 +125,16 @@ function setPersistedCache<T>(key: string, items: T[]): void {
 }
 
 const FAKE_PATIENT_IDS = ['MB-2026-7F42K9', 'MB-2026-38491A', 'MB-2026-99210B', 'MB-2026-44109C'];
+const FAKE_HOSPITAL_IDS = [
+  'HOSP-2026-00101', 'HOSP-2026-00102', 'HOSP-2026-00103', 'HOSP-2026-00104',
+  'HOSP-2026-00105', 'HOSP-2026-00106', 'HOSP-2026-00107', 'HOSP-2026-00108',
+  'hosp-001', 'hosp-002', 'hosp-003', 'hacct-001', 'hacct-002', 'hacct-003'
+];
+const FAKE_HOSPITAL_KEYWORDS = [
+  'apex super speciality', 'king edward memorial', 'mimer general',
+  'ruby hall clinic', 'jehangir hospital', 'deenanath mangeshkar', 'sancheti institute',
+  'all india institute of medical sciences'
+];
 
 class CloudDatabaseEngine {
   private static instance: CloudDatabaseEngine;
@@ -143,7 +153,14 @@ class CloudDatabaseEngine {
   private constructor() {
     const rawPatients = getPersistedCache<CloudPatientRecord>(LOCAL_PERSIST_KEYS.PATIENTS);
     this.patientsCache = rawPatients.filter(p => !FAKE_PATIENT_IDS.includes(p.patientId));
-    this.hospitalsCache = getPersistedCache<CloudHospitalRecord>(LOCAL_PERSIST_KEYS.HOSPITALS);
+    const rawHospitals = getPersistedCache<CloudHospitalRecord>(LOCAL_PERSIST_KEYS.HOSPITALS);
+    this.hospitalsCache = rawHospitals.filter(h => {
+      const id = (h.hospitalId || h.id || '').toUpperCase();
+      const name = (h.hospitalName || '').toLowerCase();
+      const isFakeId = FAKE_HOSPITAL_IDS.some(f => f.toUpperCase() === id);
+      const isFakeName = FAKE_HOSPITAL_KEYWORDS.some(k => name.includes(k));
+      return !isFakeId && !isFakeName;
+    });
     this.accessRequestsCache = getPersistedCache<CloudAccessRequestRecord>(LOCAL_PERSIST_KEYS.REQUESTS);
     this.trustedHospitalsCache = getPersistedCache<CloudTrustedHospitalRecord>(LOCAL_PERSIST_KEYS.TRUSTED);
     this.sessionsCache = getPersistedCache<ClinicalSession>(LOCAL_PERSIST_KEYS.SESSIONS);
@@ -172,8 +189,8 @@ class CloudDatabaseEngine {
         body: JSON.stringify({ type, data, ts: Date.now() })
       });
       return res.ok;
-    } catch (err) {
-      console.warn('[CloudDB Event Publish Error]:', err);
+    } catch (err: any) {
+      console.warn('[CloudDB Event Publish Error]:', err?.message || 'Network offline');
       return false;
     }
   }
@@ -316,8 +333,8 @@ class CloudDatabaseEngine {
         });
       }
       this.isInitialized = true;
-    } catch (err) {
-      console.warn('[CloudDB syncAll error]:', err);
+    } catch (err: any) {
+      console.warn('[CloudDB syncAll error]:', err?.message || 'Network offline');
     }
   }
 
@@ -437,7 +454,10 @@ class CloudDatabaseEngine {
     // 3. Fallback: try serverless /api/search endpoint
     try {
       if (typeof window !== 'undefined' && window.location) {
-        const res = await fetch(`/api/search?patientId=${encodeURIComponent(cleanId)}`);
+        const queryParam = cleanId.includes('@')
+          ? `q=${encodeURIComponent(cleanId.toLowerCase())}`
+          : `patientId=${encodeURIComponent(cleanId)}`;
+        const res = await fetch(`/api/search?${queryParam}`);
         if (res.ok) {
           const data = await res.json();
           if (data?.success && data?.patient) {
@@ -463,7 +483,9 @@ class CloudDatabaseEngine {
     const clean = identifier.trim();
 
     // 1. Try finding patient by Patient ID, email, ABHA, phone
-    const patient = await this.findPatientById(clean) || await this.findPatientByEmail(clean);
+    const patient = clean.includes('@')
+      ? ((await this.findPatientByEmail(clean)) || (await this.findPatientById(clean)))
+      : ((await this.findPatientById(clean)) || (await this.findPatientByEmail(clean)));
     if (patient) {
       const user = {
         id: patient.userId || `usr-${patient.patientId}`,
@@ -500,7 +522,13 @@ class CloudDatabaseEngine {
   // ==========================================
   public async getHospitals(): Promise<CloudHospitalRecord[]> {
     await this.syncAll();
-    return this.hospitalsCache;
+    return this.hospitalsCache.filter(h => {
+      const id = (h.hospitalId || h.id || '').toUpperCase();
+      const name = (h.hospitalName || '').toLowerCase();
+      const isFakeId = FAKE_HOSPITAL_IDS.some(f => f.toUpperCase() === id);
+      const isFakeName = FAKE_HOSPITAL_KEYWORDS.some(k => name.includes(k));
+      return !isFakeId && !isFakeName;
+    });
   }
 
   public async saveHospital(hospital: CloudHospitalRecord): Promise<boolean> {

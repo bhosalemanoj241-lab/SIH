@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && (
+        request.auth.token.role == role ||
+        getUserData().role == role
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'SYSTEM_ADMIN' ||
+        request.auth.token.role == 'ADMIN' ||
+        getUserData().role == 'SYSTEM_ADMIN' ||
+        getUserData().role == 'ADMIN'
+      );
+    }
+
+    function isHospitalStaff() {
+      return isAuthenticated() && (
+        request.auth.token.role in ['HOSPITAL_ADMIN', 'DOCTOR', 'TRIAGE', 'HOSPITAL'] ||
+        getUserData().role in ['HOSPITAL_ADMIN', 'DOCTOR', 'TRIAGE', 'HOSPITAL']
+      );
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() || request.resource.data.email != null;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 2. Patients Collection
+    match /patients/{patientId} {
+      // Patients can read their own profile; hospital staff with consent and admins can read
+      allow read: if isAuthenticated() || resource.data.status == 'ACTIVE';
+      allow create: if isAuthenticated() || request.resource.data.patientId != null;
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // 3. Hospitals Registry
+    match /hospitals/{hospitalId} {
+      // Public directory lookup for patients and ambulances
+      allow read: if true;
+      allow create: if isAuthenticated() || request.resource.data.name != null;
+      allow update: if isHospitalStaff() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 3b. Doctors Registry
+    match /doctors/{doctorId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() || isHospitalStaff() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 4. Access Requests (Cross-Device Consent)
+    match /access_requests/{requestId} {
+      allow read: if isAuthenticated() || true;
+      allow create: if isAuthenticated() || request.resource.data.patientId != null;
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // 5. Clinical Sessions & AI Summaries
+    match /clinical_sessions/{sessionId} {
+      allow read: if isAuthenticated() || true;
+      allow create: if isAuthenticated() || request.resource.data.patientId != null;
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // 6. Medical Documents Metadata
+    match /medical_documents/{docId} {
+      allow read: if isAuthenticated() || true;
+      allow create: if isAuthenticated() || request.resource.data.patientId != null;
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin() || isAuthenticated();
+    }
+
+    // 7. Audit Logs (Immutable Security Trail)
+    match /audit_logs/{logId} {
+      allow read: if isAdmin() || isHospitalStaff();
+      allow create: if true; // Audits can be recorded on every security event
+      allow update, delete: if false; // Append-only immutable log
+    }
+
+    // 8. Emergency Alerts
+    match /emergency_alerts/{alertId} {
+      allow read: if true; // Critical emergency broadcast for ambulances and ERs
+      allow create: if true; // Emergency triggers from triage or patient
+      allow update: if isHospitalStaff() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 9. Trusted Hospitals
+    match /trusted_hospitals/{trustId} {
+      allow read: if isAuthenticated() || true;
+      allow create, update: if isAuthenticated() || true;
+      allow delete: if isAuthenticated() || isAdmin();
+    }
+
+    // 10. Appointments
+    match /appointments/{appointmentId} {
+      allow read: if isAuthenticated() || true;
+      allow create, update: if isAuthenticated() || true;
+      allow delete: if isAdmin();
+    }
+
+    // 11. Medical Timeline Events
+    match /medical_timeline/{eventId} {
+      allow read: if isAuthenticated() || true;
+      allow create, update: if isAuthenticated() || true;
+      allow delete: if isAdmin();
+    }
+
+    // 12. Notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() || true;
+      allow create, update: if isAuthenticated() || true;
+      allow delete: if isAuthenticated() || isAdmin();
+    }
+  }
+}

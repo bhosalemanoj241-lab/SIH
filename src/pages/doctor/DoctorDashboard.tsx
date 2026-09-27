@@ -12,16 +12,19 @@ import { PreArrivalQueue } from '../../components/doctor/PreArrivalQueue';
 import { ClinicalReviewPanel } from '../../components/doctor/ClinicalReviewPanel';
 import { SharedPatientsPanel } from '../../components/doctor/SharedPatientsPanel';
 import { db } from '../../services/mockDatabase';
-import { cloudDataService } from '../../services/supabaseService';
-import { ClinicalSession, PatientProfile, MedicalDocument, TimelineEvent } from '../../types';
+import { cloudDataService } from '../../services/firebaseService';
+import { ClinicalSession, PatientProfile, MedicalDocument, TimelineEvent, Appointment } from '../../types';
 import { Modal } from '../../components/common/Modal';
 
 export const DoctorDashboard: React.FC = () => {
   const { currentUser, doctorProfile, hospitalAccount } = useAuth();
   const { showToast } = useNotification();
   const [sessions, setSessions] = useState<ClinicalSession[]>(() => db.getClinicalSessions());
+  const [appointments, setAppointments] = useState<Appointment[]>(() => db.getAppointments());
+  const [aptStatusFilter, setAptStatusFilter] = useState<string>('ALL');
+  const [aptDateFilter, setAptDateFilter] = useState<string>('ALL');
 
-  const [activeTab, setActiveTab] = useState<'QUEUE' | 'SEARCH' | 'SHARED_PATIENTS'>(() => {
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'SEARCH' | 'SHARED_PATIENTS' | 'APPOINTMENTS'>(() => {
     // Default to SHARED_PATIENTS tab if user is a hospital portal admin with no doctor profile
     return hospitalAccount && !doctorProfile ? 'SHARED_PATIENTS' : 'QUEUE';
   });
@@ -51,6 +54,7 @@ export const DoctorDashboard: React.FC = () => {
   useEffect(() => {
     const handleDbUpdate = () => {
       setSessions(db.getClinicalSessions());
+      setAppointments(db.getAppointments());
       // Refresh active search result if open
       if (searchResult?.patient) {
         const p = searchResult.patient;
@@ -73,6 +77,62 @@ export const DoctorDashboard: React.FC = () => {
       window.removeEventListener('medibridge_db_reset', handleDbUpdate);
     };
   }, [searchResult?.patient]);
+
+  const myAppointments = appointments.filter(a => {
+    if (doctorProfile) {
+      const matchDocId = a.doctorId && a.doctorId === doctorProfile.id;
+      const matchDocName = a.doctorName && doctorProfile.doctorName && a.doctorName.toLowerCase().includes(doctorProfile.doctorName.toLowerCase());
+      const matchHosp = a.hospitalId === doctorProfile.hospitalId;
+      return matchDocId || matchDocName || matchHosp;
+    }
+    if (hospitalAccount) {
+      return a.hospitalId === hospitalAccount.id;
+    }
+    return true;
+  });
+
+  const filteredAppointments = myAppointments.filter(a => {
+    const matchesStatus = aptStatusFilter === 'ALL' || a.status === aptStatusFilter;
+    const today = new Date().toISOString().split('T')[0];
+    const matchesDate = aptDateFilter === 'ALL' ||
+      (aptDateFilter === 'TODAY' && a.date === today) ||
+      (aptDateFilter === 'UPCOMING' && a.date >= today);
+    return matchesStatus && matchesDate;
+  });
+
+  const handleUpdateAppointmentStatus = (id: string, newStatus: Appointment['status']) => {
+    db.updateAppointmentStatus(id, newStatus);
+    setAppointments(db.getAppointments());
+    showToast('Appointment Updated', `Status updated to ${newStatus}.`, 'VERIFICATION');
+  };
+
+  const handleOpenPatientFromAppointment = async (patientId: string) => {
+    setSearchPatientId(patientId);
+    setActiveTab('SEARCH');
+    const trimmed = patientId.trim().toUpperCase();
+    let patient = await cloudDataService.findPatientByPatientId(trimmed);
+    if (!patient) {
+      patient = db.getPatientByPatientId(trimmed) || db.getPatientById(trimmed);
+    }
+    if (patient) {
+      const patientSessions = db.getClinicalSessionsForPatient(patient.patientId);
+      const patientDocs = db.getDocuments(patient.patientId);
+      const patientTimeline = db.getTimeline(patient.patientId);
+      const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
+      const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);
+      const isAuthorized = authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
+
+      setSearchResult({
+        found: true,
+        patient,
+        hasConsent: isAuthorized,
+        sessions: patientSessions,
+        documents: patientDocs,
+        timeline: patientTimeline
+      });
+      showToast('Patient Record Opened', `Loaded clinical dossier for ${patient.fullName || patient.patientId}.`, 'INFO');
+    }
+  };
 
   const handleSearchPatient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +161,7 @@ export const DoctorDashboard: React.FC = () => {
     const patientTimeline = db.getTimeline(patient.patientId);
 
     // Check ABDM Consent / Trusted Hospital Authorization from live Cloud and DB
-    const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || 'HOSP-2026-00101';
+    const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
     const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);
     const isAuthorized = authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
 
@@ -138,9 +198,9 @@ export const DoctorDashboard: React.FC = () => {
 
   const handleRequestPatientAccess = async (patient: PatientProfile) => {
     setRequestPending(true);
-    const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || 'HOSP-2026-00101';
-    const doctorHospitalName = doctorProfile?.hospitalName || hospitalAccount?.hospitalName || 'Apex Super Speciality Hospital';
-    const doctorName = currentUser?.fullName || 'Dr. Vikram Deshmukh, MD';
+    const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
+    const doctorHospitalName = doctorProfile?.hospitalName || hospitalAccount?.hospitalName || 'Clinical Facility';
+    const doctorName = currentUser?.fullName || 'Attending Physician';
 
     try {
       await cloudDataService.createAccessRequest({
@@ -255,6 +315,16 @@ export const DoctorDashboard: React.FC = () => {
             <Building2 className="w-3.5 h-3.5 text-teal-600" />
             <span>Shared Patients / Records</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('APPOINTMENTS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'APPOINTMENTS' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>OPD Appointments ({myAppointments.length})</span>
+          </button>
         </div>
       </div>
 
@@ -305,7 +375,7 @@ export const DoctorDashboard: React.FC = () => {
                         const pSessions = db.getClinicalSessionsForPatient(patient.patientId);
                         const pDocs = db.getDocuments(patient.patientId);
                         const pTimeline = db.getTimeline(patient.patientId);
-                        const doctorHospitalId = doctorProfile?.hospitalId || 'HOSP-2026-00101';
+                        const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
                         const isAuthorized = db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
                         setSearchResult({
                           found: true,
@@ -622,6 +692,223 @@ export const DoctorDashboard: React.FC = () => {
       {/* Shared Patients View */}
       {activeTab === 'SHARED_PATIENTS' && (
         <SharedPatientsPanel hospitalAccountId={hospitalAccount?.id || doctorProfile?.hospitalId || 'hacct-001'} />
+      )}
+
+      {/* 📅 OPD Appointments Management View */}
+      {activeTab === 'APPOINTMENTS' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Total Booked</span>
+              <span className="text-2xl sm:text-3xl font-black text-slate-900">{myAppointments.length}</span>
+              <p className="text-[11px] text-slate-400 mt-1">Outpatient registrations</p>
+            </div>
+
+            <div className="bg-white border border-emerald-100 rounded-3xl p-5 shadow-sm">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block mb-1">Confirmed</span>
+              <span className="text-2xl sm:text-3xl font-black text-emerald-900">
+                {myAppointments.filter(a => a.status === 'CONFIRMED' || a.status === 'CHECKED_IN').length}
+              </span>
+              <p className="text-[11px] text-emerald-700 mt-1">Ready for consultation</p>
+            </div>
+
+            <div className="bg-white border border-blue-100 rounded-3xl p-5 shadow-sm">
+              <span className="text-xs font-bold text-blue-800 uppercase tracking-wider block mb-1">In Consultation</span>
+              <span className="text-2xl sm:text-3xl font-black text-blue-900">
+                {myAppointments.filter(a => a.status === 'IN_CONSULTATION').length}
+              </span>
+              <p className="text-[11px] text-blue-700 mt-1">Active patient visits</p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Completed</span>
+              <span className="text-2xl sm:text-3xl font-black text-slate-700">
+                {myAppointments.filter(a => a.status === 'COMPLETED').length}
+              </span>
+              <p className="text-[11px] text-slate-400 mt-1">Consultations signed</p>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-700 uppercase">Status:</span>
+              <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                {['ALL', 'CONFIRMED', 'CHECKED_IN', 'IN_CONSULTATION', 'COMPLETED', 'CANCELLED'].map(st => (
+                  <button
+                    key={st}
+                    onClick={() => setAptStatusFilter(st)}
+                    className={`px-3 py-1 rounded-lg font-bold transition ${
+                      aptStatusFilter === st
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {st.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-700 uppercase">Date:</span>
+              <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                {[
+                  { id: 'ALL', label: 'All Dates' },
+                  { id: 'TODAY', label: 'Today' },
+                  { id: 'UPCOMING', label: 'Upcoming' }
+                ].map(df => (
+                  <button
+                    key={df.id}
+                    onClick={() => setAptDateFilter(df.id)}
+                    className={`px-3 py-1 rounded-lg font-bold transition ${
+                      aptDateFilter === df.id
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {df.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Appointment Cards Stream */}
+          <div className="space-y-4">
+            {filteredAppointments.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400 space-y-2">
+                <Calendar className="w-10 h-10 text-slate-400 mx-auto" />
+                <h4 className="font-bold text-slate-700 text-sm">No OPD appointments matching criteria</h4>
+                <p className="text-xs text-slate-500">
+                  When patients book outpatient consultations online, their scheduled slots and tokens will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredAppointments.map(appt => {
+                  const isAyurveda = appt.medicalSystem === 'AYURVEDA';
+                  return (
+                    <div
+                      key={appt.id}
+                      className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 hover:border-slate-300 transition"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded font-mono">
+                              TOKEN: #{appt.id.slice(-4)}
+                            </span>
+                            {isAyurveda ? (
+                              <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                🌿 Ayush / Ayurveda
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full">
+                                🏥 Allopathy
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="font-extrabold text-slate-900 text-base">
+                            {appt.patientName}
+                          </h4>
+                          <p className="text-xs text-slate-500 font-mono mt-0.5">
+                            Patient ID: <strong className="text-slate-800">{appt.patientId}</strong>
+                          </p>
+                        </div>
+
+                        <span
+                          className={`text-xs px-2.5 py-1 rounded-xl font-bold uppercase border ${
+                            appt.status === 'CONFIRMED'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : appt.status === 'CHECKED_IN'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : appt.status === 'IN_CONSULTATION'
+                              ? 'bg-purple-50 text-purple-800 border-purple-200 animate-pulse'
+                              : appt.status === 'COMPLETED'
+                              ? 'bg-slate-100 text-slate-700 border-slate-300'
+                              : 'bg-red-50 text-red-700 border-red-200'
+                          }`}
+                        >
+                          {appt.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 text-xs">
+                        <div className="flex items-center justify-between text-slate-700 font-semibold">
+                          <span>Department: {appt.departmentName}</span>
+                          <span className="font-mono text-teal-700">{appt.timeSlot}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                          <span>Physician: <strong>{appt.doctorName || 'Duty Consultant'}</strong></span>
+                          <span>Date: {appt.date}</span>
+                        </div>
+                        {appt.notes && (
+                          <p className="text-[11px] text-slate-600 italic pt-1 border-t border-slate-200/60 mt-1">
+                            {appt.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Doctor Action Controls */}
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                        {appt.status === 'CONFIRMED' && (
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(appt.id, 'CHECKED_IN')}
+                            className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Check In</span>
+                          </button>
+                        )}
+
+                        {appt.status === 'CHECKED_IN' && (
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(appt.id, 'IN_CONSULTATION')}
+                            className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                          >
+                            <Stethoscope className="w-3.5 h-3.5" />
+                            <span>Start Consultation</span>
+                          </button>
+                        )}
+
+                        {appt.status === 'IN_CONSULTATION' && (
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(appt.id, 'COMPLETED')}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Mark Completed</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleOpenPatientFromAppointment(appt.patientId)}
+                          className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Records</span>
+                        </button>
+
+                        {appt.status !== 'CANCELLED' && appt.status !== 'COMPLETED' && (
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(appt.id, 'CANCELLED')}
+                            className="px-2.5 py-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl text-xs font-semibold transition ml-auto"
+                            title="Cancel Appointment"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Main Grid: Queue on Left (1 col) and Clinical Review on Right (2 cols) */}

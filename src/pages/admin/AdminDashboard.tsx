@@ -7,19 +7,23 @@ import {
   ExternalLink, UserCheck, Stethoscope, Clock
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { cloudDataService, syncRelay } from '../../services/supabaseService';
+import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { db } from '../../services/mockDatabase';
-import { PatientProfile, HospitalAccount, ClinicalSession } from '../../types';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
+import { PatientProfile, HospitalAccount, ClinicalSession, Appointment } from '../../types';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, currentRole } = useAuth();
 
   const [patients, setPatients] = useState<any[]>([]);
   const [hospitals, setHospitals] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'PATIENTS' | 'HOSPITALS' | 'ALL'>('ALL');
+  const [activeTab, setActiveTab] = useState<'PATIENTS' | 'HOSPITALS' | 'APPOINTMENTS' | 'ALL'>('ALL');
   const [patientSearch, setPatientSearch] = useState('');
   const [hospitalSearch, setHospitalSearch] = useState('');
+  const [appointmentSearch, setAppointmentSearch] = useState('');
+  const [appointmentStatusFilter, setAppointmentStatusFilter] = useState<'ALL' | 'CONFIRMED' | 'IN_CONSULTATION' | 'COMPLETED' | 'CANCELLED'>('ALL');
 
   // Selected entities for drilldown view
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
@@ -30,12 +34,117 @@ export const AdminDashboard: React.FC = () => {
   const loadAdminData = async () => {
     setIsLoading(true);
     try {
-      const [pts, hsps] = await Promise.all([
-        cloudDataService.getRegisteredPatients(),
-        cloudDataService.getRegisteredHospitals()
+      const [pts, hsps, cloudApts, cloudPatients, cloudHospitals] = await Promise.all([
+        cloudDataService.getRegisteredPatients().catch(() => []),
+        cloudDataService.getRegisteredHospitals().catch(() => []),
+        cloudDb.getAppointments().catch(() => []),
+        cloudDb.getPatients().catch(() => []),
+        cloudDb.getHospitals().catch(() => [])
       ]);
-      setPatients(pts || []);
-      setHospitals(hsps || []);
+
+      // Merge Patients from Firestore, CloudDb, and Local DB
+      const patientMap = new Map<string, any>();
+      (pts || []).forEach(p => patientMap.set(p.patientId || p.id, p));
+      (cloudPatients || []).forEach(p => {
+        if (!patientMap.has(p.patientId)) {
+          patientMap.set(p.patientId, {
+            id: p.id || `pat-${p.patientId}`,
+            patientId: p.patientId,
+            fullName: p.fullName || 'Registered Patient',
+            email: p.email,
+            phone: p.emergencyContactPhone || p.phone,
+            status: 'ACTIVE',
+            createdAt: p.createdAt || new Date().toISOString(),
+            city: p.city || 'Maharashtra',
+            gender: p.gender || 'FEMALE',
+            bloodGroup: p.bloodGroup || 'B+',
+            dob: p.dob,
+            age: p.age
+          });
+        }
+      });
+      db.getPatients().forEach(p => {
+        if (!patientMap.has(p.patientId)) {
+          patientMap.set(p.patientId, {
+            id: p.id,
+            patientId: p.patientId,
+            fullName: p.fullName || 'Registered Patient',
+            phone: p.emergencyContactPhone || p.phone,
+            city: p.city || 'Maharashtra',
+            gender: p.gender || 'FEMALE',
+            bloodGroup: p.bloodGroup || 'B+',
+            dob: p.dob,
+            status: 'ACTIVE',
+            createdAt: p.createdAt || new Date().toISOString()
+          });
+        }
+      });
+
+      // Merge Hospitals from Firestore, CloudDb, and Local DB
+      const hospitalMap = new Map<string, any>();
+      (hsps || []).forEach(h => hospitalMap.set(h.hospitalId || h.id, h));
+      (cloudHospitals || []).forEach(h => {
+        const hId = h.hospitalId || h.id;
+        if (!hospitalMap.has(hId)) {
+          hospitalMap.set(hId, {
+            id: h.id,
+            hospitalId: hId,
+            hospitalName: h.hospitalName,
+            registrationId: h.registrationId,
+            email: h.email,
+            phone: h.phone,
+            location: h.location,
+            city: h.city,
+            status: 'ACTIVE',
+            createdAt: h.createdAt || new Date().toISOString(),
+            ambulanceAvailable: h.ambulanceAvailable
+          });
+        }
+      });
+      db.getHospitalAccounts().forEach(h => {
+        const hId = h.id;
+        if (!hospitalMap.has(hId)) {
+          hospitalMap.set(hId, {
+            id: h.id,
+            hospitalId: h.id,
+            hospitalName: h.hospitalName,
+            registrationId: h.registrationId,
+            email: h.email,
+            phone: h.emergencyContact,
+            location: h.location,
+            city: h.city,
+            status: 'ACTIVE',
+            createdAt: h.createdAt || new Date().toISOString(),
+            ambulanceAvailable: h.ambulanceAvailable
+          });
+        }
+      });
+      db.getHospitals().forEach(h => {
+        if (!hospitalMap.has(h.id)) {
+          hospitalMap.set(h.id, {
+            id: h.id,
+            hospitalId: h.id,
+            hospitalName: h.name,
+            registrationId: h.code,
+            phone: h.phone,
+            location: h.address,
+            city: h.city,
+            status: 'ACTIVE',
+            createdAt: new Date().toISOString(),
+            ambulanceAvailable: true
+          });
+        }
+      });
+
+      // Merge Appointments
+      const localApts = db.getAppointments();
+      const mergedMap = new Map<string, Appointment>();
+      localApts.forEach(a => mergedMap.set(a.id, a));
+      (cloudApts || []).forEach(a => mergedMap.set(a.id, a));
+
+      setPatients(Array.from(patientMap.values()));
+      setHospitals(Array.from(hospitalMap.values()));
+      setAppointments(Array.from(mergedMap.values()));
     } catch (err) {
       console.error('[AdminDashboard Load Error]', err);
     } finally {
@@ -53,6 +162,9 @@ export const AdminDashboard: React.FC = () => {
     const unsubHospital = syncRelay.subscribe('hospital_registered', () => {
       loadAdminData();
     });
+    const unsubAppt = syncRelay.subscribe('SAVE_APPOINTMENT', () => {
+      loadAdminData();
+    });
 
     const handleLocalUpdate = () => loadAdminData();
     window.addEventListener('medibridge_db_update', handleLocalUpdate);
@@ -60,6 +172,7 @@ export const AdminDashboard: React.FC = () => {
     return () => {
       unsubPatient();
       unsubHospital();
+      unsubAppt();
       window.removeEventListener('medibridge_db_update', handleLocalUpdate);
     };
   }, []);
@@ -244,7 +357,7 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Overview & Navigation Tabs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         {/* PATIENTS Card Button */}
         <button
           type="button"
@@ -292,6 +405,31 @@ export const AdminDashboard: React.FC = () => {
           </div>
           <div className="w-14 h-14 rounded-2xl bg-blue-100 border border-blue-200 text-blue-800 flex items-center justify-center">
             <Building2 className="w-7 h-7" />
+          </div>
+        </button>
+
+        {/* APPOINTMENTS Card Button */}
+        <button
+          type="button"
+          onClick={() => setActiveTab(activeTab === 'APPOINTMENTS' ? 'ALL' : 'APPOINTMENTS')}
+          className={`p-6 rounded-3xl border-2 text-left transition-all duration-200 flex items-center justify-between shadow-sm ${
+            activeTab === 'APPOINTMENTS'
+              ? 'bg-purple-50/80 border-purple-500 shadow-md shadow-purple-500/10'
+              : 'bg-white border-slate-200 hover:border-purple-300'
+          }`}
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase font-bold text-purple-800 tracking-wider">APPOINTMENTS</span>
+              <span className="text-[10px] bg-purple-100 text-purple-800 font-mono px-2 py-0.5 rounded-full font-bold">
+                Outpatient Queue
+              </span>
+            </div>
+            <div className="text-3xl font-black text-slate-900">{appointments.length} Booked</div>
+            <p className="text-[11px] text-slate-500">Click to filter &amp; monitor consultations</p>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-purple-100 border border-purple-200 text-purple-800 flex items-center justify-center">
+            <Calendar className="w-7 h-7" />
           </div>
         </button>
       </div>
@@ -505,7 +643,172 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* =================================================================== */}
-      {/* 3. PATIENT DETAILS MODAL / DRAWER                                   */}
+      {/* 3. OPD APPOINTMENTS SECTION                                         */}
+      {/* =================================================================== */}
+      {(activeTab === 'ALL' || activeTab === 'APPOINTMENTS') && (
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-purple-600" />
+                <h3 className="font-extrabold text-slate-900 text-lg">Central OPD Appointments &amp; Consultations</h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Total Booked: <strong className="text-slate-900 font-mono">{appointments.length}</strong> • Filter and monitor live patient registrations, clinical assignments, and encounter progression.
+              </p>
+            </div>
+
+            <div className="w-full sm:w-80">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={appointmentSearch}
+                  onChange={e => setAppointmentSearch(e.target.value)}
+                  placeholder="Search Patient, Doctor, Token, Hospital..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Status Filter Chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(['ALL', 'CONFIRMED', 'IN_CONSULTATION', 'COMPLETED', 'CANCELLED'] as const).map(st => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setAppointmentStatusFilter(st)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition ${
+                  appointmentStatusFilter === st
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {st.replace(/_/g, ' ')}
+                {st !== 'ALL' && ` (${appointments.filter(a => a.status === st).length})`}
+              </button>
+            ))}
+          </div>
+
+          {appointments.length === 0 ? (
+            <div className="p-10 text-center space-y-2 bg-slate-50 border border-slate-200 rounded-2xl">
+              <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
+              <h4 className="font-bold text-slate-700 text-sm">No outpatient appointments booked yet.</h4>
+              <p className="text-xs text-slate-500">Appointments booked by patients will synchronize here in real time.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-400 uppercase font-bold text-[10px] tracking-wider">
+                    <th className="pb-3 px-3">Token / ID</th>
+                    <th className="pb-3 px-3">Patient</th>
+                    <th className="pb-3 px-3">Doctor &amp; Department</th>
+                    <th className="pb-3 px-3">Hospital</th>
+                    <th className="pb-3 px-3">System</th>
+                    <th className="pb-3 px-3">Date &amp; Slot</th>
+                    <th className="pb-3 px-3">Status</th>
+                    <th className="pb-3 px-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {appointments
+                    .filter(a => {
+                      if (appointmentStatusFilter !== 'ALL' && a.status !== appointmentStatusFilter) return false;
+                      if (!appointmentSearch.trim()) return true;
+                      const q = appointmentSearch.toLowerCase();
+                      return (
+                        a.id.toLowerCase().includes(q) ||
+                        a.patientName.toLowerCase().includes(q) ||
+                        a.patientId.toLowerCase().includes(q) ||
+                        (a.doctorName && a.doctorName.toLowerCase().includes(q)) ||
+                        (a.hospitalName && a.hospitalName.toLowerCase().includes(q)) ||
+                        (a.departmentName && a.departmentName.toLowerCase().includes(q))
+                      );
+                    })
+                    .map(appt => (
+                      <tr key={appt.id} className="hover:bg-purple-50/40 transition">
+                        <td className="py-3 px-3 font-mono font-bold text-purple-900">
+                          #{appt.id.slice(-6)}
+                        </td>
+                        <td className="py-3 px-3">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectPatient({ patientId: appt.patientId, fullName: appt.patientName })}
+                            className="text-left group"
+                          >
+                            <span className="font-bold text-slate-900 group-hover:text-purple-600 transition block">
+                              {appt.patientName}
+                            </span>
+                            <span className="font-mono text-[10px] text-slate-400 block">
+                              {appt.patientId}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="font-bold text-slate-800 block">{appt.doctorName || 'Duty Consultant'}</span>
+                          <span className="text-[11px] text-slate-500 block">{appt.departmentName}</span>
+                        </td>
+                        <td className="py-3 px-3 font-medium text-slate-700">
+                          {appt.hospitalName}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            appt.medicalSystem === 'AYURVEDA'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-blue-50 text-blue-800 border-blue-200'
+                          }`}>
+                            {appt.medicalSystem === 'AYURVEDA' ? '🌿 Ayurveda' : '💊 Allopathy'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-slate-800">{appt.date}</div>
+                          <div className="text-[11px] text-slate-500 font-mono">{appt.timeSlot}</div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            appt.status === 'COMPLETED'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : appt.status === 'IN_CONSULTATION'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : appt.status === 'CONFIRMED' || appt.status === 'CHECKED_IN'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              appt.status === 'COMPLETED'
+                                ? 'bg-emerald-500'
+                                : appt.status === 'IN_CONSULTATION'
+                                ? 'bg-blue-500 animate-pulse'
+                                : appt.status === 'CONFIRMED' || appt.status === 'CHECKED_IN'
+                                ? 'bg-purple-500'
+                                : 'bg-slate-400'
+                            }`} />
+                            {appt.status.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectPatient({ patientId: appt.patientId, fullName: appt.patientName })}
+                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                          >
+                            <span>Dossier</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* 4. PATIENT DETAILS MODAL / DRAWER                                   */}
       {/* =================================================================== */}
       {selectedPatient && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">

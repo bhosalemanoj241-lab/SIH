@@ -17,7 +17,7 @@ import { ConsentManager } from '../../components/patient/ConsentManager';
 import { AppointmentBooker } from '../../components/patient/AppointmentBooker';
 import { TrustedHospitalsManager } from '../../components/patient/TrustedHospitalsManager';
 import { db } from '../../services/mockDatabase';
-import { cloudDataService, syncRelay } from '../../services/supabaseService';
+import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { AccessRequest, ClinicalSession } from '../../types';
 
 interface PatientDashboardProps {
@@ -329,16 +329,16 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 w-full md:w-auto text-xs">
           <div className="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-slate-500 block text-[10px] uppercase font-bold">Blood Group</span>
-            <span className="text-teal-700 font-black font-mono text-sm">{patientProfile?.bloodGroup || 'B+'}</span>
+            <span className="text-teal-700 font-black font-mono text-sm">{patientProfile?.bloodGroup || 'Not Specified'}</span>
           </div>
           <div className="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-slate-500 block text-[10px] uppercase font-bold">Emergency Contact</span>
-            <span className="text-slate-800 font-semibold">{patientProfile?.emergencyContactName || 'Family Contact'}</span>
+            <span className="text-slate-800 font-semibold">{patientProfile?.emergencyContactName || patientProfile?.emergencyContactPhone || 'Not Configured'}</span>
           </div>
           <div className="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Preferred Hospital</span>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">Connected Hospital</span>
             <span className="text-slate-800 font-semibold truncate block max-w-[180px]">
-              {db.getTrustedHospitals(patientProfile?.patientId || '').find(t => t.status === 'ACTIVE')?.hospitalName || (patientProfile?.city ? `${patientProfile.city} General Facility` : 'Network Hospital')}
+              {db.getTrustedHospitals(patientProfile?.patientId || '').find(t => t.status === 'ACTIVE')?.hospitalName || 'No hospital connected'}
             </span>
           </div>
         </div>
@@ -418,18 +418,19 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
             <ClinicalSummaryView
               summary={activeSession.aiSummary}
               patient={patientProfile || (currentUser ? db.getPatientByUserId(currentUser.id) : undefined) || {
-                id: `pat-${currentUser?.id || 'default'}`,
-                userId: currentUser?.id || 'usr-1',
-                patientId: (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || 'Registered Patient',
-                dob: '1990-01-01',
-                age: 35,
-                gender: 'MALE',
-                bloodGroup: 'B+',
-                emergencyContactName: 'Family Member',
-                emergencyContactPhone: '+91 98000 00000',
-                emergencyContactRelation: 'Spouse',
-                address: 'Registered Residence',
-                city: 'Mumbai',
+                id: `pat-${currentUser?.id || 'reg'}`,
+                userId: currentUser?.id || '',
+                patientId: (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || currentUser?.fullName || 'Registered Patient',
+                fullName: currentUser?.fullName || 'Registered Patient',
+                dob: '1995-01-01',
+                age: 30,
+                gender: 'OTHER',
+                bloodGroup: 'Not Specified',
+                emergencyContactName: 'Emergency Contact',
+                emergencyContactPhone: currentUser?.phone || '+91 98000 00000',
+                emergencyContactRelation: 'Contact',
+                address: 'Registered Address',
+                city: 'Central',
                 pincode: '400001'
               }}
             />

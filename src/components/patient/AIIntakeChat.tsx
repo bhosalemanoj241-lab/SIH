@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, AlertTriangle,
-  CheckCircle2, FileText, ArrowRight, RefreshCw, ShieldAlert, Sparkle
+  CheckCircle2, FileText, ArrowRight, RefreshCw, ShieldAlert, Sparkle, Leaf, Stethoscope
 } from 'lucide-react';
-import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession } from '../../types';
+import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession, MedicalSystem } from '../../types';
 import { AIIntakeEngine } from '../../services/aiIntakeEngine';
 import { SpeechService } from '../../services/speechService';
 import { db } from '../../services/mockDatabase';
@@ -15,16 +15,19 @@ import { WaveformVisualizer } from '../common/WaveformVisualizer';
 interface AIIntakeChatProps {
   onIntakeCompleted: (session: ClinicalSession) => void;
   onEmergencyTriggered: (alertId: string) => void;
+  initialMedicalSystem?: MedicalSystem;
 }
 
 export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
   onIntakeCompleted,
-  onEmergencyTriggered
+  onEmergencyTriggered,
+  initialMedicalSystem = 'ALLOPATHY'
 }) => {
   const { currentUser, patientProfile } = useAuth();
   const { language, setLanguage, t, isRTL } = useLanguage();
   const { showToast, triggerEmergencyAlertAudio } = useNotification();
 
+  const [medicalSystem, setMedicalSystem] = useState<MedicalSystem>(initialMedicalSystem);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -39,7 +42,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
 
   // Initialize intake session with personalized welcome message across all 8 languages
   useEffect(() => {
-    const welcomeMessages: Record<LanguageCode, string> = {
+    const allopathyWelcomeMessages: Record<LanguageCode, string> = {
       en: `Hello ${currentUser?.fullName || 'there'}, I'm your MediBridge AI Clinical Intake Assistant. Tell me in your own words: **What main symptoms or health concerns are you experiencing today?**`,
       hi: `नमस्ते ${currentUser?.fullName || ''}, मैं आपका मेडिब्रिज एआई क्लिनिकल असिस्टेंट हूँ। कृपया बताएं: **आज आपको क्या मुख्य शारीरिक समस्या या लक्षण महसूस हो रहे हैं?**`,
       mr: `नमस्कार ${currentUser?.fullName || ''}, मी तुमचा मेडिब्रिज एआय क्लिनिकल सहाय्यक आहे. कृपया सांगा: **आज तुम्हाला नेमका काय त्रास किंवा लक्षणे जाणवत आहेत?**`,
@@ -47,10 +50,21 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
       kn: `ನಮಸ್ಕಾರ ${currentUser?.fullName || ''}, ನಾನು ನಿಮ್ಮ ಮೆಡಿಬ್ರಿಡ್ಜ್ ಎಐ ಕ್ಲಿನಿಕಲ್ ಸಹಾಯಕ. ದಯವಿಟ್ಟು ತಿಳಿಸಿ: **ಇಂದು ನಿಮಗೆ ಯಾವ ಮುಖ್ಯ ಲಕ್ಷಣಗಳು ಅಥವಾ ಆರೋಗ್ಯ ತೊಂದರೆಗಳು ಕಾಣಿಸಿಕೊಂಡಿವೆ?**`,
       gu: `નમસ્તે ${currentUser?.fullName || ''}, હું તમારો મેડિબ્રિજ એઆઈ ક્લિનિકલ આસિસ્ટન્ટ છું. કૃપા કરીને જણાવો: **આજે તમને કયા મુખ્ય લક્ષણો અથવા સ્વાસ્થ્ય સમસ્યાઓ અનુભવાઈ રહી છે?**`,
       ta: `வணக்கம் ${currentUser?.fullName || ''}, நான் உங்கள் மெடிபிரிட்ஜ் ஏஐ மருத்துவ உதவியாளர். தயவுசெய்து கூறவும்: **இன்று உங்களுக்கு என்ன முக்கிய அறிகுறிகள் அல்லது உடல்நலப் பிரச்சனைகள் உள்ளன?**`,
-      bn: `নমস্কার ${currentUser?.fullName || ''}, আমি আপনার মেডিব্রিজ এআই ক্লিনিকাল অ্যাসিস্ট্যান্ট। অনুগ্রহ করে বলুন: **আজ আপনার কী কী প্রধান লক্ষণ বা স্বাস্থ্য সমস্যা দেখা দিচ্ছে?**`
+      bn: `নমস্কার ${currentUser?.fullName || ''}, আমি আপনার মেডিব্রিজ এআই ক্লিনিকাল অ্যাসিস্ট্যান্ট। অনুগ্রহ করে বলুন: **আজ আপনার কী কী প্রধান লক্ষণ বা স্বাস্থ্য समस्या দেখা দিচ্ছে?**`
     };
 
-    const initialQuickReplies: Record<LanguageCode, string[]> = {
+    const ayurvedaWelcomeMessages: Record<LanguageCode, string> = {
+      en: `Namaste ${currentUser?.fullName || 'there'}, I'm your MediBridge AYUSH Clinical Intake Assistant. Tell me: **What physical discomfort, digestive imbalance (Agni), or doshic symptoms are you experiencing today?**`,
+      hi: `नमस्ते ${currentUser?.fullName || ''}, मैं आपका मेडिब्रिज आयुष क्लिनिकल असिस्टेंट हूँ। कृपया बताएं: **आज आपको कौन सी शारीरिक समस्या, पाचन असंतुलन (अग्नि) या दोष विकार महसूस हो रहे हैं?**`,
+      mr: `नमस्कार ${currentUser?.fullName || ''}, मी तुमचा मेडिब्रिज आयुष क्लिनिकल सहाय्यक आहे. कृपया सांगा: **आज तुम्हाला कोणता शारीरिक त्रास, पचन असंतुलन (अग्नि) किंवा दोष विकार जाणवत आहेत?**`,
+      ur: `ہیلو ${currentUser?.fullName || ''}، میں آپ کا میڈی برج آیوش کلینیکل انٹیک اسسٹنٹ ہوں۔ براہ کرم بتائیں: **آج آپ کو کون سی جسمانی تکلیف یا ہاضمے کی خرابی محسوس ہو رہی ہے؟**`,
+      kn: `ನಮಸ್ಕಾರ ${currentUser?.fullName || ''}, ನಾನು ನಿಮ್ಮ ಮೆಡಿಬ್ರಿಡ್ಜ್ ಆಯುಷ್ ಕ್ಲಿನಿಕಲ್ ಸಹಾಯಕ. ದಯವಿಟ್ಟು ತಿಳಿಸಿ: **ಇಂದು ನಿಮಗೆ ಯಾವ ದೈಹಿಕ ತೊಂದರೆ ಅಥವಾ ಜೀರ್ಣಕ್ರಿಯೆ ಅಸಮತೋಲನ ಕಾಣಿಸಿಕೊಂಡಿದೆ?**`,
+      gu: `નમસ્તે ${currentUser?.fullName || ''}, હું તમારો મેડિબ્રિજ આયુષ ક્લિનિકલ આસિસ્ટન્ટ છું. કૃપા કરીને જણાવો: **આજે તમને કઈ શારીરિક સમસ્યા કે પાચન અસંતુલન જણાઈ રહ્યું છે?**`,
+      ta: `வணக்கம் ${currentUser?.fullName || ''}, நான் உங்கள் மெடிபிரிட்ஜ் ஆயுஷ் மருத்துவ உதவியாளர். தயவுசெய்து கூறவும்: **இன்று உங்களுக்கு என்ன செரிமான கோளாறு அல்லது உடல் உபாதை உள்ளது?**`,
+      bn: `নমস্কার ${currentUser?.fullName || ''}, আমি আপনার মেডিব্রিজ আয়ুশ ক্লিনিকাল অ্যাসিস্ট্যান্ট। অনুগ্রহ করে বলুন: **আজ আপনার কী শারীরিক সমস্যা বা হজমের গোলমাল দেখা দিচ্ছে?**`
+    };
+
+    const allopathyQuickReplies: Record<LanguageCode, string[]> = {
       en: [
         'I have a bad cough and fever for 3 days',
         'Acute chest pain with sweating and breathlessness',
@@ -101,21 +115,75 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
       ]
     };
 
+    const ayurvedaQuickReplies: Record<LanguageCode, string[]> = {
+      en: [
+        'Digestive sluggishness, gas & bloating after meals (Mandagni)',
+        'Joint stiffness, body ache & dry skin (Vata Prakopa)',
+        'Severe acidity, burning sensation & skin eruptions (Pitta Prakopa)',
+        'Chest congestion, heavy cough & lethargy (Kapha Prakopa)'
+      ],
+      hi: [
+        'भोजन के बाद भारीपन, गैस और अपच (मंदाग्नि / आम)',
+        'जोड़ों में जकड़न, बदन दर्द और रूखी त्वचा (वात प्रकोप)',
+        'पेट में जलन, खट्टी डकारें व त्वचा पर पित्ती (पित्त प्रकोप)',
+        'छाती में भारी कफ, सुस्ती और सर्दी-जुकाम (कफ प्रकोप)'
+      ],
+      mr: [
+        'जेवणानंतर पोटात गॅस, मंद पचन आणि जडपणा (मंदाग्नि / आम)',
+        'सांधेदुखी, अंगात कळा आणि त्वचा कोरडी पडणे (वात प्रकोप)',
+        'छातीत जळजळ, आम्लपित्त आणि त्वचेवर पुरळ (पित्त प्रकोप)',
+        'छातीत कफ साठणे, आळस आणि सर्दी-खोकला (कफ प्रकोप)'
+      ],
+      ur: [
+        'کھانے کے بعد پیٹ میں گیس، سستی اور بدہضمی',
+        'جوڑوں کا درد، بدن ٹوٹنا اور خشکی',
+        'سینے میں جلن، تیزابیت اور جلد پر دانے',
+        'سینے میں بلغم، سستی اور زکام'
+      ],
+      kn: [
+        'ಊಟದ ನಂತರ ಹೊಟ್ಟೆ ಉಬ್ಬರ ಮತ್ತು ಅಜೀರ್ಣ (ಮಂದಾಗ್ನಿ)',
+        'ಕೀಲು ನೋವು, ಮೈಕೈ ನೋವು ಮತ್ತು ಒಣ ಚರ್ಮ (ವಾತ ಪ್ರಕೋಪ)',
+        'ಎದೆ ಉರಿ, ಅಸಿಡಿಟಿ ಮತ್ತು ಚರ್ಮದ ದದ್ದು (ಪಿತ್ತ ಪ್ರಕೋಪ)',
+        'ಎದೆಯಲ್ಲಿ ಕಫ, ಆಲಸ್ಯ ಮತ್ತು ಕೆಮ್ಮು (ಕಫ ಪ್ರಕೋಪ)'
+      ],
+      gu: [
+        'જમ્યા પછી પેટમાં ગેસ અને મંદ પાચન (મંદાગ્નિ)',
+        'સાંધાનો દુખાવો અને સૂકી ત્વચા (વાત પ્રકોપ)',
+        'છાતીમાં બળતરા, એસિડિટી અને ચકામા (પિત્ત પ્રકોપ)',
+        'છાતીમાં કફ, આળસ અને ઉધરસ (કફ પ્રકોપ)'
+      ],
+      ta: [
+        'உணவுக்கு பின் வயிற்று உப்புசம் மற்றும் அஜீரணம்',
+        'மூட்டு வலி, உடல் சோர்வு மற்றும் வறண்ட சருமம்',
+        'நெஞ்செரிச்சல், அசிடிட்டி மற்றும் தோல் அரிப்பு',
+        'மார்பு சளி, மந்தநிலை மற்றும் இருமல்'
+      ],
+      bn: [
+        'খাওয়ার পর পেট ফাঁপা এবং বদহজম (মন্দাগ্নি)',
+        'গাঁটে ব্যথা, শরীর ব্যথা ও শুষ্ক ত্বক (বাত প্রকোপ)',
+        'বুকে জ্বালা, অম্বল ও ত্বকে ফুসকুড়ি (পিত্ত প্রকোপ)',
+        'বুকে কফ, ক্লান্তি এবং কাশি (কফ প্রকোপ)'
+      ]
+    };
+
+    const welcomeMap = medicalSystem === 'AYURVEDA' ? ayurvedaWelcomeMessages : allopathyWelcomeMessages;
+    const quickMap = medicalSystem === 'AYURVEDA' ? ayurvedaQuickReplies : allopathyQuickReplies;
+
     const initialMsg: ConversationMessage = {
       id: `msg-${Date.now()}`,
       sessionId: activeSessionId,
       sender: 'AI_CLINICAL_INTAKE',
-      text: welcomeMessages[language] || welcomeMessages.en,
+      text: welcomeMap[language] || welcomeMap.en,
       language: language,
       timestamp: new Date().toISOString(),
-      suggestedQuickReplies: initialQuickReplies[language] || initialQuickReplies.en
+      suggestedQuickReplies: quickMap[language] || quickMap.en
     };
 
     setMessages([initialMsg]);
     // Speak welcome message
     SpeechService.speak(initialMsg.text, language, () => setIsSpeaking(false));
     setIsSpeaking(true);
-  }, [language, activeSessionId]);
+  }, [language, activeSessionId, medicalSystem]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -194,8 +262,8 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
           const pName = currentUser?.fullName || patientProfile?.fullName || 'Registered Patient';
           const trustedHospitals = db.getTrustedHospitals(pId).filter(t => t.status === 'ACTIVE');
           const registeredHospitals = db.getHospitals();
-          const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : 'HOSP-2026-00101');
-          const targetHospitalName = trustedHospitals[0]?.hospitalName || (registeredHospitals.length > 0 ? registeredHospitals[0].name : 'Talegaon General & Emergency Hospital');
+          const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : '');
+          const targetHospitalName = trustedHospitals[0]?.hospitalName || (registeredHospitals.length > 0 ? registeredHospitals[0].name : 'Nearest Emergency Center');
 
           const alertId = `emg-${Date.now()}`;
           const newEmergencyAlert = {
@@ -253,10 +321,10 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         setIsIntakeDone(true);
         setCurrentPriority(result.suggestedTriagePriority);
 
-        const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : 'PAT-2026-001');
-        const trustedHospitals = db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE');
+        const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
+        const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE') : [];
         const registeredHospitals = db.getHospitals();
-        const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : 'HOSP-2026-00101');
+        const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : '');
 
         // Synthesize structured clinical summary with language metadata
         const summary = AIIntakeEngine.generateStructuredSummary(
