@@ -3,7 +3,7 @@ import {
   Mic, FileText, Clock, Building2, ShieldCheck,
   Siren, User, Activity, AlertTriangle, ArrowRight,
   Sparkles, CheckCircle2, Download, Phone, MapPin,
-  Heart, AlertCircle, Hospital
+  Heart, AlertCircle, Hospital, Ban, Square
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -12,7 +12,7 @@ import { AIIntakeChat } from '../../components/patient/AIIntakeChat';
 import { DocumentUploader } from '../../components/patient/DocumentUploader';
 import { MedicalTimeline } from '../../components/patient/MedicalTimeline';
 import { ClinicalSummaryView } from '../../components/patient/ClinicalSummaryView';
-import { EmergencyStatusCard } from '../../components/patient/EmergencyStatusCard';
+import { EmergencyStatusCard, EmergencyAudioService } from '../../components/patient/EmergencyStatusCard';
 import { ConsentManager } from '../../components/patient/ConsentManager';
 import { AppointmentBooker } from '../../components/patient/AppointmentBooker';
 import { TrustedHospitalsManager } from '../../components/patient/TrustedHospitalsManager';
@@ -65,6 +65,22 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
       a.status !== 'RESOLVED' && a.status !== 'HANDOVER_COMPLETED'
     );
     setActiveEmergencyAlert(active || null);
+  };
+
+  const handleStopEmergencyAlert = () => {
+    if (activeEmergencyAlert) {
+      EmergencyAudioService.stopSiren();
+      const updated = {
+        ...activeEmergencyAlert,
+        status: 'RESOLVED' as const,
+        resolvedAt: new Date().toISOString()
+      };
+      db.saveEmergencyAlert(updated);
+      setActiveEmergencyAlert(null);
+      setShowEmergencyDetails(false);
+      window.dispatchEvent(new CustomEvent('medibridge_db_update'));
+      showToast('Emergency Alert Stopped', 'Red flag status resolved and emergency stood down.', 'INFO');
+    }
   };
 
   useEffect(() => {
@@ -211,13 +227,24 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
             </div>
           </div>
 
-          <button
-            onClick={() => setShowEmergencyDetails(!showEmergencyDetails)}
-            className="px-5 py-2.5 bg-white text-red-700 hover:bg-slate-100 font-extrabold text-xs rounded-xl shadow-lg flex items-center gap-2 transition flex-shrink-0"
-          >
-            <span>{showEmergencyDetails ? 'Hide Status Details' : t('view_live_map')}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+            <button
+              onClick={handleStopEmergencyAlert}
+              className="px-4 py-2.5 bg-red-950/80 hover:bg-black text-white font-extrabold text-xs rounded-xl shadow border border-white/30 flex items-center gap-1.5 transition"
+              title="Stop red flag alert and stand down emergency"
+            >
+              <Ban className="w-3.5 h-3.5 text-red-300" />
+              <span>Stop Red Flag Alert</span>
+            </button>
+
+            <button
+              onClick={() => setShowEmergencyDetails(!showEmergencyDetails)}
+              className="px-5 py-2.5 bg-white text-red-700 hover:bg-slate-100 font-extrabold text-xs rounded-xl shadow-lg flex items-center gap-2 transition"
+            >
+              <span>{showEmergencyDetails ? 'Hide Status Details' : t('view_live_map')}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 

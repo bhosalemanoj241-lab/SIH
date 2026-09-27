@@ -306,6 +306,7 @@ export interface EmergencyAlert {
   detectedEmergencyConcern?: string;
   status: 'DISPATCHED' | 'ACKNOWLEDGED' | 'EN_ROUTE' | 'ARRIVED_AT_HOSPITAL' | 'HANDOVER_COMPLETED' | 'RESOLVED';
   timestamp: string;
+  resolvedAt?: string;
   ambulanceAssigned?: {
     vehicleNumber: string;
     driverName: string;

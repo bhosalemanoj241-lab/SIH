@@ -466,9 +466,12 @@ export class AIIntakeEngine {
     userInput: string,
     history: ConversationMessage[],
     language: LanguageCode = 'en',
-    medicalSystem: MedicalSystem = 'ALLOPATHY'
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    enableRedFlagDetection: boolean = true
   ): IntakeAnalysisResult {
-    const redFlagCheck = this.detectEmergencyRedFlags(userInput, history);
+    const redFlagCheck = enableRedFlagDetection
+      ? this.detectEmergencyRedFlags(userInput, history)
+      : { isRedFlag: false, redFlags: [], priority: 'GREEN' as TriagePriority };
 
     // ─────────────────────────────────────────────────────────────────────────
     // If Red Flag Emergency is Detected

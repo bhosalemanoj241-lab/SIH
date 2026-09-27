@@ -3,7 +3,7 @@ import {
   Siren, Phone, Navigation, Clock, Activity, ShieldAlert,
   Heart, CheckCircle2, MapPin, AlertCircle, ArrowRight,
   RefreshCw, Check, Sparkles, Building2, User, Volume2,
-  VolumeX, Eye, X, FileText, Lock, ChevronDown, ChevronUp, Globe
+  VolumeX, Eye, X, FileText, Lock, ChevronDown, ChevronUp, Globe, Ban
 } from 'lucide-react';
 import { EmergencyAlert, ClinicalSession, LanguageCode } from '../../types';
 import { db } from '../../services/mockDatabase';
@@ -187,6 +187,25 @@ export const EmergencyStatusCard: React.FC<EmergencyStatusCardProps> = ({
     showToast('ER Status Updated', `Status set to: ${nextStatus.replace(/_/g, ' ')}`, 'EMERGENCY');
   };
 
+  const handleStopRedFlagAlert = () => {
+    EmergencyAudioService.stopSiren();
+    setIsAudioMuted(true);
+    setAudioStarted(false);
+    if (!alert) return;
+    const updated: EmergencyAlert = {
+      ...alert,
+      status: 'RESOLVED',
+      resolvedAt: new Date().toISOString()
+    };
+    db.saveEmergencyAlert(updated);
+    setAlert(updated);
+    window.dispatchEvent(new CustomEvent('medibridge_db_update'));
+    showToast('Emergency Alert Stopped', 'Red flag alert resolved and stood down.', 'INFO');
+    if (onCloseModal) {
+      setTimeout(onCloseModal, 400);
+    }
+  };
+
   if (!alert) {
     return (
       <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 text-center space-y-3 shadow-sm max-w-2xl mx-auto">
@@ -269,7 +288,19 @@ export const EmergencyStatusCard: React.FC<EmergencyStatusCardProps> = ({
             </div>
 
             {/* Siren Audio Toggle & Controls */}
-            <div className="flex items-center gap-2 ml-auto sm:ml-0">
+            <div className="flex items-center gap-2 ml-auto sm:ml-0 flex-wrap">
+              {isActiveSiren && (
+                <button
+                  type="button"
+                  onClick={handleStopRedFlagAlert}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-red-950/90 hover:bg-black text-white border border-red-800 shadow-sm transition"
+                  title="Stop red flag alert and stand down"
+                >
+                  <Ban className="w-4 h-4 text-red-300" />
+                  <span>Stop Red Flag Alert</span>
+                </button>
+              )}
+
               {isActiveSiren && (
                 <button
                   type="button"
