@@ -103,10 +103,26 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
       });
     }
 
+    const refreshSessions = () => {
+      const pId = patientProfile?.patientId || patientProfile?.id;
+      const sessions = db.getClinicalSessions().filter(s =>
+        (pId && (s.patientId === pId || s.patientId === patientProfile?.id || s.patientId === patientProfile?.patientId)) ||
+        s.patientName === currentUser?.fullName
+      );
+      setPatientSessions(sessions);
+      setActiveSession(prev => {
+        if (!prev) return sessions[0] || null;
+        const match = sessions.find(s => s.id === prev.id);
+        return match || sessions[0] || null;
+      });
+    };
+
     const handleUpdate = () => {
       checkEmergencyAlerts();
       loadPendingRequests();
+      refreshSessions();
     };
+    refreshSessions();
     window.addEventListener('medibridge_db_update', handleUpdate);
     window.addEventListener('medibridge_db_reset', handleUpdate);
 
@@ -123,9 +139,12 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
   }, [patientProfile?.patientId, currentUser?.fullName]);
 
   // Retrieve sessions for the current patient
-  const patientSessions = patientProfile?.patientId
-    ? db.getClinicalSessions().filter(s => s.patientId === patientProfile.id || s.patientId === patientProfile.patientId || s.patientName === currentUser?.fullName)
-    : [];
+  const [patientSessions, setPatientSessions] = useState<ClinicalSession[]>(() => {
+    const pId = patientProfile?.patientId || patientProfile?.id;
+    return pId
+      ? db.getClinicalSessions().filter(s => s.patientId === patientProfile?.id || s.patientId === patientProfile?.patientId || s.patientName === currentUser?.fullName)
+      : [];
+  });
 
   const [activeSession, setActiveSession] = useState<ClinicalSession | null>(
     patientSessions[0] || null
@@ -442,25 +461,46 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
 
         {activeTab === 'summary' && (
           activeSession?.aiSummary ? (
-            <ClinicalSummaryView
-              summary={activeSession.aiSummary}
-              patient={patientProfile || (currentUser ? db.getPatientByUserId(currentUser.id) : undefined) || {
-                id: `pat-${currentUser?.id || 'reg'}`,
-                userId: currentUser?.id || '',
-                patientId: (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || currentUser?.fullName || 'Registered Patient',
-                fullName: currentUser?.fullName || 'Registered Patient',
-                dob: '1995-01-01',
-                age: 30,
-                gender: 'OTHER',
-                bloodGroup: 'Not Specified',
-                emergencyContactName: 'Emergency Contact',
-                emergencyContactPhone: currentUser?.phone || '+91 98000 00000',
-                emergencyContactRelation: 'Contact',
-                address: 'Registered Address',
-                city: 'Central',
-                pincode: '400001'
-              }}
-            />
+            <div className="space-y-4">
+              {patientSessions.length > 1 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-slate-200 px-4 py-3 rounded-2xl gap-2 shadow-sm">
+                  <span className="text-xs font-bold text-slate-700">Clinical Encounter / Intake Episode:</span>
+                  <select
+                    value={activeSession.id}
+                    onChange={e => {
+                      const sel = patientSessions.find(s => s.id === e.target.value);
+                      if (sel) setActiveSession(sel);
+                    }}
+                    className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-teal-500 focus:bg-white"
+                  >
+                    {patientSessions.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {new Date(s.startedAt).toLocaleDateString()} — {s.chiefComplaint ? s.chiefComplaint.slice(0, 35) : 'Intake Episode'} ({s.encounterId || `ENC-${s.id.slice(-6)}`})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <ClinicalSummaryView
+                summary={activeSession.aiSummary}
+                patient={patientProfile || (currentUser ? db.getPatientByUserId(currentUser.id) : undefined) || {
+                  id: `pat-${currentUser?.id || 'reg'}`,
+                  userId: currentUser?.id || '',
+                  patientId: (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || currentUser?.fullName || 'Registered Patient',
+                  fullName: currentUser?.fullName || 'Registered Patient',
+                  dob: '1995-01-01',
+                  age: 30,
+                  gender: 'OTHER',
+                  bloodGroup: 'Not Specified',
+                  emergencyContactName: 'Emergency Contact',
+                  emergencyContactPhone: currentUser?.phone || '+91 98000 00000',
+                  emergencyContactRelation: 'Contact',
+                  address: 'Registered Address',
+                  city: 'Central',
+                  pincode: '400001'
+                }}
+              />
+            </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-12 text-center space-y-4 max-w-2xl mx-auto shadow-sm">
               <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 mx-auto">

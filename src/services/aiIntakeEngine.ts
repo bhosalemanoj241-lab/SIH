@@ -1,7 +1,7 @@
 import {
   ConversationMessage, ClinicalHistorySummary, SymptomEntry,
   TriagePriority, LanguageCode, Allergy, Medication, MedicalSystem,
-  DashavidhaPariksha
+  DashavidhaPariksha, PhysicianShortReport, ClinicalSourceTag, ClinicalSession
 } from '../types';
 
 export interface IntakePromptOption {
@@ -880,8 +880,137 @@ export class AIIntakeEngine {
   }
 
   /**
+   * Asynchronous LLM-backed Clinical Intake Analyzer
+   * Calls /api/ai-intake to interact with Gemini / Groq / OpenAI with intelligent context awareness
+   */
+  public static async analyzeInputAsync(
+    input: string,
+    history: ConversationMessage[],
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    isRedFlagDetectionEnabled: boolean = true,
+    patientProfile?: any
+  ): Promise<IntakeAnalysisResult> {
+    try {
+      const res = await fetch('/api/ai-intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'chat',
+          currentMessage: input,
+          messages: history.map(m => ({ sender: m.sender, text: m.text, language: m.language, timestamp: m.timestamp })),
+          language,
+          medicalSystem,
+          isRedFlagDetectionEnabled,
+          patientProfile
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          return {
+            nextBotMessage: data.nextBotMessage,
+            suggestedReplies: data.suggestedReplies || [],
+            isComplete: Boolean(data.isComplete),
+            isRedFlagTriggered: Boolean(data.isRedFlagTriggered),
+            redFlagsDetected: data.redFlagsDetected || [],
+            suggestedTriagePriority: data.suggestedTriagePriority || 'GREEN',
+            detectedLanguage: data.detectedLanguage || language,
+            translatedConcern: data.translatedConcern
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[AIIntakeEngine.analyzeInputAsync fetch fallback]:', err);
+    }
+
+    // Fallback to local synchronous engine if network/API unavailable
+    return this.analyzeInput(input, history, language, medicalSystem, isRedFlagDetectionEnabled);
+  }
+
+  /**
+   * Asynchronous Physician-Ready Short Report Generator via LLM
+   */
+  public static async generateStructuredSummaryAsync(
+    sessionId: string,
+    patientId: string,
+    history: ConversationMessage[],
+    patientProfile?: any,
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    encounterId?: string,
+    appointmentId?: string
+  ): Promise<{ summary: ClinicalHistorySummary; shortReport: PhysicianShortReport }> {
+    try {
+      const res = await fetch('/api/ai-intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_report',
+          sessionId,
+          patientId,
+          encounterId: encounterId || appointmentId || `enc-${Date.now()}`,
+          appointmentId: appointmentId || `apt-${Date.now()}`,
+          messages: history.map(m => ({ sender: m.sender, text: m.text, language: m.language, timestamp: m.timestamp })),
+          language,
+          medicalSystem,
+          patientProfile
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.summary && data.shortReport) {
+          return { summary: data.summary, shortReport: data.shortReport };
+        }
+      }
+    } catch (err) {
+      console.warn('[AIIntakeEngine.generateStructuredSummaryAsync fetch fallback]:', err);
+    }
+
+    // Fallback to local deterministic generator
+    const chiefMsg = history.find(m => m.sender === 'PATIENT')?.text || 'Patient reported symptoms.';
+    const fullHistory = history.map(m => `${m.sender}: ${m.text}`).join('\n');
+    const summary = this.generateStructuredSummary(
+      sessionId,
+      patientId,
+      chiefMsg,
+      fullHistory,
+      patientProfile?.allergies?.map((a: string) => ({ allergen: a, type: 'OTHER' as const, reaction: 'Documented in profile', severity: 'MODERATE' as const })) || [],
+      patientProfile?.currentMedications?.map((m: string) => ({ name: m, dosage: 'Daily', frequency: 'Regular', route: 'Oral', isActive: true })) || [],
+      language,
+      medicalSystem,
+      encounterId,
+      appointmentId,
+      patientProfile
+    );
+    return { summary, shortReport: summary.shortReport! };
+  }
+
+  /**
+   * Replicates completed session across devices via persistent cloud registry
+   */
+  public static async saveSessionToCloud(session: ClinicalSession): Promise<boolean> {
+    try {
+      const res = await fetch('/api/ai-intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_report',
+          session
+        })
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('[AIIntakeEngine.saveSessionToCloud error]:', err);
+      return false;
+    }
+  }
+
+  /**
    * Generates a structured clinical history summary preserving original statement,
-   * language metadata, and standardized clinical findings.
+   * language metadata, standardized clinical findings, and PhysicianShortReport with SOURCE TRANSPARENCY.
    */
   public static generateStructuredSummary(
     sessionId: string,
@@ -891,104 +1020,218 @@ export class AIIntakeEngine {
     allergies: Allergy[] = [],
     medications: Medication[] = [],
     language: LanguageCode = 'en',
-    medicalSystem: MedicalSystem = 'ALLOPATHY'
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    encounterId?: string,
+    appointmentId?: string,
+    patientProfile?: any
   ): ClinicalHistorySummary {
-    const isPenicillinAllergic = allergies.some(a => a.allergen.toLowerCase().includes('penicillin')) ||
-      historyText.toLowerCase().includes('penicillin') || historyText.toLowerCase().includes('पेनिसिलिन');
+    const lower = (historyText + ' ' + chiefComplaint).toLowerCase();
 
-    // Dynamic Ayurvedic Dashavidha Pariksha evaluation
+    // Actual duration extraction
+    let duration = '2-3 days';
+    const durationMatch = lower.match(/(\d+\s*(?:days?|din|divas|weeks?|hafta|months?|mahina|hours?|ghante|years?))/i) ||
+      lower.match(/(today|aaj|yesterday|kal|since yesterday|parso)/i);
+    if (durationMatch) {
+      duration = durationMatch[0];
+    }
+
+    // Actual severity extraction
+    let severity = 'Moderate';
+    let painScore = 5;
+    if (/severe|acute|bohot tez|khup jast|extreme|8\/10|9\/10|10\/10/i.test(lower)) {
+      severity = 'Severe (8/10)';
+      painScore = 8;
+    } else if (/mild|thoda|halka|2\/10|3\/10/i.test(lower)) {
+      severity = 'Mild (3/10)';
+      painScore = 3;
+    }
+
+    // Actual onset extraction
+    const onset = /sudden|achanak|ekdum/i.test(lower) ? 'Sudden' : 'Gradual';
+
+    // Extracted medical history from conversation + patient profile
+    const existingConditions: string[] = [];
+    if (/diabet|sugar|madhumeh/i.test(lower)) existingConditions.push('Type 2 Diabetes Mellitus');
+    if (/bp|hypertension|blood pressure/i.test(lower)) existingConditions.push('Essential Hypertension');
+    if (/asthma|dama|inhaler/i.test(lower)) existingConditions.push('Bronchial Asthma');
+    if (/thyroid/i.test(lower)) existingConditions.push('Hypothyroidism');
+    if (patientProfile?.chronicConditions && Array.isArray(patientProfile.chronicConditions)) {
+      patientProfile.chronicConditions.forEach((c: string) => {
+        if (!existingConditions.includes(c)) existingConditions.push(c);
+      });
+    }
+
+    // Extracted medications from conversation + patient profile
+    const extractedMeds: Medication[] = [...medications];
+    if (/metformin|glycomet/i.test(lower) && !extractedMeds.some(m => m.name.toLowerCase().includes('metformin'))) {
+      extractedMeds.push({ name: 'Tab Metformin 500mg', dosage: '500mg', frequency: 'Twice daily', route: 'Oral', isActive: true, indication: 'Type 2 Diabetes' });
+    }
+    if (/paracetamol|crocin|dolo/i.test(lower) && !extractedMeds.some(m => m.name.toLowerCase().includes('paracetamol'))) {
+      extractedMeds.push({ name: 'Tab Paracetamol 650mg', dosage: '650mg', frequency: 'As needed', route: 'Oral', isActive: true, indication: 'Antipyretic/Analgesic' });
+    }
+    if (patientProfile?.currentMedications && Array.isArray(patientProfile.currentMedications)) {
+      patientProfile.currentMedications.forEach((m: string) => {
+        if (!extractedMeds.some(em => em.name.toLowerCase().includes(m.toLowerCase()))) {
+          extractedMeds.push({ name: m, dosage: 'Daily', frequency: 'Regular', route: 'Oral', isActive: true });
+        }
+      });
+    }
+
+    // Extracted allergies
+    const extractedAllergies: Allergy[] = [...allergies];
+    const isPenicillinAllergic = lower.includes('penicillin') || lower.includes('पेनिसिलिन');
+    if (isPenicillinAllergic && !extractedAllergies.some(a => a.allergen.toLowerCase().includes('penicillin'))) {
+      extractedAllergies.push({ allergen: 'Penicillin', type: 'DRUG', reaction: 'Hypersensitivity reported', severity: 'SEVERE_ANAPHYLACTIC' });
+    }
+    if (patientProfile?.allergies && Array.isArray(patientProfile.allergies)) {
+      patientProfile.allergies.forEach((a: string) => {
+        if (!extractedAllergies.some(ea => ea.allergen.toLowerCase().includes(a.toLowerCase()))) {
+          extractedAllergies.push({ allergen: a, type: 'OTHER', reaction: 'Documented in profile', severity: 'MODERATE' });
+        }
+      });
+    }
+
+    // Ayurvedic Dashavidha Pariksha evaluation
     let dashavidha: DashavidhaPariksha | undefined = undefined;
     if (medicalSystem === 'AYURVEDA') {
-      const lower = historyText.toLowerCase();
-      const isVata = lower.includes('vata') || lower.includes('वात') || lower.includes('stiff') || lower.includes('dry') || lower.includes('pain') || lower.includes('joint');
+      const isVata = lower.includes('vata') || lower.includes('वात') || lower.includes('stiff') || lower.includes('pain') || lower.includes('joint');
       const isPitta = lower.includes('pitta') || lower.includes('पित्त') || lower.includes('burn') || lower.includes('acid') || lower.includes('heat');
-      const isKapha = lower.includes('kapha') || lower.includes('कफ') || lower.includes('heavy') || lower.includes('mucus') || lower.includes('sluggish');
-
-      const inferredPrakriti = isPitta && isVata ? 'Vata-Pitta (Dwandwaja)' : isPitta ? 'Pitta-Kapha (Dwandwaja)' : isVata ? 'Vata Pradhana' : isKapha ? 'Kapha Pradhana' : 'Sama Prakriti (Tridoshaja)';
-      const inferredVikriti = isPitta ? 'Pitta Vitiation with Ushna-Tikshna Guna (Hyperacidity / Thermal Dysregulation)' : isVata ? 'Vata Prakopa with Ruksha-Chala Guna (Musculoskeletal Vata Syndrome)' : 'Kapha Dushti with Guru-Manda Guna (Metabolic Sluggishness)';
-      const inferredAgni = isPitta ? 'Tikshnagni (Excessive Appetite / Accelerated Digestion & Reflux)' : isVata ? 'Vishamagni (Irregular & Fluctuating Digestion with Bloating)' : 'Mandagni (Sluggish Digestive Fire with Post-Prandial Heaviness)';
+      const isKapha = lower.includes('kapha') || lower.includes('कफ') || lower.includes('heavy') || lower.includes('mucus');
 
       dashavidha = {
-        prakriti: inferredPrakriti,
-        vikriti: inferredVikriti,
-        sara: 'Madhyama Sara (Balanced Tissue Essence & Muscle Tone)',
-        samhanana: 'Madhyama Samhanana (Moderate & Proportional Skeletal Build)',
-        pramana: 'Pramana Yukta (Normal Anthropometric Proportions & Height-Weight Ratio)',
-        satmya: 'Mishra Satmya (Habituated to Diverse Seasonal Nutrition)',
-        sattva: 'Madhyama Sattva (Moderate Emotional Resilience & Stress Tolerance)',
-        aharaShakti: inferredAgni,
-        vyayamaShakti: 'Madhyama Vyayama Shakti (Moderate Physical Endurance, Sustains 30-40 min Activity)',
-        vaya: 'Madhyama Vaya (Adult Life Stage, Preserved Biological Vitality)',
-        aharaViharaNotes: 'Reports irregular meal intervals, intake of dry/spicy foods, and delayed nocturnal sleep cycles (Nidra Viparyaya).'
+        prakriti: isPitta && isVata ? 'Vata-Pitta (Dwandwaja)' : isPitta ? 'Pitta-Kapha (Dwandwaja)' : isVata ? 'Vata Pradhana' : isKapha ? 'Kapha Pradhana' : 'Sama Prakriti',
+        vikriti: isPitta ? 'Pitta Vitiation with Ushna-Tikshna Guna' : isVata ? 'Vata Prakopa with Ruksha Guna' : 'Kapha Dushti with Guru Guna',
+        sara: 'Madhyama Sara (Balanced Tissue Essence)',
+        samhanana: 'Madhyama Samhanana (Moderate Compactness)',
+        pramana: 'Pramana Yukta (Normal Proportions)',
+        satmya: 'Mishra Satmya (Diverse Nutrition)',
+        sattva: 'Madhyama Sattva (Moderate Resilience)',
+        aharaShakti: isPitta ? 'Tikshnagni' : isVata ? 'Vishamagni' : 'Mandagni',
+        vyayamaShakti: 'Madhyama Vyayama Shakti',
+        vaya: 'Madhyama Vaya (Adult)',
+        aharaViharaNotes: 'Reports irregular meal intervals and varied circadian sleep schedules.'
       };
     }
+
+    // Construct 3 to 6 concise physician summary sentences
+    const summarySentences = [
+      `Patient (${patientId}, ${patientProfile?.age || 35}y ${patientProfile?.gender || 'Male'}) presented via MediBridge pre-arrival intake with chief complaint of: ${chiefComplaint || 'Consultation requested'}.`,
+      `Symptom onset is reported as ${onset.toLowerCase()} with a duration of ${duration}, self-assessed as ${severity}.`,
+      existingConditions.length > 0
+        ? `Documented medical history includes ${existingConditions.join(', ')}.`
+        : 'Patient reports no major prior chronic medical conditions.',
+      extractedMeds.length > 0
+        ? `Reported active medications: ${extractedMeds.map(m => m.name).join(', ')}.`
+        : 'No regular prescription medications reported.',
+      extractedAllergies.length > 0
+        ? `Known allergies documented: ${extractedAllergies.map(a => a.allergen).join(', ')}.`
+        : 'No known drug or environmental allergies reported (NKDA).',
+      'Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.'
+    ];
+
+    const shortReport: PhysicianShortReport = {
+      patientId,
+      age: patientProfile?.age || 35,
+      gender: patientProfile?.gender || 'Male',
+      encounterDate: new Date().toISOString().split('T')[0],
+      encounterId: encounterId || appointmentId || `enc-${Date.now()}`,
+      appointmentId,
+      chiefComplaint: {
+        mainReason: chiefComplaint || 'Patient consultation intake',
+        source: 'PATIENT REPORTED'
+      },
+      symptoms: {
+        importantSymptoms: [chiefComplaint || 'Primary Symptom'],
+        duration,
+        severity,
+        location: 'Reported during conversational intake',
+        onset,
+        associatedSymptoms: [],
+        source: 'PATIENT REPORTED'
+      },
+      medicalHistory: {
+        existingConditions: existingConditions.length > 0 ? existingConditions : ['No prior chronic conditions reported'],
+        previousHistory: ['No major surgeries reported'],
+        source: 'PATIENT REPORTED'
+      },
+      medicationsAndAllergies: {
+        currentMedications: extractedMeds.length > 0 ? extractedMeds.map(m => m.name) : ['No regular medications reported'],
+        knownAllergies: extractedAllergies.length > 0 ? extractedAllergies.map(a => a.allergen) : ['No known drug allergies (NKDA)'],
+        source: 'PATIENT REPORTED'
+      },
+      relevantFindings: [
+        {
+          text: `Intake conducted in ${language.toUpperCase()} through conversational interview.`,
+          source: 'PATIENT REPORTED'
+        }
+      ],
+      redFlags: {
+        detected: false,
+        flags: [],
+        source: 'PATIENT REPORTED'
+      },
+      summary: {
+        text: summarySentences.join(' '),
+        source: 'AI SUMMARIZED'
+      },
+      missingOrUncertainInfo: {
+        items: [
+          'Objective vitals (Blood pressure, Pulse, Temperature, SpO2) require in-person physician verification',
+          'Exact prescription dosages to be validated against active records'
+        ],
+        source: 'AI SUMMARIZED'
+      },
+      doctorNotes: {
+        notes: '',
+        source: 'DOCTOR ENTERED'
+      }
+    };
 
     return {
       id: `sum-${Date.now()}`,
       sessionId,
       patientId,
+      encounterId: shortReport.encounterId,
+      appointmentId: shortReport.appointmentId,
       generatedAt: new Date().toISOString(),
       originalLanguage: language,
       originalPatientStatement: chiefComplaint || historyText || 'Patient reported intake.',
-      translatedSummary: chiefComplaint ? `Patient presented with: ${chiefComplaint}` : 'Pre-arrival intake recorded.',
+      translatedSummary: shortReport.summary.text,
       disclaimer: 'AI-Generated Clinical Intake Summary — Requires Physician Verification. Not a final diagnosis.',
-      chiefComplaints: chiefComplaint || (medicalSystem === 'AYURVEDA' ? 'Chief complaints evaluated under Ayurvedic Doshic framework.' : 'Patient presents for clinical evaluation.'),
-      historyOfPresentIllness: historyText || (medicalSystem === 'AYURVEDA' ? 'Patient completed comprehensive Dashavidha Pariksha and Ahara-Vihara case-taking.' : 'Patient completed pre-arrival digital intake across adaptive multi-turn questions.'),
-      painScore: historyText.includes('8/10') ? 8 : historyText.includes('5/10') ? 5 : historyText.includes('3/10') ? 3 : 4,
+      chiefComplaints: shortReport.chiefComplaint.mainReason,
+      historyOfPresentIllness: shortReport.summary.text,
+      shortReport,
+      painScore,
       medicalSystem,
       dashavidhaPariksha: dashavidha,
       symptomsList: [
         {
-          name: chiefComplaint ? chiefComplaint.substring(0, 40) : (medicalSystem === 'AYURVEDA' ? 'Doshic Lakshana' : 'Primary Symptom'),
-          severity: historyText.includes('8/10') ? 8 : 5,
-          duration: '2-3 days',
-          onset: 'GRADUAL',
-          relievingFactors: medicalSystem === 'AYURVEDA' ? ['Deepana-Pachana fluids', 'Adequate rest', 'Ushnodaka (Warm water)'] : ['Rest', 'Warm fluids']
+          name: chiefComplaint ? chiefComplaint.substring(0, 40) : 'Primary Symptom',
+          severity: painScore,
+          duration,
+          onset: onset === 'Sudden' ? 'SUDDEN' : 'GRADUAL'
         }
       ],
-      pastMedicalHistory: [
-        { condition: 'Type 2 Diabetes Mellitus', diagnosedYear: '2019', status: 'CONTROLLED' },
-        { condition: 'Primary Hypertension', diagnosedYear: '2021', status: 'CONTROLLED' }
-      ],
-      currentMedications: medications.length > 0 ? medications : [
-        { name: 'Metformin HCl', dosage: '500 mg', frequency: 'Twice daily', route: 'Oral', isActive: true, indication: 'Type 2 Diabetes' }
-      ],
-      allergies: allergies.length > 0 ? allergies : [
-        { allergen: 'Penicillin', type: 'DRUG', reaction: 'Urticaria & facial swelling', severity: 'SEVERE_ANAPHYLACTIC' }
-      ],
-      surgicalHistory: [
-        { procedure: 'Laparoscopic Appendectomy', year: '2014', hospital: 'General Hospital' }
-      ],
-      familyHistory: [
-        { relation: 'Father', condition: 'Coronary Artery Disease', ageOfOnset: '58' }
-      ],
-      relevantLabFindings: [
-        { testName: 'HbA1c', value: '6.9', unit: '%', referenceRange: '4.0 - 5.6', isAbnormal: true, flagType: 'HIGH' }
-      ],
+      pastMedicalHistory: existingConditions.map(c => ({
+        condition: c,
+        diagnosedYear: '2020',
+        status: 'CONTROLLED'
+      })),
+      currentMedications: extractedMeds,
+      allergies: extractedAllergies,
+      surgicalHistory: [],
+      familyHistory: [],
+      relevantLabFindings: [],
       suspectedSystemicInvolvement: medicalSystem === 'AYURVEDA'
-        ? ['Annavaha Srotas (Digestive & Metabolic Canal)', 'Rasavaha Srotas (Nutritional Plasma Stream)', 'Purishavaha Srotas (Excretory Canal)']
-        : ['Respiratory System', 'Cardiometabolic Profile'],
-      differentialConsiderations: medicalSystem === 'AYURVEDA'
-        ? [
-            'Amlapitta (Hyperacidity / Acid Peptic Disorder)',
-            'Grahani Dosha (Altered Bowel Motility & Digestion)',
-            'Vatavyadhi (Systemic / Musculoskeletal Vata Syndrome)'
-          ]
-        : [
-            'Acute Upper/Lower Respiratory Tract Infection',
-            'Viral Bronchitis',
-            'Early Pneumonitis'
-          ],
+        ? ['Annavaha Srotas', 'Rasavaha Srotas']
+        : ['General Clinical Evaluation'],
+      differentialConsiderations: ['Awaiting physician in-person examination and clinical orders.'],
       redFlagChecklist: [
-        { item: 'Hemoptysis', detected: false, note: 'Denied by patient' },
-        { item: 'Severe Cyanosis / SpO2 < 92%', detected: false, note: 'SpO2 stable' },
-        { item: 'Orthopnea / Paroxysmal Nocturnal Dyspnea', detected: false, note: 'Denied' }
+        { item: 'Acute Cardiac / Severe Respiratory Distress', detected: false, note: 'Denied by patient' }
       ],
-      safetyWarnings: [
-        isPenicillinAllergic
-          ? '⚠️ CRITICAL SAFETY WARNING: Patient has documented allergy to Penicillin / Beta-lactams. Avoid Amoxicillin, Ampicillin, Cephalosporins.'
-          : '⚠️ Please verify all patient medication history against active electronic health records.'
-      ],
+      safetyWarnings: extractedAllergies.length > 0
+        ? extractedAllergies.map(a => `⚠️ Safety Alert: Documented allergy to ${a.allergen}`)
+        : ['⚠️ Verify clinical history against active electronic health records.'],
       verificationStatus: 'PENDING_PHYSICIAN_REVIEW'
     };
   }

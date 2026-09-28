@@ -250,6 +250,68 @@ export interface ClinicalSession {
   originalPatientStatement?: string;
   translatedSummary?: string;
   aiSummary?: ClinicalHistorySummary;
+  encounterId?: string;
+  appointmentId?: string;
+  conversationMessages?: ConversationMessage[];
+  shortReport?: PhysicianShortReport;
+}
+
+export type ClinicalSourceTag = 'PATIENT REPORTED' | 'DOCUMENT EXTRACTED' | 'AI SUMMARIZED' | 'DOCTOR ENTERED';
+
+export interface ClinicalSourceItem {
+  text: string;
+  source: ClinicalSourceTag;
+  notes?: string;
+}
+
+export interface PhysicianShortReport {
+  patientId: string;
+  age?: number;
+  gender?: string;
+  encounterDate: string;
+  encounterId?: string;
+  appointmentId?: string;
+  chiefComplaint: {
+    mainReason: string;
+    source: ClinicalSourceTag;
+  };
+  symptoms: {
+    importantSymptoms: string[];
+    duration?: string;
+    severity?: string;
+    location?: string;
+    onset?: string;
+    associatedSymptoms?: string[];
+    source: ClinicalSourceTag;
+  };
+  medicalHistory: {
+    existingConditions: string[];
+    previousHistory: string[];
+    source: ClinicalSourceTag;
+  };
+  medicationsAndAllergies: {
+    currentMedications: string[];
+    knownAllergies: string[];
+    source: ClinicalSourceTag;
+  };
+  relevantFindings: ClinicalSourceItem[];
+  redFlags?: {
+    detected: boolean;
+    flags: string[];
+    source: ClinicalSourceTag;
+  };
+  summary: {
+    text: string; // 3–6 short sentences
+    source: ClinicalSourceTag;
+  };
+  missingOrUncertainInfo: {
+    items: string[];
+    source: ClinicalSourceTag;
+  };
+  doctorNotes?: {
+    notes?: string;
+    source: ClinicalSourceTag;
+  };
 }
 
 export interface ClinicalHistorySummary {
@@ -263,6 +325,9 @@ export interface ClinicalHistorySummary {
   disclaimer: string; // Mandatory "AI-generated - Requires physician verification"
   chiefComplaints: string;
   historyOfPresentIllness: string;
+  shortReport?: PhysicianShortReport;
+  encounterId?: string;
+  appointmentId?: string;
   painScore?: number;
   symptomsList: SymptomEntry[];
   pastMedicalHistory: MedicalCondition[];

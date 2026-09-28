@@ -235,9 +235,105 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing]);
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleFinishAndGenerateReport = async (historyToUse?: ConversationMessage[]) => {
+    if (isProcessing || isIntakeDone) return;
+    setIsProcessing(true);
+    SpeechService.stopSpeaking();
+    setIsSpeaking(false);
+
+    const history = historyToUse || messages;
+    const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || 'MB-2026-ACTIVE';
+    const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE') : [];
+    const registeredHospitals = db.getHospitals();
+    const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : '');
+    const targetHospitalName = trustedHospitals[0]?.hospitalName || (registeredHospitals.length > 0 ? registeredHospitals[0].name : 'Nearest Medical Center');
+
+    // Retrieve active appointment for linking
+    const pAppts = db.getAppointments(pRealId);
+    const latestApt = pAppts[0];
+    const encounterId = latestApt ? `enc-${latestApt.id}` : `enc-${Date.now()}`;
+    const appointmentId = latestApt?.id;
+
+    try {
+      const { summary, shortReport } = await AIIntakeEngine.generateStructuredSummaryAsync(
+        activeSessionId,
+        pRealId,
+        history,
+        patientProfile,
+        language,
+        medicalSystem,
+        encounterId,
+        appointmentId
+      );
+
+      const firstPatientMsg = history.find(m => m.sender === 'PATIENT')?.text || 'Patient reported symptoms.';
+
+      const newSession: ClinicalSession = {
+        id: activeSessionId,
+        patientId: pRealId,
+        encounterId,
+        appointmentId,
+        conversationMessages: history,
+        shortReport,
+        patientName: currentUser?.fullName || patientProfile?.fullName || 'Registered Patient',
+        patientAge: patientProfile?.age || 35,
+        patientGender: patientProfile?.gender || 'Male',
+        patientPhone: currentUser?.phone || patientProfile?.emergencyContactPhone || '+91 98000 00000',
+        startedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+        completedAt: new Date().toISOString(),
+        status: redFlags.length > 0 ? 'EMERGENCY_TRIGGERED' : 'COMPLETED',
+        triagePriority: currentPriority,
+        triageRationale: redFlags.length > 0
+          ? 'CRITICAL RED FLAG: Emergency department resuscitation priority.'
+          : 'Pre-arrival intake completed with physician-ready short clinical report.',
+        chiefComplaint: shortReport?.chiefComplaint?.mainReason || firstPatientMsg,
+        originalLanguage: language,
+        originalPatientStatement: firstPatientMsg,
+        translatedSummary: shortReport?.summary?.text || firstPatientMsg,
+        selectedHospitalId: targetHospitalId,
+        selectedDepartmentId: 'dept-001',
+        targetDoctorId: 'doc-001',
+        redFlagsDetected: redFlags,
+        isRedFlagTriggered: redFlags.length > 0,
+        aiSummary: summary
+      };
+
+      // Bidirectional appointment link
+      if (latestApt) {
+        db.saveAppointment({ ...latestApt, clinicalSessionId: activeSessionId });
+      }
+
+      db.saveClinicalSession(newSession);
+      await AIIntakeEngine.saveSessionToCloud(newSession);
+
+      db.logAction(
+        currentUser?.id || 'usr-pat',
+        currentUser?.fullName || 'Registered Patient',
+        'PATIENT',
+        'INTAKE_COMPLETED',
+        'ClinicalSession',
+        activeSessionId,
+        `Completed AI clinical intake (${language.toUpperCase()}). Linked to Encounter: ${encounterId}`
+      );
+
+      setIsIntakeDone(true);
+      setIsProcessing(false);
+      onIntakeCompleted(newSession);
+    } catch (err: any) {
+      console.error('[Error generating short report]:', err);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSendMessage = async (textToSend?: string) => {
     const messageContent = (textToSend || inputText).trim();
     if (!messageContent || isProcessing) return;
+
+    // Check if patient selected "Finish & Generate Report" quick reply
+    if (/finish.*report|generate.*report|सारांश देखें|अहवाल तयार करा|خلاصہ دیکھیں/i.test(messageContent)) {
+      handleFinishAndGenerateReport();
+      return;
+    }
 
     // Stop speaking if playing
     SpeechService.stopSpeaking();
@@ -258,15 +354,36 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
     setInputText('');
     setIsProcessing(true);
 
-    // Analyze through AI Clinical Engine
-    setTimeout(() => {
-      const result = AIIntakeEngine.analyzeInput(
+    try {
+      // Analyze through modern LLM-backed Clinical Intake Engine
+      const result = await AIIntakeEngine.analyzeInputAsync(
         messageContent,
         updatedHistory,
         language,
         medicalSystem,
-        isRedFlagDetectionEnabled
+        isRedFlagDetectionEnabled,
+        patientProfile
       );
+
+      // Add finish option to suggested replies if not already present and enough turns
+      const patientMsgCount = updatedHistory.filter(m => m.sender === 'PATIENT').length;
+      let finalSuggestedReplies = result.suggestedReplies || [];
+      if (patientMsgCount >= 2 && !result.isComplete && !result.isRedFlagTriggered) {
+        const finishLabel: Record<LanguageCode, string> = {
+          en: '📋 Finish Interview & Generate Report',
+          hi: '📋 साक्षात्कार समाप्त करें व रिपोर्ट बनाएं',
+          mr: '📋 मुलाखत पूर्ण करा व अहवाल बनवा',
+          ur: '📋 انٹرویو مکمل کریں اور رپورٹ بنائیں',
+          kn: '📋 ಇಂಟರ್ವ್ಯೂ ಪೂರ್ಣಗೊಳಿಸಿ ವರದಿ ತಯಾರಿಸಿ',
+          gu: '📋 ઇન્ટરવ્યુ પૂર્ણ કરો અને રિપોર્ટ બનાવો',
+          ta: '📋 நேர்காணலை முடித்து அறிக்கை உருவாக்கவும்',
+          bn: '📋 সাক্ষাৎকার শেষ করে রিপোর্ট তৈরি করুন'
+        };
+        const label = finishLabel[language] || finishLabel.en;
+        if (!finalSuggestedReplies.includes(label)) {
+          finalSuggestedReplies = [...finalSuggestedReplies, label];
+        }
+      }
 
       const aiMsg: ConversationMessage = {
         id: `msg-${Date.now() + 1}`,
@@ -275,7 +392,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         text: result.nextBotMessage,
         language: language,
         timestamp: new Date().toISOString(),
-        suggestedQuickReplies: result.suggestedReplies
+        suggestedQuickReplies: finalSuggestedReplies
       };
 
       setMessages(prev => [...prev, aiMsg]);
@@ -298,7 +415,6 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         );
 
         if (activeEmergency) {
-          // Duplicate Prevention: Update existing active alert with newly detected red flags & patient statements
           const updatedAlert = {
             ...activeEmergency,
             redFlags: Array.from(new Set([...(activeEmergency.redFlags || []), ...result.redFlagsDetected])),
@@ -310,7 +426,6 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
           db.saveEmergencyAlert(updatedAlert);
           onEmergencyTriggered(updatedAlert.id);
         } else {
-          // Create new Emergency Alert with patient's statement and live metadata
           const pName = currentUser?.fullName || patientProfile?.fullName || 'Registered Patient';
           const trustedHospitals = db.getTrustedHospitals(pId).filter(t => t.status === 'ACTIVE');
           const registeredHospitals = db.getHospitals();
@@ -370,65 +485,13 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
       }
 
       if (result.isComplete) {
-        setIsIntakeDone(true);
         setCurrentPriority(result.suggestedTriagePriority);
-
-        const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
-        const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE') : [];
-        const registeredHospitals = db.getHospitals();
-        const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : '');
-
-        // Synthesize structured clinical summary with language metadata
-        const summary = AIIntakeEngine.generateStructuredSummary(
-          activeSessionId,
-          pRealId,
-          userMsg.text,
-          updatedHistory.map(m => `${m.sender}: ${m.text}`).join('\n'),
-          patientProfile?.allergies?.map(a => ({ allergen: a, type: 'OTHER' as const, reaction: 'Documented in profile', severity: 'MODERATE' as const })) || [],
-          [],
-          language
-        );
-
-        const newSession: ClinicalSession = {
-          id: activeSessionId,
-          patientId: pRealId,
-          patientName: currentUser?.fullName || patientProfile?.fullName || 'Registered Patient',
-          patientAge: patientProfile?.age || 35,
-          patientGender: patientProfile?.gender || 'Male',
-          patientPhone: currentUser?.phone || patientProfile?.emergencyContactPhone || '+91 98000 00000',
-          startedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-          completedAt: new Date().toISOString(),
-          status: result.isRedFlagTriggered ? 'EMERGENCY_TRIGGERED' : 'COMPLETED',
-          triagePriority: result.suggestedTriagePriority,
-          triageRationale: result.isRedFlagTriggered
-            ? 'CRITICAL RED FLAG: Immediate emergency department resuscitation priority.'
-            : 'Pre-arrival intake completed from home with clinical history synthesis.',
-          chiefComplaint: userMsg.text,
-          originalLanguage: language,
-          originalPatientStatement: userMsg.text,
-          translatedSummary: result.translatedConcern || userMsg.text,
-          selectedHospitalId: targetHospitalId,
-          selectedDepartmentId: 'dept-001',
-          targetDoctorId: 'doc-001',
-          redFlagsDetected: result.redFlagsDetected,
-          isRedFlagTriggered: result.isRedFlagTriggered,
-          aiSummary: summary
-        };
-
-        db.saveClinicalSession(newSession);
-        db.logAction(
-          currentUser?.id || 'usr-pat',
-          currentUser?.fullName || 'Registered Patient',
-          'PATIENT',
-          'INTAKE_COMPLETED',
-          'ClinicalSession',
-          activeSessionId,
-          `Completed AI intake (${language.toUpperCase()}). Priority: ${result.suggestedTriagePriority}`
-        );
-
-        onIntakeCompleted(newSession);
+        await handleFinishAndGenerateReport(updatedHistory);
       }
-    }, 900);
+    } catch (err: any) {
+      console.error('[handleSendMessage error]:', err);
+      setIsProcessing(false);
+    }
   };
 
   const toggleVoiceListen = () => {
@@ -544,6 +607,20 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
             }`} />
             <span>{currentPriority} STAT</span>
           </div>
+
+          {messages.filter(m => m.sender === 'PATIENT').length >= 1 && !isIntakeDone && (
+            <button
+              type="button"
+              onClick={() => handleFinishAndGenerateReport()}
+              disabled={isProcessing}
+              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
+              title="Finish conversation and compile physician report"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Generate Report</span>
+              <span className="sm:hidden">Report</span>
+            </button>
+          )}
 
           <button
             onClick={handleRestartChat}

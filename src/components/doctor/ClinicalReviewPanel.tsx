@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import {
   Stethoscope, CheckCircle2, Edit3, XCircle, ShieldCheck,
-  Save, AlertTriangle, User, FileText, Pill, HeartPulse, Sparkles
+  Save, AlertTriangle, User, FileText, Pill, HeartPulse, Sparkles,
+  Clock, CheckSquare, HelpCircle, Activity, Globe
 } from 'lucide-react';
-import { ClinicalSession, ClinicalHistorySummary } from '../../types';
+import { ClinicalSession, ClinicalHistorySummary, ClinicalSourceTag, PhysicianShortReport } from '../../types';
 import { db } from '../../services/mockDatabase';
+import { AIIntakeEngine } from '../../services/aiIntakeEngine';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { SafetyAlertBanner } from './SafetyAlertBanner';
@@ -15,6 +17,21 @@ interface ClinicalReviewPanelProps {
   onSessionUpdated: (updated: ClinicalSession) => void;
 }
 
+const SourceBadge: React.FC<{ source?: ClinicalSourceTag }> = ({ source = 'PATIENT REPORTED' }) => {
+  const styles: Record<ClinicalSourceTag, { bg: string; text: string; border: string }> = {
+    'PATIENT REPORTED': { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
+    'DOCUMENT EXTRACTED': { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200' },
+    'AI SUMMARIZED': { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200' },
+    'DOCTOR ENTERED': { bg: 'bg-teal-50', text: 'text-teal-800', border: 'border-teal-300' }
+  };
+  const current = styles[source] || styles['PATIENT REPORTED'];
+  return (
+    <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${current.bg} ${current.text} ${current.border} uppercase tracking-wider`}>
+      {source}
+    </span>
+  );
+};
+
 export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
   session,
   onSessionUpdated
@@ -23,11 +40,12 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
   const { showToast } = useNotification();
 
   const summary = session.aiSummary;
+  const shortReport: PhysicianShortReport | undefined = session.shortReport || summary?.shortReport;
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editedHpi, setEditedHpi] = useState(summary?.historyOfPresentIllness || '');
-  const [editedChiefComplaint, setEditedChiefComplaint] = useState(summary?.chiefComplaints || '');
-  const [doctorNotes, setDoctorNotes] = useState(summary?.doctorVerificationNotes || '');
+  const [editedHpi, setEditedHpi] = useState(shortReport?.summary?.text || summary?.historyOfPresentIllness || '');
+  const [editedChiefComplaint, setEditedChiefComplaint] = useState(shortReport?.chiefComplaint?.mainReason || summary?.chiefComplaints || '');
+  const [doctorNotes, setDoctorNotes] = useState(shortReport?.doctorNotes?.notes || summary?.doctorVerificationNotes || '');
   const [isVerifying, setIsVerifying] = useState(false);
 
   if (!summary) {
@@ -40,17 +58,70 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
     );
   }
 
-  const handleVerifyRecord = (actionType: 'APPROVE' | 'EDIT_AND_APPROVE' | 'REJECT') => {
+  const handleVerifyRecord = async (actionType: 'APPROVE' | 'EDIT_AND_APPROVE' | 'REJECT') => {
     setIsVerifying(true);
 
     const docName = currentUser?.fullName || doctorProfile?.specialization || 'Attending Physician';
     const regNo = doctorProfile?.registrationNumber || 'ABDM-Verified';
+
+    const updatedShortReport: PhysicianShortReport = shortReport ? {
+      ...shortReport,
+      chiefComplaint: isEditing ? {
+        mainReason: editedChiefComplaint,
+        source: 'DOCTOR ENTERED'
+      } : shortReport.chiefComplaint,
+      summary: isEditing ? {
+        text: editedHpi,
+        source: 'DOCTOR ENTERED'
+      } : shortReport.summary,
+      doctorNotes: {
+        notes: doctorNotes,
+        source: 'DOCTOR ENTERED'
+      }
+    } : {
+      patientId: session.patientId,
+      encounterDate: new Date().toISOString().split('T')[0],
+      encounterId: session.encounterId,
+      appointmentId: session.appointmentId,
+      chiefComplaint: {
+        mainReason: isEditing ? editedChiefComplaint : summary.chiefComplaints,
+        source: isEditing ? 'DOCTOR ENTERED' : 'PATIENT REPORTED'
+      },
+      symptoms: {
+        importantSymptoms: [summary.chiefComplaints],
+        source: 'PATIENT REPORTED'
+      },
+      medicalHistory: {
+        existingConditions: summary.pastMedicalHistory.map(p => p.condition),
+        previousHistory: [],
+        source: 'PATIENT REPORTED'
+      },
+      medicationsAndAllergies: {
+        currentMedications: summary.currentMedications.map(m => m.name),
+        knownAllergies: summary.allergies.map(a => a.allergen),
+        source: 'PATIENT REPORTED'
+      },
+      relevantFindings: [],
+      summary: {
+        text: isEditing ? editedHpi : summary.historyOfPresentIllness,
+        source: isEditing ? 'DOCTOR ENTERED' : 'AI SUMMARIZED'
+      },
+      missingOrUncertainInfo: {
+        items: ['Physical examination pending'],
+        source: 'AI SUMMARIZED'
+      },
+      doctorNotes: {
+        notes: doctorNotes,
+        source: 'DOCTOR ENTERED'
+      }
+    };
 
     const updatedSummary: ClinicalHistorySummary = {
       ...summary,
       chiefComplaints: isEditing ? editedChiefComplaint : summary.chiefComplaints,
       historyOfPresentIllness: isEditing ? editedHpi : summary.historyOfPresentIllness,
       doctorVerificationNotes: doctorNotes,
+      shortReport: updatedShortReport,
       verificationStatus: actionType === 'REJECT'
         ? 'REJECTED'
         : actionType === 'EDIT_AND_APPROVE'
@@ -65,10 +136,13 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
     const updatedSession: ClinicalSession = {
       ...session,
       status: actionType === 'REJECT' ? 'IN_PROGRESS' : 'VERIFIED',
+      shortReport: updatedShortReport,
       aiSummary: updatedSummary
     };
 
     db.saveClinicalSession(updatedSession);
+    await AIIntakeEngine.saveSessionToCloud(updatedSession);
+
     db.logAction(
       currentUser?.id || 'usr-doc',
       docName,
@@ -76,7 +150,7 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
       'RECORD_VERIFIED',
       'ClinicalSession',
       session.id,
-      `Physician ${actionType}: Verified clinical summary for ${session.patientName} (${session.patientId}) under Reg #${regNo}`
+      `Physician ${actionType}: Verified clinical intake short report for ${session.patientName} (${session.patientId}) under Reg #${regNo}`
     );
 
     setIsVerifying(false);
@@ -97,6 +171,26 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
 
   const isVerified = summary.verificationStatus === 'VERIFIED_BY_PHYSICIAN' || summary.verificationStatus === 'EDITED_AND_VERIFIED';
 
+  // Resolved values from shortReport or summary
+  const chiefComplaintText = shortReport?.chiefComplaint?.mainReason || summary.chiefComplaints || 'Patient clinical intake';
+  const chiefComplaintSource: ClinicalSourceTag = shortReport?.chiefComplaint?.source || 'PATIENT REPORTED';
+
+  const symptomsList = shortReport?.symptoms?.importantSymptoms || summary.symptomsList.map(s => s.name);
+  const symptomsDuration = shortReport?.symptoms?.duration || summary.symptomsList[0]?.duration || 'Not specified';
+  const symptomsSeverity = shortReport?.symptoms?.severity || (summary.painScore ? `${summary.painScore}/10` : 'Moderate');
+  const symptomsLocation = shortReport?.symptoms?.location || 'Reported during intake';
+  const symptomsOnset = shortReport?.symptoms?.onset || summary.symptomsList[0]?.onset || 'Gradual';
+  const symptomsSource: ClinicalSourceTag = shortReport?.symptoms?.source || 'PATIENT REPORTED';
+
+  const existingConditions = shortReport?.medicalHistory?.existingConditions || summary.pastMedicalHistory.map(p => p.condition);
+  const currentMedications = shortReport?.medicationsAndAllergies?.currentMedications || summary.currentMedications.map(m => `${m.name} (${m.dosage})`);
+  const knownAllergies = shortReport?.medicationsAndAllergies?.knownAllergies || summary.allergies.map(a => `${a.allergen} - ${a.reaction}`);
+  const summarySentences = shortReport?.summary?.text || summary.historyOfPresentIllness;
+  const missingInfo = shortReport?.missingOrUncertainInfo?.items || [
+    'Objective vital signs (Blood pressure, Pulse, SpO2, Temperature) require physical triage examination',
+    'Prescription verification pending'
+  ];
+
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
       {/* Physician Header */}
@@ -109,7 +203,7 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Patient: <span className="font-bold text-slate-800">{session.patientName}</span> ({session.patientAge}y • {session.patientGender}) • ID: {session.patientId}
+            Patient: <span className="font-bold text-slate-800">{session.patientName}</span> ({session.patientAge}y • {session.patientGender}) • ID: {session.patientId} • Encounter: <span className="font-mono font-bold text-teal-700">{session.encounterId || session.appointmentId || `ENC-${session.id.slice(-6).toUpperCase()}`}</span>
           </p>
         </div>
 
@@ -133,6 +227,17 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
       {/* Safety Alert Warnings Component */}
       <SafetyAlertBanner summary={summary} />
 
+      {/* Source Provenance Legend Bar */}
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="font-bold text-slate-600 text-[11px] uppercase tracking-wider">Source Provenance:</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <SourceBadge source="PATIENT REPORTED" />
+          <SourceBadge source="DOCUMENT EXTRACTED" />
+          <SourceBadge source="AI SUMMARIZED" />
+          <SourceBadge source="DOCTOR ENTERED" />
+        </div>
+      </div>
+
       {/* Mandatory Disclaimer */}
       <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
         <span className="font-medium">{summary.disclaimer}</span>
@@ -144,9 +249,12 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
         {/* Chief Complaint */}
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider">
-              Chief Complaints
-            </h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider">
+                Chief Complaint
+              </h4>
+              <SourceBadge source={isEditing ? 'DOCTOR ENTERED' : chiefComplaintSource} />
+            </div>
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
@@ -165,15 +273,90 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
               className="w-full bg-white border border-teal-500 rounded-xl p-2.5 text-xs text-slate-800 shadow-sm"
             />
           ) : (
-            <p className="text-xs text-slate-900 font-semibold">{summary.chiefComplaints}</p>
+            <p className="text-xs text-slate-900 font-semibold">{chiefComplaintText}</p>
           )}
         </div>
 
-        {/* History of Present Illness (HPI) */}
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-          <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider mb-2">
-            History of Present Illness (HPI)
-          </h4>
+        {/* Symptoms & Characteristics */}
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider flex items-center gap-1.5">
+              <HeartPulse className="w-4 h-4 text-teal-600" />
+              <span>Reported Symptoms &amp; Characteristics</span>
+            </h4>
+            <SourceBadge source={symptomsSource} />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+              <span className="text-slate-500 font-medium block text-[10px]">Symptoms:</span>
+              <p className="font-bold text-slate-800 mt-0.5">{symptomsList.join(', ') || 'Primary symptom'}</p>
+            </div>
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+              <span className="text-slate-500 font-medium block text-[10px]">Duration:</span>
+              <p className="font-bold text-slate-800 mt-0.5">{symptomsDuration}</p>
+            </div>
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+              <span className="text-slate-500 font-medium block text-[10px]">Severity:</span>
+              <p className="font-bold text-slate-800 mt-0.5">{symptomsSeverity}</p>
+            </div>
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+              <span className="text-slate-500 font-medium block text-[10px]">Onset:</span>
+              <p className="font-bold text-slate-800 mt-0.5">{symptomsOnset}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Medical History, Medications & Allergies Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-teal-600" />
+                <span>Medical History</span>
+              </h4>
+              <SourceBadge source={shortReport?.medicalHistory?.source || 'PATIENT REPORTED'} />
+            </div>
+            {existingConditions.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No chronic conditions reported by patient.</p>
+            ) : (
+              <ul className="text-xs space-y-1 list-disc list-inside text-slate-800">
+                {existingConditions.map((cond, i) => (
+                  <li key={i}>{cond}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Pill className="w-4 h-4 text-teal-600" />
+                <span>Medications &amp; Allergies</span>
+              </h4>
+              <SourceBadge source={shortReport?.medicationsAndAllergies?.source || 'PATIENT REPORTED'} />
+            </div>
+            <div className="text-xs space-y-1">
+              <div>
+                <span className="font-bold text-slate-600 text-[10px]">Active Meds:</span>
+                <p className="text-slate-800">{currentMedications.join(', ') || 'No regular medications'}</p>
+              </div>
+              <div className="pt-1 border-t border-slate-200">
+                <span className="font-bold text-slate-600 text-[10px]">Allergies:</span>
+                <p className="text-red-700 font-semibold">{knownAllergies.join(', ') || 'No known allergies (NKDA)'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Clinical Intake Summary (3-6 short sentences) */}
+        <div className="bg-purple-50/70 p-4 rounded-2xl border border-purple-200 space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <span>Clinical Intake Summary (3-6 Sentences)</span>
+            </h4>
+            <SourceBadge source={isEditing ? 'DOCTOR ENTERED' : (shortReport?.summary?.source || 'AI SUMMARIZED')} />
+          </div>
           {isEditing ? (
             <textarea
               rows={4}
@@ -182,10 +365,26 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
               className="w-full bg-white border border-teal-500 rounded-xl p-2.5 text-xs text-slate-800 font-mono shadow-sm"
             />
           ) : (
-            <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-              {summary.historyOfPresentIllness}
+            <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line font-medium">
+              {summarySentences}
             </p>
           )}
+        </div>
+
+        {/* Missing / Uncertain Information */}
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <HelpCircle className="w-4 h-4 text-slate-500" />
+              <span>Missing / Uncertain Information (Pending Physical Exam)</span>
+            </h4>
+            <SourceBadge source="AI SUMMARIZED" />
+          </div>
+          <ul className="space-y-1 list-disc list-inside text-xs text-slate-600">
+            {missingInfo.map((item, idx) => (
+              <li key={idx}>{item}</li>
+            ))}
+          </ul>
         </div>
 
         {/* 🌿 Ayurvedic Dashavidha Pariksha Clinical Panel (Rendered for Ayurveda or when present) */}
@@ -245,7 +444,7 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
               </div>
 
               <div className="bg-white/90 p-3 rounded-xl border border-teal-200 shadow-2xs">
-                <span className="text-[10px] font-bold text-teal-800 uppercase block">8. आहार शक्ति (Ahara Shakti / Agni & Digestion)</span>
+                <span className="text-[10px] font-bold text-teal-800 uppercase block">8. आहार शक्ति (Ahara Shakti / Agni &amp; Digestion)</span>
                 <span className="font-bold text-teal-950 mt-0.5 block">{summary.dashavidhaPariksha.aharaShakti || 'Mandagni'}</span>
               </div>
 
@@ -257,52 +456,22 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
 
             {summary.dashavidhaPariksha.aharaViharaNotes && (
               <div className="p-3 bg-white/90 rounded-xl border border-emerald-100 text-xs text-slate-700">
-                <span className="font-bold text-emerald-900 block mb-0.5">आहार-विहार (Dietary & Circadian Lifestyle Observations):</span>
+                <span className="font-bold text-emerald-900 block mb-0.5">आहार-विहार (Dietary &amp; Circadian Lifestyle Observations):</span>
                 <span>{summary.dashavidhaPariksha.aharaViharaNotes}</span>
               </div>
             )}
           </div>
         )}
 
-        {/* Systemic Involvement & Differential Considerations */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {summary.suspectedSystemicInvolvement && summary.suspectedSystemicInvolvement.length > 0 && (
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider mb-2">
-                {summary.medicalSystem === 'AYURVEDA' ? 'Involved Srotas (स्रोतस)' : 'Systemic Involvement'}
-              </h4>
-              <div className="flex flex-wrap gap-1.5">
-                {summary.suspectedSystemicInvolvement.map((sys, idx) => (
-                  <span key={idx} className="text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 px-2.5 py-1 rounded-lg">
-                    {sys}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {summary.differentialConsiderations && summary.differentialConsiderations.length > 0 && (
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wider mb-2">
-                {summary.medicalSystem === 'AYURVEDA' ? 'Differential Vyadhi (व्याधि विमर्श)' : 'Differential Considerations'}
-              </h4>
-              <ul className="text-xs text-slate-700 space-y-1 list-disc list-inside">
-                {summary.differentialConsiderations.map((diff, idx) => (
-                  <li key={idx} className="font-medium text-slate-800">
-                    {diff}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
         {/* Doctor Consultation Notes & Clinical Additions */}
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-            <Edit3 className="w-4 h-4 text-teal-600" />
-            <span>Attending Physician Clinical Notes &amp; Assessment</span>
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <Edit3 className="w-4 h-4 text-teal-600" />
+              <span>Attending Physician Clinical Notes &amp; Assessment</span>
+            </h4>
+            <SourceBadge source="DOCTOR ENTERED" />
+          </div>
           <textarea
             rows={3}
             value={doctorNotes}
@@ -319,7 +488,7 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-teal-600" />
             <span className="font-bold text-slate-900">
-              Signer: {currentUser?.fullName || doctorProfile?.specialization || 'Attending Physician'}
+              Signer: Dr. {currentUser?.fullName || doctorProfile?.specialization || 'Attending Physician'}
             </span>
           </div>
           <p className="text-[11px] text-slate-500">
@@ -331,7 +500,8 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => handleVerifyRecord('REJECT')}
-            className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+            disabled={isVerifying}
+            className="px-3.5 py-2 bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
           >
             <XCircle className="w-4 h-4" />
             <span>Reject Intake</span>
@@ -340,18 +510,20 @@ export const ClinicalReviewPanel: React.FC<ClinicalReviewPanelProps> = ({
           {isEditing ? (
             <button
               onClick={() => handleVerifyRecord('EDIT_AND_APPROVE')}
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-teal-600/20"
+              disabled={isVerifying}
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-teal-600/20"
             >
               <Save className="w-4 h-4" />
-              <span>Save Edits &amp; Sign</span>
+              <span>{isVerifying ? 'Saving...' : 'Save Edits & Sign'}</span>
             </button>
           ) : (
             <button
               onClick={() => handleVerifyRecord('APPROVE')}
-              className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-teal-600/20"
+              disabled={isVerifying}
+              className="px-5 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-teal-600/20"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Verify &amp; Sign Record</span>
+              <span>{isVerifying ? 'Signing...' : 'Verify & Sign Record'}</span>
             </button>
           )}
         </div>

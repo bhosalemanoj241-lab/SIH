@@ -7,6 +7,7 @@ import hospitalsHandler from './api/hospitals';
 import accessRequestsHandler from './api/access-requests';
 import trustedHospitalsHandler from './api/trusted-hospitals';
 import authHandler from './api/auth';
+import aiIntakeHandler from './api/ai-intake';
 
 const devApiPlugin = (): Plugin => {
   const routes: Record<string, (req: any, res: any) => Promise<any> | any> = {
@@ -16,6 +17,7 @@ const devApiPlugin = (): Plugin => {
     '/api/hospitals': hospitalsHandler,
     '/api/access-requests': accessRequestsHandler,
     '/api/trusted-hospitals': trustedHospitalsHandler,
+    '/api/ai-intake': aiIntakeHandler,
   };
 
   const createMiddleware = () => async (req: any, res: any, next: any) => {
