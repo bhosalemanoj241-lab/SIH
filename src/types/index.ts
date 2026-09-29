@@ -211,6 +211,36 @@ export interface TimelineEvent {
   tags: string[];
 }
 
+export type ConditionCategory = 'CRITICAL_EMERGENCY' | 'NORMAL_MINOR_ISSUE' | 'SPECIALIZED_DOCTOR_REQUIRED';
+
+export interface MedicineBuyingLink {
+  storeName: 'Tata 1mg' | 'Apollo Pharmacy' | 'PharmEasy' | 'Netmeds';
+  url: string;
+  priceEstimate?: string;
+  badge?: string;
+}
+
+export interface MedicineRecommendation {
+  id: string;
+  name: string;
+  genericName: string;
+  dosage: string;
+  timing: string;
+  indication: string;
+  category: 'FEVER' | 'HEADACHE' | 'COLD_FLU' | 'COUGH_THROAT' | 'ACIDITY_GAS' | 'BODY_PAIN' | 'DEHYDRATION';
+  buyingLinks: MedicineBuyingLink[];
+  caution: string;
+}
+
+export interface ClinicalTriageAssessment {
+  category: ConditionCategory;
+  rationale: string;
+  recommendedDepartment?: string;
+  isMedicationRecommended: boolean;
+  medicationDisclaimer?: string;
+  medicines?: MedicineRecommendation[];
+}
+
 export interface ConversationMessage {
   id: string;
   sessionId: string;
@@ -220,6 +250,9 @@ export interface ConversationMessage {
   timestamp: string;
   audioUrl?: string;
   suggestedQuickReplies?: string[];
+  conditionCategory?: ConditionCategory;
+  medicineRecommendations?: MedicineRecommendation[];
+  triageAssessment?: ClinicalTriageAssessment;
   extractedEntities?: {
     symptoms?: string[];
     redFlags?: string[];

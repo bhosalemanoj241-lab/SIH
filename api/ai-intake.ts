@@ -8,8 +8,12 @@ import {
   PhysicianShortReport,
   ClinicalHistorySummary,
   ClinicalSession,
-  ClinicalSourceTag
+  ClinicalSourceTag,
+  ConditionCategory,
+  MedicineRecommendation,
+  ClinicalTriageAssessment
 } from '../src/types';
+import { MedicineRecommendationService } from '../src/services/medicineRecommendationService';
 
 const CENTRAL_AUTH_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508';
 const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4';
@@ -201,8 +205,36 @@ async function callOpenAI(prompt: string, systemInstruction: string): Promise<st
   }
 }
 
+async function callPollinationsLLM(prompt: string, systemInstruction: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const res = await fetch('https://text.pollinations.ai/openai/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: prompt }
+        ],
+        jsonMode: true,
+        temperature: 0.2
+      })
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch {
+    clearTimeout(timeoutId);
+    return null;
+  }
+}
+
 async function queryLLM(prompt: string, systemInstruction: string): Promise<string | null> {
-  // Order of preference: Gemini -> Groq -> OpenAI
+  // Order of preference: Gemini -> Groq -> OpenAI -> Pollinations
   const geminiResult = await callGoogleGemini(prompt, systemInstruction);
   if (geminiResult) return geminiResult;
 
@@ -211,6 +243,9 @@ async function queryLLM(prompt: string, systemInstruction: string): Promise<stri
 
   const openAiResult = await callOpenAI(prompt, systemInstruction);
   if (openAiResult) return openAiResult;
+
+  const pollinationsResult = await callPollinationsLLM(prompt, systemInstruction);
+  if (pollinationsResult) return pollinationsResult;
 
   return null;
 }
@@ -349,20 +384,24 @@ export default async function handler(req: any, res: any) {
     const patientTurns = messages.filter(m => m.sender === 'PATIENT').length;
     const combinedInput = `${messages.map(m => `${m.sender}: ${m.text}`).join('\n')}\nPATIENT: ${currentMessage}`;
 
+    // Clinical Triage Assessment & OTC Medicine Safety Evaluation
+    const triageAssessment = MedicineRecommendationService.evaluateTriageAndMedicines(currentMessage, messages);
+
     // Emergency Red Flag Detection
-    const redFlags = detectRedFlags(currentMessage + ' ' + combinedInput, isRedFlagDetectionEnabled);
-    const isRedFlag = redFlags.length > 0;
+    const directRedFlags = detectRedFlags(currentMessage + ' ' + combinedInput, isRedFlagDetectionEnabled);
+    const isRedFlag = directRedFlags.length > 0 || triageAssessment.category === 'CRITICAL_EMERGENCY';
+    const activeFlags = directRedFlags.length > 0 ? directRedFlags : ['Acute Emergency Symptoms Detected'];
 
     if (isRedFlag) {
       const redAlertMessages: Record<LanguageCode, string> = {
-        en: `🚨 **CRITICAL SAFETY ALERT**: We detected potential emergency red-flag symptoms (${redFlags.join(', ')}).\n\nEmergency services have been alerted. Please sit or lie down, do not exert yourself, and proceed to the nearest Emergency Department immediately.`,
-        hi: `🚨 **गंभीर आपातकालीन चेतावनी**: हमने आपातकालीन लक्षण (${redFlags.join(', ')}) पहचाने हैं।\n\nइमरजेंसी विभाग को सूचित कर दिया गया है। कृपया तुरंत नजदीकी अस्पताल के आपातकालीन कक्ष (ER) में पहुंचें।`,
-        mr: `🚨 **तातडीची आणीबाणी सूचना**: आपत्कालीन लक्षणे आढळली आहेत (${redFlags.join(', ')}).\n\nतातडीने जवळच्या हॉस्पिटलच्या अपघात विभागात (ER) दाखल व्हा. रुग्णवाहिका पथकाला कळवले आहे.`,
-        ur: `🚨 **ہنگامی الرٹ**: ہنگامی علامات کا پتہ چلا ہے۔ براہ کرम فوری طور پر قریبی ایمرجنسی ڈیپارٹمنٹ جائیں۔`,
-        kn: `🚨 **ತುರ್ತು ಎಚ್ಚರಿಕೆ**: ಗಂಭೀರ ತುರ್ತು ಲಕ್ಷಣಗಳು ಪತ್ತೆಯಾಗಿವೆ. ದಯವಿಟ್ಟು ತಕ್ಷಣವೇ ಹತ್ತಿರದ ತುರ್ತು ಚಿಕಿತ್ಸಾ ವಿಭಾಗಕ್ಕೆ ತೆರಳಿ.`,
-        gu: `🚨 **કટોકટી ચેતવણી**: ગંભીર કટોકટીના લક્ષણો જણાયા છે. કૃપા કરીને તાત્કાલિક નજીકની ઇમરજન્સી હોસ્પિટલમાં જાઓ.`,
-        ta: `🚨 **அவசர எச்சரிக்கை**: தீவிர அவசர அறிகுறிகள் கண்டறியப்பட்டுள்ளன. தயவுசெய்து உடனடியாக அவசர சிகிச்சைப் பிரிவிற்கு செல்லவும்.`,
-        bn: `🚨 **জরুরি সতর্কবার্তা**: বিপজ্জনক জরুরি লক্ষণ সনাক্ত করা হয়েছে। অবিলম্বে নিকটস্থ জরুরি বিভাগে যোগাযোগ করুন।`
+        en: `🚨 **CRITICAL SAFETY ALERT**: Emergency red-flag symptoms detected (${activeFlags.join(', ')}).\n\n⚠️ **DO NOT TAKE OVER-THE-COUNTER MEDICINES**: In acute emergencies, self-medication is unsafe. Hospital emergency triage has been notified. Please proceed to the nearest Emergency Department (ER) immediately.`,
+        hi: `🚨 **गंभीर आपातकालीन चेतावनी**: आपातकालीन लक्षण (${activeFlags.join(', ')}) पहचाने गए हैं।\n\n⚠️ **कोई भी दवा खुद से न लें**: आपातकाल में सामान्य दवाइयां लेना घातक हो सकता है। कृपया तुरंत नजदीकी अस्पताल के आपातकालीन कक्ष (ER) जाएं।`,
+        mr: `🚨 **तातडीची आणीबाणी सूचना**: आपत्कालीन लक्षणे आढळली आहेत (${activeFlags.join(', ')}).\n\n⚠️ **कोणतीही गोळी स्वतः घेऊ नका**: आणीबाणीमध्ये स्वतः औषध घेणे घातक ठरू शकते. तातडीने जवळच्या हॉस्पिटलच्या अपघात विभागात (ER) जा.`,
+        ur: `🚨 **ہنگامی الرٹ**: ہنگامی علامات کا پتہ چلا ہے۔ براہ کرم خود سے دوائیں نہ لیں، فوری طور پر قریبی ایمرجنسی جائیں।`,
+        kn: `🚨 **ತುರ್ತು ಎಚ್ಚರಿಕೆ**: ಗಂಭೀರ ತುರ್ತು ಲಕ್ಷಣಗಳು ಕಂಡುಬಂದಿವೆ. ಯಾವುದೇ ಮಾತ್ರೆ ತೆಗೆದುಕೊಳ್ಳಬೇಡಿ. ದಯವಿಟ್ಟು ತಕ್ಷಣವೇ ತುರ್ತು ಚಿಕಿತ್ಸಾ ವಿಭಾಗಕ್ಕೆ ತೆರಳಿ.`,
+        gu: `🚨 **કટોકટી ચેતવણી**: ગંભીર કટોકટીના લક્ષણો જણાયા છે. જાતે કોઈ દવા લેશો નહીં. તાત્કાલિક ઇમરજન્સી હોસ્પિટલમાં જાઓ.`,
+        ta: `🚨 **அவசர எச்சரிக்கை**: தீவிர அவசர அறிகுறிகள் கண்டறியப்பட்டுள்ளன. தாங்களாக மாத்திரை உட்கொள்ள வேண்டாம். உடனடியாக அவசர சிகிச்சைப் பிரிவிற்கு செல்லவும்.`,
+        bn: `🚨 **জরুরি সতর্কবার্তা**: বিপজ্জনক জরুরি লক্ষণ সনাক্ত করা হয়েছে। নিজে ওষুধ খাবেন না। অবিলম্বে নিকটস্থ জরুরি বিভাগে যোগাযোগ করুন।`
       };
 
       return res.status(200).json({
@@ -371,36 +410,52 @@ export default async function handler(req: any, res: any) {
         suggestedReplies: ['Contact Emergency Services', 'I am at the hospital', 'Stop Red Flag & Continue'],
         isComplete: false,
         isRedFlagTriggered: true,
-        redFlagsDetected: redFlags,
+        redFlagsDetected: activeFlags,
         suggestedTriagePriority: 'RED',
+        conditionCategory: 'CRITICAL_EMERGENCY',
+        medicineRecommendations: [],
+        triageAssessment,
         detectedLanguage: language
       });
     }
 
+    // Determine safe medicines if normal minor issue
+    let finalMedicines: MedicineRecommendation[] = [];
+    if (triageAssessment.category === 'NORMAL_MINOR_ISSUE' && triageAssessment.isMedicationRecommended) {
+      finalMedicines = triageAssessment.medicines || [];
+    }
+
     // Try Production LLM for conversational response
-    const systemPrompt = `You are MediBridge AI, an empathetic, physician-grade Clinical Intake Assistant in a hospital triage and OPD setting.
-The user may speak English, Hindi, Hinglish (Hindi written in Roman script), Marathi, or other Indian languages, including incomplete phrases, voice-to-text transcripts, and corrections.
-Your clinical intake role:
-1. Conduct an adaptive, natural clinical intake conversation (like ChatGPT, NOT a robotic rigid questionnaire).
-2. Directly acknowledge the patient's symptoms warmly and respectfully.
-3. Understand what information has ALREADY been provided in the conversation history. DO NOT repeat questions or ask for information the patient already stated!
-4. Systematically explore missing intake dimensions:
-   - Primary symptom details (duration, severity 1-10, location, sudden vs gradual onset)
-   - Relevant associated symptoms (e.g. fever with chills, cough with sputum, headache with vomiting)
-   - Past medical conditions (Diabetes, Hypertension, Asthma, Cardiac, Thyroid)
-   - Current daily medications
-   - Known drug or food allergies
-5. SAFETY: You must NEVER diagnose diseases, NEVER prescribe medicines or dosages, and NEVER invent facts.
-6. When the patient has shared sufficient information (after about 3 to 5 informative turns covering chief complaint, duration/severity, medical history, and allergies), or if they express readiness to finish:
-   - Set "isComplete": true
-   - Conclude warmly stating that their physician-ready clinical intake report is now compiled for the doctor.
-7. Always respond in the patient's language (${language.toUpperCase()}) or in friendly Hinglish if they used Hinglish.
-8. Output JSON format ONLY:
+    const systemPrompt = `You are MediBridge AI, an intelligent, empathetic, physician-grade Clinical Intake Assistant in a hospital triage and OPD setting.
+UNIVERSAL MULTILINGUAL UNDERSTANDING:
+- You must understand and communicate fluently in EVERY language in the world (English, Hindi, Marathi, Bengali, Tamil, Telugu, Kannada, Gujarati, Urdu, Malayalam, Punjabi, Spanish, French, German, Arabic, or Romanized Hinglish/transliterations).
+- Always respond naturally in the patient's language (${language.toUpperCase()}) or in friendly Hinglish if the patient used Hinglish.
+
+CRITICAL 3-TIER CLINICAL SAFETY & MEDICATION RULES:
+1. CRITICAL EMERGENCY (Chest pain, heart attack, difficulty breathing, stroke/paralysis, massive hemorrhage, severe trauma, anaphylaxis):
+   - Set "conditionCategory": "CRITICAL_EMERGENCY"
+   - Set "suggestedTriagePriority": "RED"
+   - "medicineRecommendations": [] (ABSOLUTELY NO OTC MEDICINES)
+   - Warn patient not to self-medicate and to proceed to nearest ER immediately.
+
+2. NORMAL MINOR ISSUES (Mild to moderate fever, tension headache, common cold, runny nose, mild sore throat, mild acidity/gas, minor body ache):
+   - Set "conditionCategory": "NORMAL_MINOR_ISSUE"
+   - Set "suggestedTriagePriority": "GREEN"
+   - Over-The-Counter (OTC) symptomatic relief medicines (such as Dolo 650mg, Saridon, Cetirizine 10mg, Strepsils, Digene) are safe and verified buying links (Tata 1mg, Apollo Pharmacy, PharmEasy, Netmeds) are available.
+
+3. ANOTHER WAY OF ISSUE (Specialized / Non-Minor / Uncontrolled Chronic Disease / Severe Abdominal Pain / UTI / Purulent Infection / Pregnancy / Infant / Mental health):
+   - Set "conditionCategory": "SPECIALIZED_DOCTOR_REQUIRED"
+   - Set "suggestedTriagePriority": "YELLOW"
+   - "medicineRecommendations": [] (DO NOT RECOMMEND MEDICINES)
+   - Inform the patient that their symptoms indicate a specialized or non-minor condition for which over-the-counter self-medication is unsafe and could mask important symptoms. Advise consulting a qualified doctor or specialist department.
+
+Output JSON format ONLY:
 {
-  "nextBotMessage": "string (your conversational empathetic response and relevant follow-up question)",
+  "nextBotMessage": "string (conversational empathetic response and relevant follow-up question or clinical guidance)",
   "suggestedReplies": ["string", "string", "string"],
   "isComplete": boolean,
   "suggestedTriagePriority": "GREEN" | "YELLOW" | "ORANGE" | "RED",
+  "conditionCategory": "CRITICAL_EMERGENCY" | "NORMAL_MINOR_ISSUE" | "SPECIALIZED_DOCTOR_REQUIRED",
   "extractedEntities": {
     "chiefComplaint": "string",
     "duration": "string",
@@ -420,6 +475,7 @@ PATIENT'S LATEST MESSAGE: ${currentMessage}
 Current Language: ${language}
 Medical System: ${medicalSystem}
 Patient Turn Count: ${patientTurns + 1}
+Triage Classification: ${triageAssessment.category} (${triageAssessment.rationale})
 
 Generate the next intelligent, context-aware clinical intake response.`;
 
@@ -427,18 +483,34 @@ Generate the next intelligent, context-aware clinical intake response.`;
 
     if (llmOutput) {
       try {
-        const parsed = JSON.parse(llmOutput.replace(/```json/g, '').replace(/```/g, '').trim());
-        return res.status(200).json({
-          success: true,
-          nextBotMessage: parsed.nextBotMessage,
-          suggestedReplies: Array.isArray(parsed.suggestedReplies) ? parsed.suggestedReplies : [],
-          isComplete: Boolean(parsed.isComplete) || patientTurns >= 4,
-          isRedFlagTriggered: false,
-          redFlagsDetected: [],
-          suggestedTriagePriority: parsed.suggestedTriagePriority || 'GREEN',
-          extractedEntities: parsed.extractedEntities || {},
-          detectedLanguage: language
-        });
+        const cleaned = llmOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          let botText = parsed.nextBotMessage || '';
+
+          if (triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED') {
+            const adv = MedicineRecommendationService.getLocalizedAdvisory(triageAssessment, language);
+            if (!botText.toLowerCase().includes('specialist') && !botText.includes('⚠️')) {
+              botText = `${adv}\n\n${botText}`;
+            }
+          }
+
+          return res.status(200).json({
+            success: true,
+            nextBotMessage: botText,
+            suggestedReplies: Array.isArray(parsed.suggestedReplies) ? parsed.suggestedReplies : [],
+            isComplete: Boolean(parsed.isComplete) || patientTurns >= 4,
+            isRedFlagTriggered: false,
+            redFlagsDetected: [],
+            suggestedTriagePriority: triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED' ? 'YELLOW' : (parsed.suggestedTriagePriority || 'GREEN'),
+            conditionCategory: triageAssessment.category,
+            medicineRecommendations: finalMedicines,
+            triageAssessment,
+            extractedEntities: parsed.extractedEntities || {},
+            detectedLanguage: language
+          });
+        }
       } catch (jsonErr) {
         console.warn('[LLM JSON parse error]:', jsonErr);
       }
@@ -447,17 +519,18 @@ Generate the next intelligent, context-aware clinical intake response.`;
     // Dynamic Fallback Clinical Intake Engine (when LLM API is unavailable or offline)
     const entities = extractClinicalEntitiesFromHistory([...messages, { sender: 'PATIENT', text: currentMessage }]);
     const isFinished = patientTurns >= 3 || /finished|done|that's all|bas itna hi|kahi nahi|baki kahi nahi|sab bata diya/i.test(currentMessage);
+    const localizedAdvisory = MedicineRecommendationService.getLocalizedAdvisory(triageAssessment, language);
 
     if (isFinished) {
       const completionMessages: Record<LanguageCode, string> = {
         en: '✅ **Clinical Intake Complete**: I have gathered your symptoms, clinical history, and allergy profile. I am now compiling your physician-ready clinical report for your doctor.',
-        hi: '✅ **क्लिनिकल जानकारी पूर्ण**: मैंने आपके मुख्य लक्षण, स्वास्थ्य इतिहास और दवाओं की जानकारी एकत्र कर ली है। आपके डॉक्टर के लिए क्लिनिकल रिपोर्ट तैयार की जा रही है।',
-        mr: '✅ **माहिती संकलन पूर्ण**: मी तुमची सर्व लक्षणे, पूर्वेतिहास आणि औषधांची माहिती संकलित केली आहे. डॉक्टरांसाठी पूर्व-नोंदणी अहवाल तयार केला जात आहे.',
-        ur: '✅ **کلینیکل انٹیک مکمل**: میں نے آپ کی علامات اور طبی تاریخ کا خلاصہ تیار کر لیا ہے۔',
-        kn: '✅ **ಕ್ಲಿನಿಕಲ್ ಇನ್‌ಟೇಕ್ ಪೂರ್ಣಗೊಂಡಿದೆ**: ನಿಮ್ಮ ವೈದ್ಯಕೀಯ ಸಾರಾಂಶವನ್ನು ಸಿದ್ಧಪಡಿಸಲಾಗಿದೆ.',
-        gu: '✅ **ક્લિનિકલ ઇનટેક પૂર્ણ**: તમારા લક્ષણો અને મેડિકલ હિસ્ટ્રી નોંધાઈ ગઈ છે.',
+        hi: '✅ **क्लिनिकल इनटेक पूरा हुआ**: आपके लक्षण और मेडिकल हिस्ट्री दर्ज कर ली गई है। डॉक्टर के लिए रिपोर्ट तैयार की जा रही है।',
+        mr: '✅ **क्लिनिकल तपासणी पूर्ण**: तुमची लक्षणे आणि मेडिकल हिस्ट्री नोंदवली गेली आहे. डॉक्टरांसाठी रिपोर्ट तयार केला जात आहे.',
+        ur: '✅ **کلینیکل انٹیک مکمل**: آپ کی علامات اور طبی تاریخ نوٹ کر لی گئی ہے۔',
+        kn: '✅ **ಕ್ಲಿನಿಕಲ್ ಇನ್‌ಟೇಕ್ ಪೂರ್ಣಗೊಂಡಿದೆ**: ನಿಮ್ಮ ಲಕ್ಷಣಗಳು ದಾಖಲಾಗಿವೆ.',
+        gu: '✅ **ક્લિનિકલ ઇનટેક પૂર્ણ**: તમારા લક્ષણો નોંધાઈ ગયા છે.',
         ta: '✅ **கிளினிக்கல் இன்டேக் முடிந்தது**: உங்களின் மருத்துவச் சுருக்கம் தயாரிக்கப்பட்டுள்ளது.',
-        bn: '✅ **ক্লিনিকাল ইনটেক সম্পন্ন**: আপনার শারীরিক সমস্যা এবং অতীত ইতিহাস লিপিবদ্ধ করা হয়েছে।'
+        bn: '✅ **ক্লিনিকাল ইনটেক সম্পন্ন**: আপনার শারীরিক সমস্যা লিপিবদ্ধ করা হয়েছে।'
       };
 
       return res.status(200).json({
@@ -467,7 +540,10 @@ Generate the next intelligent, context-aware clinical intake response.`;
         isComplete: true,
         isRedFlagTriggered: false,
         redFlagsDetected: [],
-        suggestedTriagePriority: entities.severity.includes('8/10') ? 'YELLOW' : 'GREEN',
+        suggestedTriagePriority: triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED' ? 'YELLOW' : (entities.severity.includes('8/10') ? 'YELLOW' : 'GREEN'),
+        conditionCategory: triageAssessment.category,
+        medicineRecommendations: finalMedicines,
+        triageAssessment,
         extractedEntities: entities,
         detectedLanguage: language
       });
@@ -518,6 +594,10 @@ Generate the next intelligent, context-aware clinical intake response.`;
       quickReplies = ['Allergic to Penicillin', 'No known allergies (NKDA)', 'Past Appendectomy in 2018', 'Allergic to Sulfa drugs'];
     }
 
+    if (localizedAdvisory) {
+      nextMsg = `${localizedAdvisory}\n\n${nextMsg}`;
+    }
+
     return res.status(200).json({
       success: true,
       nextBotMessage: nextMsg,
@@ -525,13 +605,16 @@ Generate the next intelligent, context-aware clinical intake response.`;
       isComplete: false,
       isRedFlagTriggered: false,
       redFlagsDetected: [],
-      suggestedTriagePriority: 'YELLOW',
+      suggestedTriagePriority: triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED' ? 'YELLOW' : 'GREEN',
+      conditionCategory: triageAssessment.category,
+      medicineRecommendations: finalMedicines,
+      triageAssessment,
       extractedEntities: entities,
       detectedLanguage: language
     });
   }
 
-  // 2. ACTION: GENERATE_REPORT (Automatic Short, Physician-Ready Clinical Intake Report)
+    // 2. ACTION: GENERATE_REPORT (Automatic Short, Physician-Ready Clinical Intake Report)
   if (action === 'generate_report') {
     const {
       sessionId = `ses-${Date.now()}`,

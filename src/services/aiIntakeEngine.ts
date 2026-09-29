@@ -1,8 +1,10 @@
 import {
   ConversationMessage, ClinicalHistorySummary, SymptomEntry,
   TriagePriority, LanguageCode, Allergy, Medication, MedicalSystem,
-  DashavidhaPariksha, PhysicianShortReport, ClinicalSourceTag, ClinicalSession
+  DashavidhaPariksha, PhysicianShortReport, ClinicalSourceTag, ClinicalSession,
+  ConditionCategory, MedicineRecommendation, ClinicalTriageAssessment
 } from '../types';
+import { MedicineRecommendationService } from './medicineRecommendationService';
 
 export interface IntakePromptOption {
   text: string;
@@ -16,6 +18,9 @@ export interface IntakeAnalysisResult {
   isRedFlagTriggered: boolean;
   redFlagsDetected: string[];
   suggestedTriagePriority: TriagePriority;
+  conditionCategory?: ConditionCategory;
+  medicineRecommendations?: MedicineRecommendation[];
+  triageAssessment?: ClinicalTriageAssessment;
   extractedSymptom?: SymptomEntry;
   extractedAllergies?: Allergy[];
   extractedMedications?: Medication[];
@@ -469,14 +474,55 @@ export class AIIntakeEngine {
     medicalSystem: MedicalSystem = 'ALLOPATHY',
     enableRedFlagDetection: boolean = true
   ): IntakeAnalysisResult {
+    const rawResult = this._internalAnalyzeInput(userInput, history, language, medicalSystem, enableRedFlagDetection);
+    if (rawResult.isRedFlagTriggered || rawResult.conditionCategory === 'CRITICAL_EMERGENCY') {
+      return rawResult;
+    }
+
+    const triageAssessment = MedicineRecommendationService.evaluateTriageAndMedicines(userInput, history);
+    rawResult.conditionCategory = triageAssessment.category;
+    rawResult.triageAssessment = triageAssessment;
+
+    if (triageAssessment.category === 'CRITICAL_EMERGENCY') {
+      rawResult.isRedFlagTriggered = true;
+      rawResult.suggestedTriagePriority = 'RED';
+      rawResult.medicineRecommendations = [];
+      return rawResult;
+    }
+
+    if (triageAssessment.category === 'NORMAL_MINOR_ISSUE') {
+      rawResult.medicineRecommendations = triageAssessment.isMedicationRecommended ? (triageAssessment.medicines || []) : [];
+      rawResult.suggestedTriagePriority = 'GREEN';
+    } else if (triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED') {
+      rawResult.medicineRecommendations = [];
+      rawResult.suggestedTriagePriority = 'YELLOW';
+      const adv = MedicineRecommendationService.getLocalizedAdvisory(triageAssessment, language);
+      if (adv && !rawResult.nextBotMessage.includes('⚠️')) {
+        rawResult.nextBotMessage = `${adv}\n\n${rawResult.nextBotMessage}`;
+      }
+    }
+
+    return rawResult;
+  }
+
+  private static _internalAnalyzeInput(
+    userInput: string,
+    history: ConversationMessage[],
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    enableRedFlagDetection: boolean = true
+  ): IntakeAnalysisResult {
     const redFlagCheck = enableRedFlagDetection
       ? this.detectEmergencyRedFlags(userInput, history)
       : { isRedFlag: false, redFlags: [], priority: 'GREEN' as TriagePriority };
 
+    const triageAssessment = MedicineRecommendationService.evaluateTriageAndMedicines(userInput, history);
+    const isCritical = redFlagCheck.isRedFlag || triageAssessment.category === 'CRITICAL_EMERGENCY';
+
     // ─────────────────────────────────────────────────────────────────────────
     // If Red Flag Emergency is Detected
     // ─────────────────────────────────────────────────────────────────────────
-    if (redFlagCheck.isRedFlag) {
+    if (isCritical) {
       const flagSummary = redFlagCheck.redFlags.join(', ');
 
       const emergencyMessages: Record<LanguageCode, string> = {
@@ -506,8 +552,11 @@ export class AIIntakeEngine {
         suggestedReplies: replies[language] || replies.en,
         isComplete: true,
         isRedFlagTriggered: true,
-        redFlagsDetected: redFlagCheck.redFlags,
+        redFlagsDetected: redFlagCheck.redFlags.length > 0 ? redFlagCheck.redFlags : ['Acute Emergency Symptoms Detected'],
         suggestedTriagePriority: 'RED',
+        conditionCategory: 'CRITICAL_EMERGENCY',
+        medicineRecommendations: [],
+        triageAssessment,
         detectedLanguage: language,
         translatedConcern: redFlagCheck.concernText
       };
@@ -868,13 +917,21 @@ export class AIIntakeEngine {
       bn: ['সারাংশ দেখুন', 'ডকুমেন্ট আপলোড করুন', 'টাইমলাইন দেখুন']
     };
 
+    const advisory = MedicineRecommendationService.getLocalizedAdvisory(triageAssessment, language);
+    const finalBotMsg = advisory
+      ? `${advisory}\n\n${conclusionMessages[language] || conclusionMessages.en}`
+      : (conclusionMessages[language] || conclusionMessages.en);
+
     return {
-      nextBotMessage: conclusionMessages[language] || conclusionMessages.en,
+      nextBotMessage: finalBotMsg,
       suggestedReplies: conclusionReplies[language] || conclusionReplies.en,
       isComplete: true,
       isRedFlagTriggered: false,
       redFlagsDetected: [],
-      suggestedTriagePriority: 'YELLOW',
+      suggestedTriagePriority: triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED' ? 'YELLOW' : 'GREEN',
+      conditionCategory: triageAssessment.category,
+      medicineRecommendations: triageAssessment.category === 'NORMAL_MINOR_ISSUE' ? (triageAssessment.medicines || []) : [],
+      triageAssessment,
       detectedLanguage: language
     };
   }
@@ -915,7 +972,10 @@ export class AIIntakeEngine {
             isComplete: Boolean(data.isComplete),
             isRedFlagTriggered: Boolean(data.isRedFlagTriggered),
             redFlagsDetected: data.redFlagsDetected || [],
-            suggestedTriagePriority: data.suggestedTriagePriority || 'GREEN',
+            suggestedTriagePriority: data.suggestedTriagePriority || (data.isRedFlagTriggered ? 'RED' : 'GREEN'),
+            conditionCategory: data.conditionCategory,
+            medicineRecommendations: data.medicineRecommendations,
+            triageAssessment: data.triageAssessment,
             detectedLanguage: data.detectedLanguage || language,
             translatedConcern: data.translatedConcern
           };

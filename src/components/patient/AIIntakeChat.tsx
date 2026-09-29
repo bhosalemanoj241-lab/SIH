@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Sparkles, AlertTriangle,
   CheckCircle2, FileText, ArrowRight, RefreshCw, ShieldAlert, ShieldCheck, ShieldOff,
-  Sparkle, Leaf, Stethoscope, Ban, Square
+  Sparkle, Leaf, Stethoscope, Ban, Square, Pill, ExternalLink, AlertCircle, Clock, Globe
 } from 'lucide-react';
-import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession, MedicalSystem } from '../../types';
+import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession, MedicalSystem, MedicineRecommendation, ClinicalTriageAssessment, ConditionCategory } from '../../types';
 import { AIIntakeEngine } from '../../services/aiIntakeEngine';
 import { SpeechService } from '../../services/speechService';
 import { db } from '../../services/mockDatabase';
@@ -19,6 +19,18 @@ interface AIIntakeChatProps {
   onEmergencyTriggered: (alertId: string) => void;
   initialMedicalSystem?: MedicalSystem;
 }
+
+
+const ALL_SUPPORTED_LANGUAGES: Array<{ code: LanguageCode; name: string }> = [
+  { code: 'en', name: 'English' },
+  { code: 'hi', name: 'हिंदी (Hindi)' },
+  { code: 'mr', name: 'मराठी (Marathi)' },
+  { code: 'bn', name: 'বাংলা (Bengali)' },
+  { code: 'ta', name: 'தமிழ் (Tamil)' },
+  { code: 'kn', name: 'ಕನ್ನಡ (Kannada)' },
+  { code: 'gu', name: 'ગુજરાતી (Gujarati)' },
+  { code: 'ur', name: 'اردو (Urdu)' }
+];
 
 export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
   onIntakeCompleted,
@@ -392,7 +404,10 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         text: result.nextBotMessage,
         language: language,
         timestamp: new Date().toISOString(),
-        suggestedQuickReplies: finalSuggestedReplies
+        suggestedQuickReplies: finalSuggestedReplies,
+        conditionCategory: result.conditionCategory,
+        medicineRecommendations: result.medicineRecommendations,
+        triageAssessment: result.triageAssessment
       };
 
       setMessages(prev => [...prev, aiMsg]);
@@ -543,9 +558,21 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-bold text-slate-900 text-sm">{t('talk_to_ai')}</h3>
-              <span className="text-[10px] uppercase font-bold bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full">
-                {language.toUpperCase()}
-              </span>
+              <div className="flex items-center gap-1 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
+                <Globe className="w-3 h-3 text-teal-600" />
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as LanguageCode)}
+                  aria-label="Select Consultation Language"
+                  className="bg-transparent text-[10px] font-bold text-teal-800 uppercase outline-hidden cursor-pointer"
+                >
+                  {ALL_SUPPORTED_LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code} className="text-slate-800 normal-case font-normal">
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={() => setMedicalSystem(m => m === 'ALLOPATHY' ? 'AYURVEDA' : 'ALLOPATHY')}
@@ -698,6 +725,153 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Specialized Doctor Consultation Required (Non-Minor / Another Way of Issue) */}
+              {!isUser && msg.conditionCategory === 'SPECIALIZED_DOCTOR_REQUIRED' && (
+                <div className="mt-2.5 max-w-[92%] sm:max-w-[85%] rounded-xl border border-amber-300 bg-amber-50/90 p-4 shadow-sm animate-in fade-in duration-200">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+                      <Stethoscope className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-amber-950 text-sm">
+                          Specialist Doctor Consultation Recommended
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold text-[10px]">
+                          {msg.triageAssessment?.recommendedDepartment || 'Specialist OPD'}
+                        </span>
+                      </div>
+                      <p className="text-amber-800 leading-relaxed">
+                        ⚠️ <strong>No over-the-counter self-medication advised:</strong> Your reported health symptoms indicate a specialized or non-minor condition. Self-medicating with over-the-counter pills is unsafe and can mask critical signs. Direct consultation with a qualified doctor is advised.
+                      </p>
+                      {msg.triageAssessment?.rationale && (
+                        <p className="text-amber-700 italic text-[11px] pt-1">
+                          Clinical Reason: {msg.triageAssessment.rationale}
+                        </p>
+                      )}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleFinishAndGenerateReport()}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-semibold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Generate Clinical Summary & Consult Specialist</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Verified OTC Symptomatic Medicine Recommendations with Direct Buying Links */}
+              {!isUser && msg.medicineRecommendations && msg.medicineRecommendations.length > 0 && (
+                <div className="mt-2.5 max-w-[95%] sm:max-w-[88%] rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/70 p-4 sm:p-5 shadow-md animate-in fade-in duration-300">
+                  <div className="flex items-center justify-between border-b border-emerald-100 pb-3 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-sm">
+                        <Pill className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-emerald-950 text-sm flex items-center gap-2">
+                          <span>Verified Over-The-Counter Medicine Recommendations</span>
+                          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-300">
+                            Safe OTC
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-emerald-700">
+                          Symptomatic relief for mild fever / headache / cold with direct online pharmacy purchase links.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {msg.medicineRecommendations.map((med) => (
+                      <div
+                        key={med.id}
+                        className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs hover:border-emerald-300 hover:shadow-md transition duration-200"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h5 className="font-bold text-slate-900 text-sm sm:text-base">
+                                {med.name}
+                              </h5>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                                {med.category.replace('_', ' ')}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium">
+                              Generic Name: {med.genericName}
+                            </p>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 shrink-0">
+                            <Clock className="w-3 h-3" />
+                            <span>{med.timing}</span>
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 mb-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                          <div>
+                            <span className="font-semibold text-slate-700">Dosage: </span>
+                            <span>{med.dosage}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-700">Indication: </span>
+                            <span>{med.indication}</span>
+                          </div>
+                        </div>
+
+                        {med.caution && (
+                          <p className="text-[11px] text-amber-800 bg-amber-50/80 border border-amber-200 rounded-md px-2.5 py-1.5 mb-3 flex items-start gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
+                            <span><strong>Caution:</strong> {med.caution}</span>
+                          </p>
+                        )}
+
+                        {/* Direct Pharmacy Buying Links */}
+                        <div className="pt-2 border-t border-slate-100">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-2">
+                            🛒 Instant Pharmacy Buying Links:
+                          </span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {med.buyingLinks.map((link, lIdx) => (
+                              <a
+                                key={lIdx}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 bg-white hover:bg-teal-50/60 hover:border-teal-400 text-slate-700 hover:text-teal-900 transition group shadow-2xs text-center"
+                              >
+                                <span className="font-bold text-xs text-slate-900 group-hover:text-teal-700 flex items-center gap-1">
+                                  <span>{link.storeName}</span>
+                                  <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+                                </span>
+                                {link.priceEstimate && (
+                                  <span className="text-[10px] font-mono text-emerald-600 font-semibold">
+                                    {link.priceEstimate}
+                                  </span>
+                                )}
+                                {link.badge && (
+                                  <span className="text-[9px] text-slate-400 group-hover:text-teal-600 mt-0.5">
+                                    {link.badge}
+                                  </span>
+                                )}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="mt-3 text-[10px] text-slate-400 text-center italic">
+                    Medical Disclaimer: Over-the-counter medicine suggestions provide temporary symptomatic relief. If fever or symptoms do not improve within 48 to 72 hours, consult an OPD physician.
+                  </p>
+                </div>
+              )}
 
               {/* Quick Reply Suggestions */}
               {!isUser && msg.suggestedQuickReplies && msg.suggestedQuickReplies.length > 0 && !isIntakeDone && (
