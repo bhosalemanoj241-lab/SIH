@@ -3,7 +3,7 @@ import {
   HeartPulse, Lock, Mail, User, Phone, Calendar, ShieldCheck,
   ShieldAlert, ArrowRight, AlertTriangle, CheckCircle2, Globe, Eye, EyeOff,
   RefreshCw, Info, FileText, Building2, MapPin, Ambulance, ArrowLeft,
-  ChevronRight, Crosshair
+  ChevronRight, Crosshair, Sparkles
 } from 'lucide-react';
 import { useAuth, RegisterPatientData, RegisterHospitalData } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -16,10 +16,10 @@ interface LoginPageProps {
 }
 
 type Portal = 'CHOOSE' | 'PATIENT' | 'HOSPITAL' | 'ADMIN';
-type AuthMode = 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD';
+type AuthMode = 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' | 'VERIFY_EMAIL';
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal = 'CHOOSE' }) => {
-  const { login, registerPatient, registerHospital } = useAuth();
+  const { login, registerPatient, registerHospital, verifyEmailOtp, resendVerificationOtp } = useAuth();
   const { showToast } = useNotification();
 
   const [portal, setPortal] = useState<Portal>(initialPortal);
@@ -76,6 +76,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
   const [forgotEmail, setForgotEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
 
+  // ── Email Verification OTP State ──────────────────────────────────────────
+  const [verifyEmailAddress, setVerifyEmailAddress] = useState('');
+  const [verifyPatientId, setVerifyPatientId] = useState('');
+  const [verifyOtpCode, setVerifyOtpCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [devHelperCode, setDevHelperCode] = useState('');
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown(c => Math.max(0, c - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   const resetForms = () => {
     setErrorMessage('');
     setLoginEmail('');
@@ -110,12 +126,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
     if (!loginPassword.trim()) { setErrorMessage('Please enter your password.'); return; }
     setIsLoading(true);
     try {
-      const res = await login(loginEmail, loginPassword);
+      const res = await login(loginEmail, loginPassword, 'PATIENT');
       if (res.success) {
         showToast('Welcome to MediBridge AI', 'Patient session authenticated.', 'INFO');
         if (onNavigate) onNavigate('/patient/dashboard');
       } else {
-        setErrorMessage(res.message || 'Failed to sign in. Please verify your credentials.');
+        if (res.emailUnverified) {
+          setVerifyEmailAddress(res.email || loginEmail.trim());
+          setVerifyPatientId(res.patientId || '');
+          setAuthMode('VERIFY_EMAIL');
+          setErrorMessage('Email verification required. We have sent a 6-digit verification code to your email.');
+          showToast('Email Verification Required', 'Please enter your verification code to activate your account.', 'INFO');
+        } else {
+          setErrorMessage(res.message || 'Failed to sign in. Please verify your credentials.');
+        }
       }
     } catch { setErrorMessage('An unexpected error occurred.'); }
     finally { setIsLoading(false); }
@@ -129,7 +153,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
     if (!loginPassword.trim()) { setErrorMessage('Please enter your password.'); return; }
     setIsLoading(true);
     try {
-      const res = await login(loginEmail, loginPassword);
+      const res = await login(loginEmail, loginPassword, 'HOSPITAL_ADMIN');
       if (res.success) {
         showToast('Hospital Portal Access Granted', 'Welcome to MediBridge Hospital Dashboard.', 'INFO');
         if (onNavigate) onNavigate('/hospital/dashboard');
@@ -148,7 +172,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
       setErrorMessage('Please complete all required fields (Name, Email, Mobile).');
       return;
     }
-    if (regPassword && regPassword !== regConfirmPassword) {
+    if (!regPassword.trim()) {
+      setErrorMessage('Please create a password for your account.');
+      return;
+    }
+    if (regPassword.length < 4) {
+      setErrorMessage('Password must be at least 4 characters long.');
+      return;
+    }
+    if (regPassword !== regConfirmPassword) {
       setErrorMessage('Passwords do not match. Please verify.');
       return;
     }
@@ -172,17 +204,79 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
       };
       const res = await registerPatient(patientData);
       if (res.success) {
-        showToast(
-          '🎉 Patient Account Created!',
-          `Your Unique Patient ID: ${res.patientId}. All AI reports will be linked to this ID.`,
-          'INFO'
-        );
-        if (onNavigate) onNavigate('/patient/dashboard');
+        if (res.requiresVerification) {
+          setVerifyEmailAddress(res.email || regEmail.trim());
+          setVerifyPatientId(res.patientId || '');
+          if (res.devCode) setDevHelperCode(res.devCode);
+          setResendCooldown(60);
+          setAuthMode('VERIFY_EMAIL');
+          showToast(
+            'Verification Code Sent! ✉️',
+            `A 6-digit verification code was sent to ${res.email || regEmail.trim()}. Please verify your email to log in.`,
+            'VERIFICATION'
+          );
+        } else {
+          showToast(
+            '🎉 Patient Account Created!',
+            `Your Unique Patient ID: ${res.patientId}. All AI reports will be linked to this ID.`,
+            'INFO'
+          );
+          if (onNavigate) onNavigate('/patient/dashboard');
+        }
       } else {
         setErrorMessage(res.message || 'Registration failed.');
       }
     } catch { setErrorMessage('An unexpected error occurred during registration.'); }
     finally { setIsLoading(false); }
+  };
+
+  // ── Patient OTP Verification submit ──────────────────────────────────────────
+  const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    if (!verifyOtpCode.trim() || verifyOtpCode.trim().length !== 6) {
+      setErrorMessage('Please enter the complete 6-digit verification code.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await verifyEmailOtp(verifyEmailAddress, verifyOtpCode.trim());
+      if (res.success) {
+        showToast(
+          'Email Verified Successfully! ✅',
+          `Welcome to MediBridge! Your account is now active.`,
+          'VERIFICATION'
+        );
+        if (onNavigate) onNavigate('/patient/dashboard');
+      } else {
+        setErrorMessage(res.message || 'Invalid or expired verification code.');
+      }
+    } catch {
+      setErrorMessage('An unexpected error occurred during email verification.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Resend OTP handler ────────────────────────────────────────────────────────
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || isLoading) return;
+    setErrorMessage('');
+    setIsLoading(true);
+    try {
+      const res = await resendVerificationOtp(verifyEmailAddress);
+      if (res.success) {
+        setResendCooldown(60);
+        if (res.devCode) setDevHelperCode(res.devCode);
+        showToast('Code Resent', `A new verification code was sent to ${verifyEmailAddress}.`, 'INFO');
+      } else {
+        setErrorMessage(res.message || 'Failed to resend verification code. Please try again.');
+      }
+    } catch {
+      setErrorMessage('Failed to resend verification code.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ── Hospital GPS handler ──────────────────────────────────────────────────
@@ -213,6 +307,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
     setErrorMessage('');
     if (!hospName.trim() || !hospRegId.trim() || !hospEmail.trim() || !hospPassword.trim()) {
       setErrorMessage('Please complete all required fields (Name, Registration ID, Email, Password).');
+      return;
+    }
+    if (hospPassword.length < 4) {
+      setErrorMessage('Password must be at least 4 characters long.');
       return;
     }
     if (hospPassword !== hospConfirmPassword) {
@@ -432,19 +530,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
           <PortalHeader color="bg-teal-50 text-teal-800 border-teal-200" icon={User} title="Patient Portal" />
 
           {/* Tab Switcher */}
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-            {(['LOGIN', 'REGISTER'] as const).map(mode => (
-              <button key={mode} type="button"
-                onClick={() => { setAuthMode(mode); setErrorMessage(''); }}
-                className={`py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                  authMode === mode ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {mode === 'LOGIN' ? <Lock className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                <span>{mode === 'LOGIN' ? 'Sign In' : 'Create Account'}</span>
-              </button>
-            ))}
-          </div>
+          {authMode !== 'VERIFY_EMAIL' && authMode !== 'FORGOT_PASSWORD' && (
+            <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+              {(['LOGIN', 'REGISTER'] as const).map(mode => (
+                <button key={mode} type="button"
+                  onClick={() => { setAuthMode(mode); setErrorMessage(''); }}
+                  className={`py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                    authMode === mode ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {mode === 'LOGIN' ? <Lock className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                  <span>{mode === 'LOGIN' ? 'Sign In' : 'Create Account'}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <ErrorBanner />
 
@@ -576,6 +676,85 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
                   <div className="text-center"><button type="button" onClick={() => setAuthMode('LOGIN')} className="text-xs text-slate-500 hover:text-slate-800 cursor-pointer">Cancel</button></div>
                 </>
               )}
+            </form>
+          )}
+
+          {/* Patient Email Verification Form */}
+          {authMode === 'VERIFY_EMAIL' && (
+            <form onSubmit={handleVerifyOtpSubmit} className="space-y-5">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center mx-auto text-teal-600 shadow-sm">
+                  <Mail className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900">Verify Your Email Address</h3>
+                <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                  We've sent a 6-digit verification code to <span className="font-bold text-slate-800">{verifyEmailAddress}</span>. Enter the code below to activate your account.
+                </p>
+                {verifyPatientId && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Patient ID: {verifyPatientId}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block text-center">Enter 6-Digit OTP Code</label>
+                <div className="max-w-xs mx-auto">
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={verifyOtpCode}
+                    onChange={e => setVerifyOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="• • • • • •"
+                    className="w-full text-center text-2xl tracking-[0.4em] font-mono font-bold py-3.5 px-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-teal-500 focus:bg-white focus:outline-none transition"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {devHelperCode && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>Dev/Local OTP: <code className="font-bold font-mono bg-amber-100 px-1.5 py-0.5 rounded">{devHelperCode}</code></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVerifyOtpCode(devHelperCode)}
+                    className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950 cursor-pointer"
+                  >
+                    Auto-Fill
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading || verifyOtpCode.trim().length !== 6}
+                className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md shadow-teal-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><span>Verify Email &amp; Complete Sign In</span><CheckCircle2 className="w-4 h-4" /></>}
+              </button>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('LOGIN'); setErrorMessage(''); }}
+                  className="hover:text-slate-800 font-semibold cursor-pointer"
+                >
+                  ← Back to Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0 || isLoading}
+                  className="text-teal-700 font-bold hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend Code'}
+                </button>
+              </div>
             </form>
           )}
         </div>

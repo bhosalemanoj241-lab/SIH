@@ -32,4 +32,5 @@ lerna-debug.log*
 *.sln
 *.sw?
 scratch/
+data/
 

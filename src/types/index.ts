@@ -12,6 +12,8 @@ export interface User {
   fullName: string;
   role: UserRole;
   avatarUrl?: string;
+  isEmailVerified?: boolean;
+  patientId?: string;
   createdAt: string;
 }
 
@@ -41,6 +43,7 @@ export interface PatientProfile {
   allergies?: string[];
   chronicConditions?: string[];
   currentMedications?: string[];
+  isEmailVerified?: boolean;
   createdAt?: string;
 }
 

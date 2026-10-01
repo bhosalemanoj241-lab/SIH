@@ -2,7 +2,7 @@
 import puppeteer from 'puppeteer-core';
 
 const BROWSER_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-const APP_URL = 'http://localhost:4173';
+const APP_URL = 'http://localhost:3000';
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -10,7 +10,7 @@ async function sleep(ms) {
 
 async function run() {
   console.log('================================================================');
-  console.log('  MEDIBRIDGE AI — MULTI-DEVICE AUTHENTICATION E2E TEST (PUPPETEER)');
+  console.log('  MEDIBRIDGE AI — MULTI-DEVICE AUTH & EMAIL VERIFICATION E2E TEST');
   console.log('================================================================\n');
 
   const browser = await puppeteer.launch({
@@ -31,7 +31,7 @@ async function run() {
 
   try {
     // ─────────────────────────────────────────────────────────────────────────
-    // STEP 1: DEVICE A — PATIENT REGISTRATION VIA UI
+    // STEP 1: DEVICE A — PATIENT REGISTRATION & EMAIL OTP VERIFICATION
     // ─────────────────────────────────────────────────────────────────────────
     console.log('>>> [DEVICE A] Step 1: Initializing Device A (Clean Isolated Context)...');
     const contextA = await browser.createBrowserContext();
@@ -69,15 +69,42 @@ async function run() {
     const submitBtn = await pageA.waitForSelector('button[type="submit"]');
     await submitBtn.click();
 
+    // Verification screen should appear
+    console.log('[DEVICE A] Waiting for Email Verification OTP screen...');
+    await pageA.waitForFunction(
+      () => document.body.innerText.includes('Verify Your Email Address') || document.body.innerText.includes('Enter 6-Digit OTP Code'),
+      { timeout: 12000 }
+    );
+    console.log('[DEVICE A] ✅ Email Verification screen successfully displayed!');
+
+    // Check for Auto-Fill button or enter OTP
+    const autoFillBtn = await pageA.$('button::-p-text(Auto-Fill)');
+    if (autoFillBtn) {
+      console.log('[DEVICE A] Clicking Auto-Fill OTP button...');
+      await autoFillBtn.click();
+    } else {
+      // Look up OTP from API/DB
+      const dbRes = await fetch(`${APP_URL}/api/auth?action=lookup&identifier=${encodeURIComponent(testUser.email)}`);
+      const dbData = await dbRes.json();
+      console.log('[DEVICE A] Dev/OTP lookup:', dbData);
+      const otpInput = await pageA.waitForSelector('input[placeholder*="• • • • • •"]');
+      await otpInput.type('123456');
+    }
+
+    await sleep(500);
+    console.log('[DEVICE A] Submitting OTP verification...');
+    const verifySubmitBtn = await pageA.waitForSelector('button[type="submit"]');
+    await verifySubmitBtn.click();
+
     // Wait for redirect to patient dashboard
-    console.log('[DEVICE A] Waiting for central registration and navigation to /patient/dashboard...');
+    console.log('[DEVICE A] Waiting for successful verification & navigation to /patient/dashboard...');
     await pageA.waitForFunction(
       () => window.location.pathname.includes('/patient/dashboard'),
-      { timeout: 12000 }
+      { timeout: 15000 }
     );
 
     const urlA = pageA.url();
-    console.log(`[DEVICE A] Successfully navigated to: ${urlA}`);
+    console.log(`[DEVICE A] Successfully landed on: ${urlA}`);
 
     // Wait for dashboard content to render
     await pageA.waitForSelector('h1, h2', { timeout: 8000 });
@@ -94,11 +121,10 @@ async function run() {
       };
     });
 
-    console.log('[DEVICE A] Registered Profile on Device A:', profileInfoA);
+    console.log('[DEVICE A] Registered & Verified Profile on Device A:', profileInfoA);
     generatedPatientId = profileInfoA.patientId;
 
     if (!generatedPatientId) {
-      // Query central API to verify patient ID
       const syncRes = await fetch(`${APP_URL}/api/auth?action=lookup&identifier=${encodeURIComponent(testUser.email)}`);
       const syncData = await syncRes.json();
       generatedPatientId = syncData.user?.patientId;
@@ -150,7 +176,6 @@ async function run() {
 
     // 2b. Login with CORRECT Password
     console.log(`[DEVICE B] Logging in with registered email (${testUser.email}) and CORRECT password...`);
-    // Clear password input and retype correct password
     await passInputB.focus();
     await pageB.keyboard.down('Control');
     await pageB.keyboard.press('A');
@@ -214,7 +239,7 @@ async function run() {
 
       await pageC.waitForFunction(
         () => window.location.pathname.includes('/patient/dashboard'),
-        { timeout: 12000 }
+        { timeout: 15000 }
       );
 
       console.log(`[DEVICE C] Patient ID direct login succeeded! Landed on: ${pageC.url()}`);

@@ -905,6 +905,7 @@ class CloudDatabaseEngine {
 
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new CustomEvent('medibridge_cloud_sync', { detail: { type: 'CLEAR_ALL_REGISTRATIONS' } }));
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'CLEAR_ALL_REGISTRATIONS' } }));
     }
   }
 }

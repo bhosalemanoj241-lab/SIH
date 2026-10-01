@@ -57,10 +57,12 @@ interface AuthContextType {
   patientProfile?: PatientProfile;
   doctorProfile?: DoctorProfile;
   hospitalAccount?: HospitalAccount;
-  login: (email: string, password?: string) => Promise<{ success: boolean; message?: string }>;
-  registerPatient: (data: RegisterPatientData) => Promise<{ success: boolean; patientId?: string; message?: string }>;
+  login: (email: string, password?: string, role?: UserRole) => Promise<{ success: boolean; message?: string; emailUnverified?: boolean; email?: string; patientId?: string }>;
+  registerPatient: (data: RegisterPatientData) => Promise<{ success: boolean; requiresVerification?: boolean; email?: string; patientId?: string; devCode?: string; message?: string }>;
   registerStaff: (data: RegisterStaffData) => Promise<{ success: boolean; message?: string }>;
   registerHospital: (data: RegisterHospitalData) => Promise<{ success: boolean; hospitalId?: string; message?: string }>;
+  verifyEmailOtp: (email: string, code: string) => Promise<{ success: boolean; message?: string }>;
+  resendVerificationOtp: (email: string) => Promise<{ success: boolean; message?: string; devCode?: string }>;
   logout: () => void;
   switchRole: (role: UserRole) => void;
   updatePatientProfile: (profile: Partial<PatientProfile>) => void;
@@ -186,19 +188,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser, isAuthenticated, patientProfile?.patientId]);
 
   // Real Email/Patient ID & Password Login (Universal Cross-Device Resolution)
-  const login = async (identifier: string, password?: string): Promise<{ success: boolean; message?: string }> => {
+  const login = async (identifier: string, password?: string, role?: UserRole): Promise<{ success: boolean; message?: string; emailUnverified?: boolean; email?: string; patientId?: string }> => {
     const cleanId = identifier.trim();
     if (!cleanId) {
       return { success: false, message: 'Please enter your registered Email or Patient ID.' };
     }
 
     // 1. Centralized Cloud Authentication Call
-    const res = await centralAuthService.login(cleanId, password);
-    if (!res.success || !res.user) {
+    const res = await centralAuthService.login(cleanId, password, role);
+    if (!res.success) {
+      if (res.emailUnverified) {
+        return {
+          success: false,
+          emailUnverified: true,
+          email: res.email,
+          patientId: res.patientId,
+          message: res.message || 'Your email address is not verified yet. Please enter the verification code sent to your email.'
+        };
+      }
       return {
         success: false,
         message: res.message || `No registered account found for "${cleanId}". Please check your credentials or click 'Create Account' to register.`
       };
+    }
+    if (!res.user) {
+      return { success: false, message: 'Authentication failed. Please try again.' };
     }
 
     const user = res.user;
@@ -256,21 +270,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  // Register New Patient with Unique Patient ID
-  const registerPatient = async (data: RegisterPatientData): Promise<{ success: boolean; patientId?: string; message?: string }> => {
+  // Register New Patient with Unique Patient ID & Email Verification
+  const registerPatient = async (data: RegisterPatientData): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; patientId?: string; devCode?: string; message?: string }> => {
     const res = await centralAuthService.registerPatient(data);
-    if (!res.success || !res.user || !res.patientProfile) {
+    if (!res.success) {
       return {
         success: false,
         message: res.message || 'Failed to create patient account in central database.'
       };
     }
 
+    if (res.requiresVerification) {
+      return {
+        success: true,
+        requiresVerification: true,
+        email: res.email,
+        patientId: res.patientId,
+        devCode: res.devCode,
+        message: res.message
+      };
+    }
+
+    if (res.user && res.patientProfile) {
+      const newUser = res.user;
+      const newProfile = res.patientProfile;
+
+      setCurrentUser(newUser);
+      setPatientProfile(newProfile);
+      setIsAuthenticated(true);
+
+      db.logAction(
+        newUser.id,
+        newUser.fullName,
+        'PATIENT',
+        'LOGIN',
+        'PatientProfile',
+        newProfile.id,
+        `New patient account registered centrally with Patient ID: ${newProfile.patientId}`
+      );
+
+      return { success: true, patientId: newProfile.patientId };
+    }
+
+    return { success: true, patientId: res.patientId };
+  };
+
+  // Verify Patient Email with 6-digit OTP
+  const verifyEmailOtp = async (email: string, code: string): Promise<{ success: boolean; message?: string }> => {
+    const res = await centralAuthService.verifyEmailOtp(email, code);
+    if (!res.success || !res.user) {
+      return {
+        success: false,
+        message: res.message || 'Verification failed. Please check the code and try again.'
+      };
+    }
+
     const newUser = res.user;
     const newProfile = res.patientProfile;
 
+    if (newProfile) {
+      setPatientProfile(newProfile);
+      db.createPatientProfile(newProfile);
+    }
     setCurrentUser(newUser);
-    setPatientProfile(newProfile);
+    db.createUser(newUser);
     setIsAuthenticated(true);
 
     db.logAction(
@@ -279,11 +342,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       'PATIENT',
       'LOGIN',
       'PatientProfile',
-      newProfile.id,
-      `New patient account registered centrally with Patient ID: ${newProfile.patientId}`
+      newProfile?.id || newUser.id,
+      `Patient email verified and authenticated. Patient ID: ${newProfile?.patientId || newUser.patientId}`
     );
 
-    return { success: true, patientId: newProfile.patientId };
+    return { success: true, message: res.message };
+  };
+
+  // Resend 6-digit OTP to patient's email
+  const resendVerificationOtp = async (email: string): Promise<{ success: boolean; message?: string; devCode?: string }> => {
+    const res = await centralAuthService.resendVerificationOtp(email);
+    return {
+      success: res.success,
+      message: res.message,
+      devCode: res.devCode
+    };
   };
 
   // Register New Staff / Doctor / Admin
@@ -406,6 +479,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerPatient,
         registerStaff,
         registerHospital,
+        verifyEmailOtp,
+        resendVerificationOtp,
         logout,
         switchRole,
         updatePatientProfile

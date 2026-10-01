@@ -18,7 +18,7 @@ async function run() {
   };
 
   console.log(`1. [Device A] Registering Hospital: ${testHospital.hospitalName} (${testHospital.email})...`);
-  const regRes = await fetch('http://localhost:4173/api/auth', {
+  const regRes = await fetch('http://localhost:3000/api/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -62,7 +62,7 @@ async function run() {
   const assignedHospId = regData.hospitalAccount?.hospitalId;
 
   console.log(`\n2. [Device B] Testing Hospital Login with Email (${testHospital.email}) from isolated device...`);
-  const loginRes = await fetch('http://localhost:4173/api/auth', {
+  const loginRes = await fetch('http://localhost:3000/api/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -86,7 +86,7 @@ async function run() {
   }
 
   console.log(`\n3. [Device C] Testing Hospital Login with Registration ID (${testHospital.registrationId})...`);
-  const regIdLoginRes = await fetch('http://localhost:4173/api/auth', {
+  const regIdLoginRes = await fetch('http://localhost:3000/api/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

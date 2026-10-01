@@ -1,5 +1,7 @@
-// Vercel Serverless Function: /api/search
-const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4/json?poll=1&since=24h';
+// Vercel Serverless Function & Vite Middleware: /api/search
+// Rapid Central Patient Search by Patient ID, Email, Phone, or Name
+
+import { getDatabase, findPatientByIdentifier } from './centralDb';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -18,70 +20,47 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     const rawId = req.query?.patientId || req.query?.id || req.query?.q;
     if (!rawId) {
-      return res.status(400).json({ success: false, error: 'patientId query parameter is required' });
+      return res.status(400).json({ success: false, error: 'patientId or q query parameter is required' });
     }
 
-    const cleanId = String(rawId).trim().toUpperCase();
-    const cleanAlpha = cleanId.replace(/[^A-Z0-9]/g, '');
+    const cleanQuery = String(rawId).trim();
 
-    try {
-      const response = await fetch(CLOUD_SYNC_ENDPOINT, { cache: 'no-store' });
-      if (response.ok) {
-        const text = await response.text();
-        const items: any[] = [];
-        text.trim().split('\n').forEach(l => {
-          try {
-            const raw = JSON.parse(l);
-            if (raw.message) {
-              const parsed = JSON.parse(raw.message);
-              if (parsed.type === 'SAVE_PATIENT' && (parsed.patient || parsed.data)) {
-                items.unshift(parsed.patient || parsed.data);
-              }
-            }
-          } catch {}
-        });
-
-        const match = items.find((p: any) => {
-          const pId = (p.patientId || '').trim().toUpperCase();
-          const pIdAlpha = pId.replace(/[^A-Z0-9]/g, '');
-          const pInternalId = (p.id || '').trim().toUpperCase();
-          const pInternalAlpha = pInternalId.replace(/[^A-Z0-9]/g, '');
-          const pAbha = (p.abhaId || '').trim().toUpperCase();
-          const pAbhaAlpha = pAbha.replace(/[^A-Z0-9]/g, '');
-          const pEmail = (p.email || '').trim().toLowerCase();
-          const pPhone = (p.phone || p.emergencyContactPhone || '').replace(/[^0-9]/g, '');
-          const queryNumeric = cleanId.replace(/[^0-9]/g, '');
-          const queryCore = cleanAlpha.length >= 6 ? cleanAlpha.slice(-6) : cleanAlpha;
-          const pCore = pIdAlpha.length >= 6 ? pIdAlpha.slice(-6) : pIdAlpha;
-          const isCoreMatch = queryCore.length >= 4 && queryCore === pCore;
-          const normalizedClean = cleanAlpha.replace(/^MH/, 'MB').replace(/^PT/, 'MB');
-          const normalizedPId = pIdAlpha.replace(/^MH/, 'MB').replace(/^PT/, 'MB');
-          const pName = (p.fullName || '').trim().toLowerCase();
-          const queryLower = String(rawId).trim().toLowerCase();
-
-          return (
-            pId === cleanId ||
-            pIdAlpha === cleanAlpha ||
-            isCoreMatch ||
-            normalizedClean === normalizedPId ||
-            pInternalId === cleanId ||
-            pInternalAlpha === cleanAlpha ||
-            (pAbha && (pAbha === cleanId || pAbhaAlpha === cleanAlpha)) ||
-            (queryLower.length >= 2 && pName.includes(queryLower)) ||
-            (cleanId.toLowerCase().includes('@') && pEmail === cleanId.toLowerCase()) ||
-            (queryNumeric.length >= 10 && pPhone.endsWith(queryNumeric.slice(-10))) ||
-            (cleanAlpha.length >= 4 && (pIdAlpha.endsWith(cleanAlpha) || cleanAlpha.endsWith(pIdAlpha)))
-          );
-        });
-
-        if (match) {
-          return res.status(200).json({ success: true, found: true, patient: match });
-        }
-      }
-      return res.status(404).json({ success: false, found: false, error: 'Patient not found' });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
+    // 1. Direct Identifier Search (Patient ID, Email, Phone, ABHA)
+    const exactMatch = findPatientByIdentifier(cleanQuery);
+    if (exactMatch) {
+      const { password: _p, ...safePatient } = exactMatch;
+      return res.status(200).json({ success: true, found: true, patient: safePatient });
     }
+
+    // 2. Fuzzy / Substring Search in central database
+    const db = getDatabase();
+    const queryLower = cleanQuery.toLowerCase();
+    const cleanDigits = cleanQuery.replace(/[^0-9]/g, '');
+
+    const found = db.patients.find(p => {
+      const pName = (p.fullName || '').toLowerCase();
+      const pId = (p.patientId || '').toLowerCase();
+      const pEmail = (p.email || '').toLowerCase();
+      const pPhone = (p.phone || p.emergencyContactPhone || '').replace(/[^0-9]/g, '');
+
+      return (
+        pName.includes(queryLower) ||
+        pId.includes(queryLower) ||
+        pEmail.includes(queryLower) ||
+        (cleanDigits.length >= 6 && pPhone.includes(cleanDigits))
+      );
+    });
+
+    if (found) {
+      const { password: _p, ...safePatient } = found;
+      return res.status(200).json({ success: true, found: true, patient: safePatient });
+    }
+
+    return res.status(404).json({
+      success: false,
+      found: false,
+      error: `Patient with query "${cleanQuery}" not found in registered database`
+    });
   }
 
   return res.status(405).json({ error: 'Method Not Allowed' });

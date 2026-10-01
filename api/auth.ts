@@ -1,253 +1,32 @@
-// Vercel Serverless Function: /api/auth
+// Vercel Serverless Function & Vite Middleware: /api/auth
 // Centralized Cloud Authentication, Credential Validation & User Identity Registry
 // MediBridge AI — Production Multi-Device Authentication Engine
 
-import fs from 'fs';
-import path from 'path';
-
-const CENTRAL_AUTH_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508';
-const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4';
-
-interface CentralAuthPayload {
-  users: any[];
-  patients: any[];
-  doctors: any[];
-  hospitals: any[];
-  version: number;
-  lastUpdated: string;
-  clearedAt?: string;
-}
-
-const DEFAULT_ADMIN_USERS = [
-  {
-    id: 'usr-admin-root',
-    email: 'admin@medibridge.ai',
-    password: 'Admin@123',
-    phone: '+91 99300 88777',
-    fullName: 'System Administrator',
-    role: 'SYSTEM_ADMIN',
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-gov',
-    email: 'admin@medibridge.gov.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'National Health Administrator',
-    role: 'SYSTEM_ADMIN',
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-in',
-    email: 'admin@medibridge.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'Platform Administrator',
-    role: 'SYSTEM_ADMIN',
-    createdAt: '2025-10-01T08:00:00Z'
-  }
-];
-
-// Helper to broadcast auth events to all connected devices in real time
-async function broadcastSyncEvent(type: string, data: any) {
-  try {
-    await fetch(CLOUD_SYNC_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Title': type,
-        'Priority': 'urgent'
-      },
-      body: JSON.stringify({
-        type,
-        data,
-        ts: Date.now()
-      })
-    });
-  } catch {}
-}
-
-function sanitizeRegistry(data: any): CentralAuthPayload {
-  const users: any[] = Array.isArray(data?.users) ? data.users : [];
-  for (const admin of DEFAULT_ADMIN_USERS) {
-    if (!users.some((u: any) => (u.email || '').toLowerCase() === admin.email.toLowerCase())) {
-      users.push(admin);
-    }
-  }
-
-  return {
-    users,
-    patients: Array.isArray(data?.patients) ? data.patients : [],
-    doctors: Array.isArray(data?.doctors) ? data.doctors : [],
-    hospitals: Array.isArray(data?.hospitals) ? data.hospitals : [],
-    version: data?.version || 1,
-    lastUpdated: data?.lastUpdated || new Date().toISOString(),
-    clearedAt: data?.clearedAt
-  };
-}
-
-// In-memory cache for ultra-fast session & auth resolution across invocations
-let inMemoryRegistry: CentralAuthPayload | null = null;
-
-function getLocalFsRegistryPath(): string {
-  try {
-    if (process.platform === 'win32') {
-      const tmpDir = process.env.TEMP || process.env.TMP || 'C:\\Windows\\Temp';
-      return path.join(tmpDir, 'medibridge_auth_registry.json');
-    }
-    return '/tmp/medibridge_auth_registry.json';
-  } catch {
-    return 'medibridge_auth_registry.json';
-  }
-}
-
-function readLocalFsRegistry(): CentralAuthPayload | null {
-  try {
-    const fPath = getLocalFsRegistryPath();
-    if (fs.existsSync(fPath)) {
-      const raw = fs.readFileSync(fPath, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch {}
-  return null;
-}
-
-function writeLocalFsRegistry(data: CentralAuthPayload): void {
-  try {
-    const fPath = getLocalFsRegistryPath();
-    fs.writeFileSync(fPath, JSON.stringify(data, null, 2), 'utf-8');
-  } catch {}
-}
-
-// Fetch central registry from persistent cloud store & pubsub stream
-async function fetchCentralAuthRegistry(): Promise<CentralAuthPayload> {
-  const registry: CentralAuthPayload = sanitizeRegistry(
-    inMemoryRegistry || readLocalFsRegistry() || {}
-  );
-
-  // 1. Replay real-time cloud sync events from global pubsub stream
-  try {
-    const pubSubRes = await fetch(`${CLOUD_SYNC_ENDPOINT}/json?poll=1&since=all`, {
-      cache: 'no-store'
-    });
-    if (pubSubRes.ok) {
-      const text = await pubSubRes.text();
-      const lines = text.trim().split('\n').filter(Boolean);
-      for (const line of lines) {
-        try {
-          const raw = JSON.parse(line);
-          if (raw.message) {
-            const event = JSON.parse(raw.message);
-            const pType = event.type;
-            const pData = event.data || event.patient || event.hospital || event.user;
-
-            if (pType === 'SAVE_USER' && pData) {
-              const u = pData.user || pData;
-              if (u && (u.email || u.id)) {
-                const uEmail = String(u.email || '').toLowerCase().trim();
-                const uId = String(u.id || '').trim();
-                registry.users = registry.users.filter(x => 
-                  (x.email || '').toLowerCase().trim() !== uEmail && (x.id || '') !== uId
-                );
-                registry.users.unshift(u);
-              }
-            } else if (pType === 'SAVE_PATIENT' && pData) {
-              const p = pData.patient || pData;
-              if (p && (p.patientId || p.email)) {
-                const pId = String(p.patientId || '').toUpperCase().trim();
-                const pEmail = String(p.email || '').toLowerCase().trim();
-                registry.patients = registry.patients.filter(x =>
-                  (x.patientId || '').toUpperCase().trim() !== pId &&
-                  (!pEmail || (x.email || '').toLowerCase().trim() !== pEmail)
-                );
-                registry.patients.unshift(p);
-
-                // Auto-sync into users registry if not already present
-                if (p.email && !registry.users.some(u => (u.email || '').toLowerCase().trim() === pEmail)) {
-                  registry.users.unshift({
-                    id: p.userId || `usr-${p.patientId}`,
-                    email: p.email,
-                    password: p.password,
-                    phone: p.phone || p.emergencyContactPhone || '',
-                    fullName: p.fullName,
-                    role: 'PATIENT',
-                    patientId: p.patientId,
-                    createdAt: p.createdAt || new Date().toISOString()
-                  });
-                }
-              }
-            } else if (pType === 'SAVE_HOSPITAL' && pData) {
-              const h = pData.hospital || pData;
-              if (h && (h.hospitalId || h.id || h.email)) {
-                const hId = String(h.hospitalId || h.id || '').toUpperCase().trim();
-                registry.hospitals = registry.hospitals.filter(x =>
-                  (x.hospitalId || x.id || '').toUpperCase().trim() !== hId
-                );
-                registry.hospitals.unshift(h);
-              }
-            }
-          }
-        } catch {}
-      }
-    }
-  } catch (pubSubErr) {
-    console.warn('[Central Auth] PubSub stream error:', pubSubErr);
-  }
-
-  // 2. Query RESTful Object Store (if available)
-  try {
-    const res = await fetch(CENTRAL_AUTH_OBJECT_URL, { cache: 'no-store' });
-    if (res.ok) {
-      const json = await res.json();
-      if (json && json.data) {
-        const restReg = sanitizeRegistry(json.data);
-        for (const u of restReg.users) {
-          if (!registry.users.some(x => (x.email || '').toLowerCase() === (u.email || '').toLowerCase())) {
-            registry.users.push(u);
-          }
-        }
-        for (const p of restReg.patients) {
-          if (!registry.patients.some(x => (x.patientId || '').toUpperCase() === (p.patientId || '').toUpperCase())) {
-            registry.patients.push(p);
-          }
-        }
-      }
-    }
-  } catch {}
-
-  inMemoryRegistry = registry;
-  writeLocalFsRegistry(registry);
-  return registry;
-}
-
-// Persist central registry to memory, FS cache & cloud
-async function saveCentralAuthRegistry(data: CentralAuthPayload): Promise<boolean> {
-  const sanitized = sanitizeRegistry(data);
-  inMemoryRegistry = sanitized;
-  writeLocalFsRegistry(sanitized);
-
-  // Background async attempt to save to cloud object store
-  try {
-    fetch(CENTRAL_AUTH_OBJECT_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'MediBridge_Auth_Store_v1',
-        data: {
-          ...sanitized,
-          lastUpdated: new Date().toISOString()
-        }
-      })
-    }).catch(() => {});
-  } catch {}
-
-  return true;
-}
+import {
+  getDatabase,
+  saveDatabase,
+  clearAllRegistrations,
+  findUserByIdentifier,
+  findPatientByIdentifier,
+  findHospitalByIdentifier,
+  generatePatientId,
+  generateAbhaId,
+  setVerificationOtp,
+  getVerificationOtp,
+  verifyOtp,
+  DEFAULT_ADMIN_USERS,
+  User,
+  PatientProfile,
+  HospitalAccount,
+  DoctorProfile
+} from './centralDb';
+import { sendVerificationEmail } from './emailService';
 
 export default async function handler(req: any, res: any) {
   // Production CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PUT');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PUT,DELETE');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
@@ -260,80 +39,54 @@ export default async function handler(req: any, res: any) {
 
   const method = req.method || 'GET';
 
-  // 1. GET: Verification, session status, or lookup
+  // ─────────────────────────────────────────────────────────────────────────
+  // 1. GET: Verification, session status, lookup, or clear
+  // ─────────────────────────────────────────────────────────────────────────
   if (method === 'GET') {
     const action = req.query?.action || 'status';
     const identifier = req.query?.identifier || req.query?.email || req.query?.id || req.query?.q;
 
-    const registry = await fetchCentralAuthRegistry();
-
-    if (action === 'lookup' && identifier) {
-      const cleanId = String(identifier).trim().toLowerCase();
-      const cleanAlpha = cleanId.replace(/[^a-z0-9]/g, '');
-
-      const foundUser = registry.users.find(u => {
-        const uEmail = (u.email || '').trim().toLowerCase();
-        const uPatId = (u.patientId || '').trim().toLowerCase();
-        const uPatAlpha = uPatId.replace(/[^a-z0-9]/g, '');
-        const uPhone = (u.phone || '').replace(/[^0-9]/g, '');
-        return (
-          uEmail === cleanId ||
-          uPatId === cleanId ||
-          (cleanAlpha.length >= 6 && uPatAlpha === cleanAlpha) ||
-          (cleanAlpha.length >= 10 && uPhone.endsWith(cleanAlpha.slice(-10)))
-        );
-      });
-
-      if (foundUser) {
-        return res.status(200).json({
-          success: true,
-          exists: true,
-          role: foundUser.role,
-          email: foundUser.email,
-          fullName: foundUser.fullName,
-          patientId: foundUser.patientId
-        });
-      }
-      return res.status(200).json({ success: true, exists: false });
-    }
-
     if (action === 'clear' || action === 'clear_all_registrations' || action === 'reset') {
-      const now = new Date().toISOString();
-      const resetRegistry: CentralAuthPayload = {
-        users: [...DEFAULT_ADMIN_USERS],
-        patients: [],
-        doctors: [],
-        hospitals: [],
-        version: Date.now(),
-        lastUpdated: now,
-        clearedAt: now
-      };
-      await saveCentralAuthRegistry(resetRegistry);
-      await broadcastSyncEvent('CLEAR_ALL_REGISTRATIONS', { clearedAt: now, timestamp: Date.now() });
-
+      const result = clearAllRegistrations();
       return res.status(200).json({
         success: true,
-        message: 'All registration data across Patient, Hospital, and Doctor portals has been cleared.',
-        clearedAt: now,
-        usersCount: resetRegistry.users.length,
+        message: result.message,
+        clearedAt: result.clearedAt,
+        usersCount: DEFAULT_ADMIN_USERS.length,
         patientsCount: 0,
         doctorsCount: 0,
         hospitalsCount: 0
       });
     }
 
+    if (action === 'lookup' && identifier) {
+      const user = findUserByIdentifier(identifier);
+      if (user) {
+        return res.status(200).json({
+          success: true,
+          exists: true,
+          role: user.role,
+          email: user.email,
+          fullName: user.fullName,
+          patientId: user.patientId
+        });
+      }
+      return res.status(200).json({ success: true, exists: false });
+    }
+
     if (action === 'all' || action === 'sync') {
+      const db = getDatabase();
       return res.status(200).json({
         success: true,
-        usersCount: registry.users.length,
-        patientsCount: registry.patients.length,
-        doctorsCount: registry.doctors.length,
-        hospitalsCount: registry.hospitals.length,
+        usersCount: db.users.length,
+        patientsCount: db.patients.length,
+        doctorsCount: db.doctors.length,
+        hospitalsCount: db.hospitals.length,
         data: {
-          users: registry.users.map(({ password, ...rest }) => rest),
-          patients: registry.patients,
-          doctors: registry.doctors,
-          hospitals: registry.hospitals
+          users: db.users.map(({ password, ...rest }) => rest),
+          patients: db.patients.map(({ password, ...rest }) => rest),
+          doctors: db.doctors,
+          hospitals: db.hospitals.map(({ password, ...rest }) => rest)
         }
       });
     }
@@ -346,170 +99,203 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // 2. DELETE: Wipe all registration data
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2. DELETE: Wipe all registration data & start with clean state
+  // ─────────────────────────────────────────────────────────────────────────
   if (method === 'DELETE') {
-    const now = new Date().toISOString();
-    const resetRegistry: CentralAuthPayload = {
-      users: [...DEFAULT_ADMIN_USERS],
-      patients: [],
-      doctors: [],
-      hospitals: [],
-      version: Date.now(),
-      lastUpdated: now,
-      clearedAt: now
-    };
-    await saveCentralAuthRegistry(resetRegistry);
-    await broadcastSyncEvent('CLEAR_ALL_REGISTRATIONS', { clearedAt: now, timestamp: Date.now() });
-
+    const result = clearAllRegistrations();
     return res.status(200).json({
       success: true,
-      message: 'All registration data across Patient, Hospital, and Doctor portals has been cleared.',
-      clearedAt: now,
-      usersCount: resetRegistry.users.length,
+      message: result.message,
+      clearedAt: result.clearedAt,
+      usersCount: DEFAULT_ADMIN_USERS.length,
       patientsCount: 0,
       doctorsCount: 0,
       hospitalsCount: 0
     });
   }
 
-  // 3. POST: Central Login, Registration, or Clear
+  // ─────────────────────────────────────────────────────────────────────────
+  // 3. POST: Login, Registration, Update, or Clear
+  // ─────────────────────────────────────────────────────────────────────────
   if (method === 'POST') {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const action = (body.action || 'login').toLowerCase();
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ACTION: CLEAR ALL REGISTRATIONS
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── ACTION: CLEAR ALL REGISTRATIONS ──
     if (action === 'clear' || action === 'clear_all_registrations' || action === 'reset') {
-      const now = new Date().toISOString();
-      const resetRegistry: CentralAuthPayload = {
-        users: [...DEFAULT_ADMIN_USERS],
-        patients: [],
-        doctors: [],
-        hospitals: [],
-        version: Date.now(),
-        lastUpdated: now,
-        clearedAt: now
-      };
-      await saveCentralAuthRegistry(resetRegistry);
-      await broadcastSyncEvent('CLEAR_ALL_REGISTRATIONS', { clearedAt: now, timestamp: Date.now() });
-
+      const result = clearAllRegistrations();
       return res.status(200).json({
         success: true,
-        message: 'All registration data across Patient, Hospital, and Doctor portals has been cleared.',
-        clearedAt: now,
-        usersCount: resetRegistry.users.length,
+        message: result.message,
+        clearedAt: result.clearedAt,
+        usersCount: DEFAULT_ADMIN_USERS.length,
         patientsCount: 0,
         doctorsCount: 0,
         hospitalsCount: 0
       });
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ACTION A: CENTRAL LOGIN
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── ACTION: VERIFY EMAIL OTP ──
+    if (action === 'verify_otp' || action === 'verify_email') {
+      const email = String(body.email || req.query?.email || '').trim().toLowerCase();
+      const code = String(body.code || body.otp || req.query?.code || '').trim();
+
+      if (!email) {
+        return res.status(400).json({ success: false, error: 'Email address is required for verification.' });
+      }
+      if (!code) {
+        return res.status(400).json({ success: false, error: 'Please enter the 6-digit verification code.' });
+      }
+
+      const verifyResult = verifyOtp(email, code);
+      if (!verifyResult.valid) {
+        return res.status(400).json({
+          success: false,
+          error: verifyResult.reason || 'Invalid or expired verification code.'
+        });
+      }
+
+      const db = getDatabase();
+      const user = db.users.find(u => (u.email || '').trim().toLowerCase() === email);
+      const patient = db.patients.find(p => (p.email || '').trim().toLowerCase() === email);
+
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Registered user account not found.' });
+      }
+
+      const token = `mb-tok-${user.id}-${Date.now()}`;
+      const { password: _up, ...safeUser } = user;
+      const safePatient = patient ? (({ password: _pp, ...pRest }) => pRest)(patient) : undefined;
+
+      return res.status(200).json({
+        success: true,
+        verified: true,
+        token,
+        user: safeUser,
+        patientProfile: safePatient,
+        message: 'Email address successfully verified! Your patient account is now active.'
+      });
+    }
+
+    // ── ACTION: RESEND EMAIL OTP ──
+    if (action === 'resend_otp' || action === 'resend_code') {
+      const email = String(body.email || req.query?.email || '').trim().toLowerCase();
+      if (!email) {
+        return res.status(400).json({ success: false, error: 'Email address is required.' });
+      }
+
+      const db = getDatabase();
+      const user = db.users.find(u => (u.email || '').trim().toLowerCase() === email);
+      if (!user) {
+        return res.status(404).json({ success: false, error: `No registered account found for "${email}".` });
+      }
+
+      if (user.isEmailVerified) {
+        return res.status(400).json({
+          success: false,
+          alreadyVerified: true,
+          message: 'Your email address is already verified. You can sign in immediately.'
+        });
+      }
+
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      setVerificationOtp(email, otpCode, 10 * 60 * 1000);
+      await sendVerificationEmail(email, otpCode, user.fullName);
+
+      return res.status(200).json({
+        success: true,
+        message: `A fresh 6-digit verification code has been dispatched to ${email}.`,
+        devCode: process.env.NODE_ENV !== 'production' ? otpCode : undefined
+      });
+    }
+
+    // ── ACTION A: CENTRAL LOGIN ──
     if (action === 'login') {
       const { identifier, password, role } = body;
       const cleanId = String(identifier || '').trim();
       const cleanPass = String(password || '').trim();
 
       if (!cleanId) {
-        return res.status(400).json({ success: false, error: 'Please enter your registered Email or Patient ID.' });
+        return res.status(400).json({
+          success: false,
+          error: 'Please enter your registered Email, Patient ID, or Hospital Email.'
+        });
       }
 
-      // Check default platform administrators first
+      if (!cleanPass) {
+        return res.status(400).json({
+          success: false,
+          error: 'Please enter your account password.'
+        });
+      }
+
+      // Check default platform administrators
       const adminMatch = DEFAULT_ADMIN_USERS.find(
         a => a.email.toLowerCase() === cleanId.toLowerCase()
       );
       if (adminMatch) {
-        if (cleanPass && cleanPass !== adminMatch.password) {
-          return res.status(401).json({ success: false, error: 'Incorrect password. Please verify your credentials and try again.' });
+        if (cleanPass !== adminMatch.password) {
+          return res.status(401).json({
+            success: false,
+            error: 'Incorrect password. Please verify your credentials and try again.'
+          });
         }
         const token = `mb-tok-${adminMatch.id}-${Date.now()}`;
+        const { password: _p, ...adminUserSafe } = adminMatch;
         return res.status(200).json({
           success: true,
           token,
-          user: adminMatch
+          user: adminUserSafe
         });
       }
 
-      const registry = await fetchCentralAuthRegistry();
-      const cleanAlpha = cleanId.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+      const db = getDatabase();
 
       // Find user in central registry
-      let matchedUser = registry.users.find(u => {
-        const uEmail = (u.email || '').trim().toLowerCase();
-        const uId = (u.id || '').trim().toLowerCase();
-        const uPatId = (u.patientId || '').trim().toLowerCase();
-        const uPatAlpha = uPatId.replace(/[^a-z0-9]/g, '');
-        const uPhone = (u.phone || '').replace(/[^0-9]/g, '');
-        const queryNumeric = cleanId.replace(/[^0-9]/g, '');
+      let matchedUser = findUserByIdentifier(cleanId);
+      let matchedPatient = findPatientByIdentifier(cleanId);
+      let matchedHospital = findHospitalByIdentifier(cleanId);
 
-        return (
-          uEmail === cleanId.toLowerCase() ||
-          uId === cleanId.toLowerCase() ||
-          uPatId === cleanId.toLowerCase() ||
-          (cleanAlpha.length >= 6 && uPatAlpha === cleanAlpha) ||
-          (queryNumeric.length >= 10 && uPhone.endsWith(queryNumeric.slice(-10)))
-        );
-      });
-
-      // If not in users directly, check patients table
-      let matchedPatient = registry.patients.find(p => {
-        const pEmail = (p.email || '').trim().toLowerCase();
-        const pId = (p.patientId || '').trim().toLowerCase();
-        const pAlpha = pId.replace(/[^a-z0-9]/g, '');
-        const pAbha = (p.abhaId || '').trim().toLowerCase();
-        const pAbhaAlpha = pAbha.replace(/[^a-z0-9]/g, '');
-        const pPhone = (p.phone || p.emergencyContactPhone || '').replace(/[^0-9]/g, '');
-        const queryNumeric = cleanId.replace(/[^0-9]/g, '');
-
-        return (
-          pEmail === cleanId.toLowerCase() ||
-          pId === cleanId.toLowerCase() ||
-          (cleanAlpha.length >= 6 && pAlpha === cleanAlpha) ||
-          pAbha === cleanId.toLowerCase() ||
-          pAbhaAlpha === cleanAlpha ||
-          (queryNumeric.length >= 10 && pPhone.endsWith(queryNumeric.slice(-10)))
-        );
-      });
-
-      // If matched via patient table, create synthetic user record if needed
+      // If matched via patient table directly but user record missing: link or synthesize
       if (!matchedUser && matchedPatient) {
-        matchedUser = {
-          id: matchedPatient.userId || `usr-${matchedPatient.patientId}`,
-          email: matchedPatient.email || `${matchedPatient.patientId.toLowerCase()}@patient.medibridge.in`,
-          password: matchedPatient.password,
-          phone: matchedPatient.phone || matchedPatient.emergencyContactPhone || '',
-          fullName: matchedPatient.fullName,
-          role: 'PATIENT',
-          patientId: matchedPatient.patientId,
-          createdAt: matchedPatient.createdAt || new Date().toISOString()
-        };
+        matchedUser = db.users.find(u => u.id === matchedPatient?.userId || u.patientId === matchedPatient?.patientId);
+        if (!matchedUser) {
+          matchedUser = {
+            id: matchedPatient.userId || `usr-${matchedPatient.patientId}`,
+            email: matchedPatient.email || `${matchedPatient.patientId.toLowerCase()}@patient.medibridge.in`,
+            password: matchedPatient.password,
+            phone: matchedPatient.phone || matchedPatient.emergencyContactPhone || '',
+            fullName: matchedPatient.fullName || 'Registered Patient',
+            role: 'PATIENT',
+            patientId: matchedPatient.patientId,
+            createdAt: matchedPatient.createdAt || new Date().toISOString()
+          };
+          db.users.unshift(matchedUser);
+          saveDatabase(db);
+        }
       }
 
-      // If still not matched, check hospital accounts table
-      let matchedHospital = registry.hospitals.find(h => {
-        const hEmail = (h.email || '').trim().toLowerCase();
-        const hId = (h.hospitalId || h.id || '').trim().toLowerCase();
-        const hReg = (h.registrationId || '').trim().toLowerCase();
-        return hEmail === cleanId.toLowerCase() || hId === cleanId.toLowerCase() || hReg === cleanId.toLowerCase();
-      });
-
+      // If matched via hospital table directly but user record missing: link or synthesize
       if (!matchedUser && matchedHospital) {
-        matchedUser = {
-          id: matchedHospital.userId || `usr-hosp-${matchedHospital.id}`,
-          email: matchedHospital.email || `admin@${(matchedHospital.code || matchedHospital.hospitalId || 'hosp').toLowerCase()}.in`,
-          password: matchedHospital.password || 'Hospital@123',
-          phone: matchedHospital.emergencyContact || matchedHospital.phone || '',
-          fullName: matchedHospital.hospitalName,
-          role: 'HOSPITAL_ADMIN',
-          hospitalId: matchedHospital.hospitalId || matchedHospital.id,
-          createdAt: matchedHospital.createdAt || new Date().toISOString()
-        };
+        matchedUser = db.users.find(u => u.id === matchedHospital?.userId || u.hospitalId === matchedHospital?.id);
+        if (!matchedUser) {
+          matchedUser = {
+            id: matchedHospital.userId || `usr-hosp-${matchedHospital.id}`,
+            email: matchedHospital.email,
+            password: matchedHospital.password,
+            phone: matchedHospital.emergencyContact || matchedHospital.phone || '',
+            fullName: matchedHospital.hospitalName,
+            role: 'HOSPITAL_ADMIN',
+            hospitalId: matchedHospital.hospitalId || matchedHospital.id,
+            createdAt: matchedHospital.createdAt || new Date().toISOString()
+          };
+          db.users.unshift(matchedUser);
+          saveDatabase(db);
+        }
       }
 
-      // User not found in any central cloud record
+      // Not found in any registered record
       if (!matchedUser) {
         return res.status(404).json({
           success: false,
@@ -518,8 +304,8 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      // Optional role check if requested by a specific portal
-      if (role && matchedUser.role) {
+      // Validate Portal Role Constraint
+      if (role) {
         const reqRole = String(role).toUpperCase();
         if (reqRole === 'PATIENT' && matchedUser.role !== 'PATIENT') {
           return res.status(403).json({
@@ -538,207 +324,363 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      // Validate Password
-      if (cleanPass) {
-        const storedPass = (matchedUser.password || '').trim();
-        // Allow login if stored password matches, or if matchedPatient has the password
-        const patientPass = (matchedPatient?.password || '').trim();
-        const validPass = storedPass || patientPass;
+      // Strictly Validate Password
+      const storedPass = (matchedUser.password || matchedPatient?.password || matchedHospital?.password || '').trim();
+      if (!storedPass || storedPass !== cleanPass) {
+        return res.status(401).json({
+          success: false,
+          error: 'Incorrect password. Please verify your credentials and try again.'
+        });
+      }
 
-        if (validPass && validPass !== cleanPass) {
-          return res.status(401).json({
-            success: false,
-            error: 'Incorrect password. Please verify your credentials and try again.'
-          });
-        }
+      // Strictly Validate Email Verification for Patients
+      if (matchedUser.role === 'PATIENT' && matchedUser.isEmailVerified === false) {
+        return res.status(403).json({
+          success: false,
+          emailUnverified: true,
+          email: matchedUser.email,
+          patientId: matchedUser.patientId,
+          error: 'Your email address has not been verified yet. Please enter the verification code sent to your email to activate your account.'
+        });
       }
 
       // Load full associated profile
       if (matchedUser.role === 'PATIENT' && !matchedPatient) {
-        matchedPatient = registry.patients.find(
-          p => p.userId === matchedUser?.id || p.patientId === matchedUser?.patientId || p.email?.toLowerCase() === matchedUser?.email?.toLowerCase()
+        matchedPatient = db.patients.find(
+          p => p.userId === matchedUser?.id || p.patientId === matchedUser?.patientId || (p.email && p.email.toLowerCase() === matchedUser?.email.toLowerCase())
+        );
+      }
+
+      if ((matchedUser.role === 'HOSPITAL_ADMIN' || matchedUser.role === 'HOSPITAL') && !matchedHospital) {
+        matchedHospital = db.hospitals.find(
+          h => h.userId === matchedUser?.id || h.hospitalId === matchedUser?.hospitalId || h.id === matchedUser?.hospitalId || (h.email && h.email.toLowerCase() === matchedUser?.email.toLowerCase())
         );
       }
 
       let matchedDoctor = undefined;
       if (matchedUser.role === 'DOCTOR') {
-        matchedDoctor = registry.doctors.find(
+        matchedDoctor = db.doctors.find(
           d => d.userId === matchedUser?.id || d.id === matchedUser?.id
         );
       }
 
-      if ((matchedUser.role === 'HOSPITAL_ADMIN' || matchedUser.role === 'HOSPITAL') && !matchedHospital) {
-        matchedHospital = registry.hospitals.find(
-          h => h.userId === matchedUser?.id || h.hospitalId === matchedUser?.hospitalId || h.id === matchedUser?.hospitalId
-        );
-      }
-
       const token = `mb-tok-${matchedUser.id}-${Date.now()}`;
+      const { password: _up, ...safeUser } = matchedUser;
+      const safePatient = matchedPatient ? (({ password: _pp, ...pRest }) => pRest)(matchedPatient) : undefined;
+      const safeHospital = matchedHospital ? (({ password: _hp, ...hRest }) => hRest)(matchedHospital) : undefined;
 
       return res.status(200).json({
         success: true,
         token,
-        user: matchedUser,
-        patientProfile: matchedPatient || undefined,
-        doctorProfile: matchedDoctor || undefined,
-        hospitalAccount: matchedHospital || undefined
+        user: safeUser,
+        patientProfile: safePatient,
+        hospitalAccount: safeHospital,
+        doctorProfile: matchedDoctor
       });
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ACTION B: CENTRAL REGISTRATION
+    // ── ACTION B: CENTRAL REGISTRATION ──
     if (action === 'register') {
       const rawUser = body.user || body.data || body;
-      const rawPatient = body.patientProfile || (body.accountType === 'patient' || (!body.doctorProfile && !body.hospitalAccount && rawUser.role !== 'DOCTOR' && rawUser.role !== 'HOSPITAL_ADMIN') ? (body.data || body) : undefined);
-      const doctorProfile = body.doctorProfile;
-      const hospitalAccount = body.hospitalAccount;
+      const accountType = (body.accountType || rawUser.role || 'patient').toLowerCase();
+      const rawPatient = body.patientProfile || (accountType === 'patient' ? (body.data || body) : undefined);
+      const rawHospital = body.hospitalAccount || (accountType === 'hospital' ? (body.data || body) : undefined);
+      const rawDoctor = body.doctorProfile;
 
-      if (!rawUser || !rawUser.email) {
-        return res.status(400).json({ success: false, error: 'User registration payload with valid email is required.' });
+      const cleanEmail = String(rawUser.email || rawPatient?.email || rawHospital?.email || '').trim().toLowerCase();
+      const cleanPassword = String(rawUser.password || rawPatient?.password || rawHospital?.password || '').trim();
+
+      if (!cleanEmail) {
+        return res.status(400).json({
+          success: false,
+          error: 'A valid email address is required for registration.'
+        });
       }
 
-      const registry = await fetchCentralAuthRegistry();
-      const cleanEmail = String(rawUser.email).trim().toLowerCase();
+      if (!cleanPassword || cleanPassword.length < 4) {
+        return res.status(400).json({
+          success: false,
+          error: 'A secure password of at least 4 characters is required.'
+        });
+      }
 
-      // Check if user email already exists
-      const existingUser = registry.users.find(u => (u.email || '').trim().toLowerCase() === cleanEmail);
-      if (existingUser) {
+      const db = getDatabase();
+
+      // Check for duplicate account by email across all users, patients, and hospitals
+      const existingUser = db.users.find(u => (u.email || '').trim().toLowerCase() === cleanEmail);
+      const existingPatientByEmail = db.patients.find(p => (p.email || '').trim().toLowerCase() === cleanEmail);
+      const existingHospitalByEmail = db.hospitals.find(h => (h.email || '').trim().toLowerCase() === cleanEmail);
+
+      if (existingUser || existingPatientByEmail || existingHospitalByEmail) {
         return res.status(409).json({
           success: false,
           error: 'An account with this email address already exists. Please sign in.'
         });
       }
 
-      const generatedPatientId = rawPatient?.patientId || rawUser.patientId || `MB-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+      // ── REGISTRATION: PATIENT ──
+      if (accountType === 'patient') {
+        const fullName = String(rawPatient?.fullName || rawUser.fullName || rawUser.name || '').trim();
+        const phone = String(rawPatient?.phone || rawUser.phone || '').trim();
 
-      const newUser = {
-        id: rawUser.id || `usr-${Date.now()}`,
-        email: cleanEmail,
-        password: rawUser.password || '',
-        phone: rawUser.phone || '',
-        fullName: rawUser.fullName || rawUser.name || 'Registered User',
-        role: rawUser.role || (body.accountType === 'hospital' ? 'HOSPITAL_ADMIN' : body.accountType === 'doctor' ? 'DOCTOR' : 'PATIENT'),
-        patientId: newUserRoleIsPatient(rawUser.role || body.accountType) ? generatedPatientId : undefined,
-        hospitalId: hospitalAccount?.hospitalId || hospitalAccount?.id || rawUser.hospitalId || undefined,
-        createdAt: rawUser.createdAt || new Date().toISOString()
-      };
+        if (!fullName) {
+          return res.status(400).json({ success: false, error: 'Full name is required for patient registration.' });
+        }
+        if (!phone) {
+          return res.status(400).json({ success: false, error: 'Mobile number is required for patient registration.' });
+        }
 
-      // Helper function to check patient role
-      function newUserRoleIsPatient(r?: string) {
-        return !r || r.toUpperCase() === 'PATIENT';
-      }
+        // Prevent duplicate phone number
+        const cleanDigits = phone.replace(/[^0-9]/g, '');
+        if (cleanDigits.length >= 10) {
+          const duplicatePhone = db.patients.find(p => {
+            const pPhone = (p.phone || p.emergencyContactPhone || '').replace(/[^0-9]/g, '');
+            return pPhone.length >= 10 && pPhone.endsWith(cleanDigits.slice(-10));
+          });
+          if (duplicatePhone) {
+            return res.status(409).json({
+              success: false,
+              error: `An account with mobile number "${phone}" is already registered. Please sign in or use another number.`
+            });
+          }
+        }
 
-      // Add to users array
-      registry.users.unshift(newUser);
+        const generatedPatientId = rawPatient?.patientId || generatePatientId();
+        const userId = rawUser.id || `usr-pat-${Date.now()}`;
+        const patientRecordId = rawPatient?.id || `pat-${Date.now()}`;
 
-      // Link Patient Profile
-      let savedPatient = undefined;
-      if (newUserRoleIsPatient(newUser.role) && rawPatient) {
-        const cleanPatientId = (generatedPatientId || '').trim().toUpperCase();
-        savedPatient = {
-          ...rawPatient,
-          userId: newUser.id,
-          patientId: cleanPatientId,
-          password: newUser.password,
+        // Calculate age from DOB if available
+        let calculatedAge = 35;
+        if (rawPatient?.dob) {
+          const birthYear = new Date(rawPatient.dob).getFullYear();
+          if (!isNaN(birthYear)) calculatedAge = Math.max(1, new Date().getFullYear() - birthYear);
+        }
+
+        const newUser: User = {
+          id: userId,
           email: cleanEmail,
-          fullName: newUser.fullName,
-          phone: newUser.phone,
-          status: 'ACTIVE',
-          createdAt: rawPatient.createdAt || new Date().toISOString()
+          password: cleanPassword,
+          phone,
+          fullName,
+          role: 'PATIENT',
+          patientId: generatedPatientId,
+          isEmailVerified: false,
+          createdAt: new Date().toISOString()
         };
-        // Remove duplicate if any and unshift
-        registry.patients = registry.patients.filter(p => p.patientId !== cleanPatientId);
-        registry.patients.unshift(savedPatient);
-      }
 
-      // Link Doctor Profile
-      let savedDoctor = undefined;
-      if (doctorProfile) {
-        savedDoctor = {
-          ...doctorProfile,
-          userId: newUser.id,
-          id: doctorProfile.id || `doc-${Date.now()}`,
-          createdAt: doctorProfile.createdAt || new Date().toISOString()
-        };
-        registry.doctors = registry.doctors.filter(d => d.id !== savedDoctor.id);
-        registry.doctors.unshift(savedDoctor);
-      }
-
-      // Link Hospital Account
-      let savedHospital = undefined;
-      if (hospitalAccount) {
-        savedHospital = {
-          ...hospitalAccount,
-          userId: newUser.id,
-          password: newUser.password,
+        const newPatient: PatientProfile = {
+          id: patientRecordId,
+          userId,
+          patientId: generatedPatientId,
+          abhaId: rawPatient?.abhaId || generateAbhaId(),
+          abhaAddress: rawPatient?.abhaAddress || `${fullName.toLowerCase().replace(/[^a-z]/g, '')}.${generatedPatientId.slice(-4).toLowerCase()}@abdm`,
+          fullName,
           email: cleanEmail,
+          phone,
+          dob: rawPatient?.dob || '1990-01-01',
+          age: calculatedAge,
+          gender: rawPatient?.gender || 'MALE',
+          bloodGroup: rawPatient?.bloodGroup || 'B+',
+          emergencyContactName: rawPatient?.emergencyContactName || 'Emergency Contact',
+          emergencyContactPhone: rawPatient?.emergencyContactPhone || phone,
+          emergencyContactRelation: rawPatient?.emergencyContactRelation || 'Family',
+          preferredLanguage: rawPatient?.preferredLanguage || 'en',
+          address: rawPatient?.address || 'Residential Address',
+          city: rawPatient?.city || 'Local City',
+          state: rawPatient?.state || 'Maharashtra',
+          pincode: rawPatient?.pincode || '400001',
+          password: cleanPassword,
+          status: 'PENDING_VERIFICATION',
+          isEmailVerified: false,
+          allergies: rawPatient?.allergies || [],
+          chronicConditions: rawPatient?.chronicConditions || [],
+          currentMedications: rawPatient?.currentMedications || [],
+          createdAt: new Date().toISOString()
+        };
+
+        db.users.unshift(newUser);
+        db.patients.unshift(newPatient);
+
+        // Generate 6-digit OTP verification code & save
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setVerificationOtp(cleanEmail, otpCode, 10 * 60 * 1000);
+        saveDatabase(db);
+
+        // Send real verification code to patient's registered email
+        await sendVerificationEmail(cleanEmail, otpCode, fullName);
+
+        return res.status(201).json({
+          success: true,
+          requiresVerification: true,
+          email: cleanEmail,
+          patientId: generatedPatientId,
+          fullName,
+          message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please enter the code to verify your email.`,
+          devCode: process.env.NODE_ENV !== 'production' ? otpCode : undefined
+        });
+      }
+
+      // ── REGISTRATION: HOSPITAL ──
+      if (accountType === 'hospital') {
+        const hospitalName = String(rawHospital?.hospitalName || rawUser.fullName || '').trim();
+        const registrationId = String(rawHospital?.registrationId || '').trim();
+
+        if (!hospitalName) {
+          return res.status(400).json({ success: false, error: 'Hospital Name is required for registration.' });
+        }
+        if (!registrationId) {
+          return res.status(400).json({ success: false, error: 'Registration / License ID is required for registration.' });
+        }
+
+        // Prevent duplicate registration ID
+        const dupRegId = db.hospitals.find(
+          h => (h.registrationId || '').trim().toLowerCase() === registrationId.toLowerCase()
+        );
+        if (dupRegId) {
+          return res.status(409).json({
+            success: false,
+            error: `A hospital with Registration ID "${registrationId}" is already registered. Please sign in.`
+          });
+        }
+
+        const timestamp = Date.now();
+        const userId = `usr-hosp-${timestamp}`;
+        const hospitalId = rawHospital?.hospitalId || `HOSP-2026-${timestamp.toString().slice(-5)}`;
+        const phone = rawHospital?.emergencyContact || rawHospital?.phone || rawUser.phone || '';
+
+        const newUser: User = {
+          id: userId,
+          email: cleanEmail,
+          password: cleanPassword,
+          phone,
+          fullName: hospitalName,
+          role: 'HOSPITAL_ADMIN',
+          hospitalId,
+          createdAt: new Date().toISOString()
+        };
+
+        const newHospital: HospitalAccount = {
+          id: hospitalId,
+          userId,
+          hospitalId,
+          hospitalName,
+          registrationId,
+          address: rawHospital?.address || 'Hospital Facility Address',
+          city: rawHospital?.city || 'Local City',
+          location: rawHospital?.location || rawHospital?.city || 'Clinical Campus',
+          state: rawHospital?.state || 'Maharashtra',
+          pincode: rawHospital?.pincode || '400001',
+          emergencyContact: phone,
+          phone,
+          email: cleanEmail,
+          password: cleanPassword,
+          ambulanceAvailable: rawHospital?.ambulanceAvailable ?? true,
+          coordinates: rawHospital?.coordinates,
+          departments: rawHospital?.departments || ['Emergency & Trauma', 'General Medicine', 'Cardiology', 'ICU'],
           status: 'VERIFIED',
-          createdAt: hospitalAccount.createdAt || new Date().toISOString()
+          createdAt: new Date().toISOString()
         };
-        const hospId = (savedHospital.hospitalId || savedHospital.id).toUpperCase();
-        registry.hospitals = registry.hospitals.filter(h => (h.hospitalId || h.id || '').toUpperCase() !== hospId);
-        registry.hospitals.unshift(savedHospital);
+
+        db.users.unshift(newUser);
+        db.hospitals.unshift(newHospital);
+        saveDatabase(db);
+
+        const token = `mb-tok-${newUser.id}-${Date.now()}`;
+        const { password: _p1, ...safeUser } = newUser;
+        const { password: _p2, ...safeHospital } = newHospital;
+
+        return res.status(201).json({
+          success: true,
+          token,
+          user: safeUser,
+          hospitalAccount: safeHospital
+        });
       }
 
-      // Save registry centrally
-      const ok = await saveCentralAuthRegistry(registry);
-      if (!ok) {
-        console.warn('[Central Auth] Notice: Central object save timed out, broadcast fallback initiated');
+      // ── REGISTRATION: DOCTOR / STAFF ──
+      if (accountType === 'doctor' || accountType === 'staff') {
+        const fullName = String(rawUser.fullName || rawUser.name || 'Staff Member').trim();
+        const role = rawUser.role || (accountType === 'doctor' ? 'DOCTOR' : 'TRIAGE');
+        const userId = `usr-doc-${Date.now()}`;
+
+        const newUser: User = {
+          id: userId,
+          email: cleanEmail,
+          password: cleanPassword,
+          phone: rawUser.phone || '',
+          fullName,
+          role,
+          createdAt: new Date().toISOString()
+        };
+
+        let newDoctor: DoctorProfile | undefined = undefined;
+        if (role === 'DOCTOR') {
+          newDoctor = {
+            id: rawDoctor?.id || `doc-${Date.now()}`,
+            userId,
+            doctorName: fullName,
+            email: cleanEmail,
+            phone: rawUser.phone || '',
+            registrationNumber: rawDoctor?.registrationNumber || 'MCI-2026-ACTIVE',
+            qualification: rawDoctor?.qualification || 'MBBS, MD',
+            specialization: rawDoctor?.specialization || 'Internal & Emergency Medicine',
+            hospitalId: rawDoctor?.hospitalId || 'HOSP-2026-00101',
+            hospitalName: rawDoctor?.hospitalName || 'Registered Medical Facility',
+            departmentId: 'dept-001',
+            departmentName: 'Emergency & Critical Care',
+            experienceYears: rawDoctor?.experienceYears || 8,
+            isAvailable: true,
+            activePatientsCount: 0,
+            createdAt: new Date().toISOString()
+          };
+          db.doctors.unshift(newDoctor);
+        }
+
+        db.users.unshift(newUser);
+        saveDatabase(db);
+
+        const token = `mb-tok-${newUser.id}-${Date.now()}`;
+        const { password: _p1, ...safeUser } = newUser;
+
+        return res.status(201).json({
+          success: true,
+          token,
+          user: safeUser,
+          doctorProfile: newDoctor
+        });
       }
 
-      // Broadcast registration across all listening devices in real time
-      await broadcastSyncEvent('SAVE_USER', { user: newUser });
-      if (savedPatient) {
-        await broadcastSyncEvent('SAVE_PATIENT', savedPatient);
-      }
-      if (savedDoctor) {
-        await broadcastSyncEvent('SAVE_DOCTOR', savedDoctor);
-      }
-      if (savedHospital) {
-        await broadcastSyncEvent('SAVE_HOSPITAL', savedHospital);
-      }
-
-      const token = `mb-tok-${newUser.id}-${Date.now()}`;
-
-      return res.status(201).json({
-        success: true,
-        token,
-        user: newUser,
-        patientProfile: savedPatient,
-        doctorProfile: savedDoctor,
-        hospitalAccount: savedHospital
-      });
+      return res.status(400).json({ success: false, error: `Unsupported account type: ${accountType}` });
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ACTION C: UPDATE PROFILE
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── ACTION C: UPDATE PROFILE ──
     if (action === 'update_profile') {
       const { userId, patientId, updates } = body;
-      const registry = await fetchCentralAuthRegistry();
-
+      const db = getDatabase();
       let updated = false;
+
       if (patientId) {
         const cleanPatId = String(patientId).trim().toUpperCase();
-        const idx = registry.patients.findIndex(p => (p.patientId || '').toUpperCase() === cleanPatId);
+        const idx = db.patients.findIndex(p => (p.patientId || '').toUpperCase() === cleanPatId);
         if (idx >= 0) {
-          registry.patients[idx] = { ...registry.patients[idx], ...updates };
+          db.patients[idx] = { ...db.patients[idx], ...updates };
           updated = true;
-          await broadcastSyncEvent('SAVE_PATIENT', registry.patients[idx]);
         }
       }
+
       if (userId) {
-        const idx = registry.users.findIndex(u => u.id === userId);
+        const idx = db.users.findIndex(u => u.id === userId);
         if (idx >= 0) {
-          registry.users[idx] = { ...registry.users[idx], ...updates };
+          db.users[idx] = { ...db.users[idx], ...updates };
           updated = true;
         }
       }
 
       if (updated) {
-        await saveCentralAuthRegistry(registry);
+        saveDatabase(db);
         return res.status(200).json({ success: true });
       }
+
       return res.status(404).json({ success: false, error: 'Record not found to update' });
     }
 

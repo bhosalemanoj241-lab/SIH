@@ -9,7 +9,6 @@ import { syncRelay } from './firebaseService';
 import { cloudDb } from './cloudDatabaseEngine';
 
 const CENTRAL_AUTH_API_ENDPOINT = '/api/auth';
-const DIRECT_CLOUD_STORE_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508';
 const AUTH_STORAGE_KEY = 'medibridge_active_auth_session';
 
 export interface AuthSessionData {
@@ -33,6 +32,10 @@ export interface AuthResult {
   hospitalId?: string;
   message?: string;
   notFound?: boolean;
+  requiresVerification?: boolean;
+  emailUnverified?: boolean;
+  email?: string;
+  devCode?: string;
 }
 
 class CentralAuthService {
@@ -61,8 +64,8 @@ class CentralAuthService {
   }
 
   /**
-   * Universal Login: Validates credentials centrally in cloud store
-   * Supports email, Patient ID (MB-2026-XXXXX), phone, or ABHA ID
+   * Universal Login: Validates credentials centrally on server database.
+   * Only allows registered credentials. Strictly rejects unregistered, fake, or incorrect passwords.
    */
   public async login(identifier: string, password?: string, role?: UserRole): Promise<AuthResult> {
     const cleanId = String(identifier || '').trim();
@@ -72,246 +75,65 @@ class CentralAuthService {
       return { success: false, message: 'Please enter your registered Email or Patient ID.' };
     }
 
-    // Platform Root Administrator Instant Check
-    if (
-      cleanId.toLowerCase() === 'admin@medibridge.ai' ||
-      cleanId.toLowerCase() === 'admin@medibridge.gov.in' ||
-      cleanId.toLowerCase() === 'admin@medibridge.in'
-    ) {
-      const adminPass = cleanId.toLowerCase() === 'admin@medibridge.ai' ? 'Admin@123' : 'Admin@2026';
-      if (cleanPass && cleanPass !== adminPass) {
-        return { success: false, message: 'Incorrect password. Please verify your credentials and try again.' };
-      }
-      const adminUser: User = {
-        id: 'usr-admin-root',
-        email: cleanId.toLowerCase(),
-        password: adminPass,
-        phone: '+91 99300 88777',
-        fullName: 'Platform Administrator',
-        role: 'SYSTEM_ADMIN',
-        createdAt: '2025-10-01T08:00:00Z'
-      };
-      db.createUser(adminUser);
-      this.persistSession({ isAuthenticated: true, user: adminUser, token: `mb-tok-admin-${Date.now()}` });
-      return { success: true, user: adminUser, token: `mb-tok-admin-${Date.now()}` };
+    if (!cleanPass) {
+      return { success: false, message: 'Please enter your password.' };
     }
 
-    // 1. Primary: Query Serverless /api/auth
     try {
-      if (typeof window !== 'undefined' && window.location) {
-        const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'login',
-            identifier: cleanId,
-            password: cleanPass,
-            role
-          })
+      const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          identifier: cleanId,
+          password: cleanPass,
+          role
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.success && data.user) {
+        this.hydrateLocalDatabase(data);
+        this.persistSession({
+          isAuthenticated: true,
+          token: data.token,
+          user: data.user,
+          patientProfile: data.patientProfile,
+          doctorProfile: data.doctorProfile,
+          hospitalAccount: data.hospitalAccount
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.success && data.user) {
-            this.hydrateLocalDatabase(data);
-            this.persistSession({
-              isAuthenticated: true,
-              token: data.token,
-              user: data.user,
-              patientProfile: data.patientProfile,
-              doctorProfile: data.doctorProfile,
-              hospitalAccount: data.hospitalAccount
-            });
-            return data;
-          }
-        } else if (response.status === 401 || response.status === 403 || response.status === 404) {
-          const errData = await response.json().catch(() => ({}));
-          return {
-            success: false,
-            message: errData.error || 'Authentication failed. Please verify credentials.',
-            notFound: errData.notFound
-          };
-        }
-      }
-    } catch (apiErr) {
-      console.warn('[Central Auth Service] Serverless /api/auth network error, engaging cloud database fallback:', apiErr);
-    }
-
-    // 2. Fallback: Query Central Cloud Object Store or PubSub stream directly
-    try {
-      let registry: any = null;
-      try {
-        const directRes = await fetch(DIRECT_CLOUD_STORE_URL, { cache: 'no-store' });
-        if (directRes.ok) {
-          const cloudData = await directRes.json();
-          registry = cloudData?.data;
-        }
-      } catch {}
-
-      if (!registry || !Array.isArray(registry.users) || registry.users.length === 0) {
-        try {
-          const pubRes = await fetch('https://ntfy.sh/medibridge_cloud_db_v4/json?poll=1&since=all', { cache: 'no-store' });
-          if (pubRes.ok) {
-            const text = await pubRes.text();
-            const users: any[] = [];
-            const patients: any[] = [];
-            const hospitals: any[] = [];
-            const lines = text.trim().split('\n').filter(Boolean);
-            for (const l of lines) {
-              try {
-                const raw = JSON.parse(l);
-                if (raw.message) {
-                  const ev = JSON.parse(raw.message);
-                  if (ev.type === 'SAVE_USER' && (ev.data?.user || ev.data)) {
-                    users.unshift(ev.data?.user || ev.data);
-                  } else if (ev.type === 'SAVE_PATIENT' && (ev.data || ev.patient)) {
-                    patients.unshift(ev.data || ev.patient);
-                  } else if (ev.type === 'SAVE_HOSPITAL' && (ev.data || ev.hospital)) {
-                    hospitals.unshift(ev.data || ev.hospital);
-                  }
-                }
-              } catch {}
-            }
-            registry = { users, patients, hospitals };
-          }
-        } catch {}
+        return data;
       }
 
-      if (registry && (Array.isArray(registry.users) || Array.isArray(registry.patients))) {
-        registry.users = Array.isArray(registry.users) ? registry.users : [];
-        const cleanAlpha = cleanId.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
-
-          // Match in users
-          let matchedUser = registry.users.find((u: any) => {
-            const uEmail = (u.email || '').trim().toLowerCase();
-            const uId = (u.id || '').trim().toLowerCase();
-            const uPatId = (u.patientId || '').trim().toLowerCase();
-            const uPatAlpha = uPatId.replace(/[^a-z0-9]/g, '');
-            const uPhone = (u.phone || '').replace(/[^0-9]/g, '');
-            const queryNumeric = cleanId.replace(/[^0-9]/g, '');
-
-            return (
-              uEmail === cleanId.toLowerCase() ||
-              uId === cleanId.toLowerCase() ||
-              uPatId === cleanId.toLowerCase() ||
-              (cleanAlpha.length >= 6 && uPatAlpha === cleanAlpha) ||
-              (queryNumeric.length >= 10 && uPhone.endsWith(queryNumeric.slice(-10)))
-            );
-          });
-
-          // Match in patients
-          let matchedPatient = (registry.patients || []).find((p: any) => {
-            const pEmail = (p.email || '').trim().toLowerCase();
-            const pId = (p.patientId || '').trim().toLowerCase();
-            const pAlpha = pId.replace(/[^a-z0-9]/g, '');
-            const pAbha = (p.abhaId || '').trim().toLowerCase();
-            const pPhone = (p.phone || p.emergencyContactPhone || '').replace(/[^0-9]/g, '');
-            const queryNumeric = cleanId.replace(/[^0-9]/g, '');
-
-            return (
-              pEmail === cleanId.toLowerCase() ||
-              pId === cleanId.toLowerCase() ||
-              (cleanAlpha.length >= 6 && pAlpha === cleanAlpha) ||
-              pAbha === cleanId.toLowerCase() ||
-              (queryNumeric.length >= 10 && pPhone.endsWith(queryNumeric.slice(-10)))
-            );
-          });
-
-          if (!matchedUser && matchedPatient) {
-            matchedUser = {
-              id: matchedPatient.userId || `usr-${matchedPatient.patientId}`,
-              email: matchedPatient.email || `${matchedPatient.patientId.toLowerCase()}@patient.medibridge.in`,
-              password: matchedPatient.password,
-              phone: matchedPatient.phone || matchedPatient.emergencyContactPhone || '',
-              fullName: matchedPatient.fullName,
-              role: 'PATIENT',
-              patientId: matchedPatient.patientId,
-              createdAt: matchedPatient.createdAt || new Date().toISOString()
-            };
-          }
-
-          // Match in hospitals
-          let matchedHospital = (registry.hospitals || []).find((h: any) => {
-            const hEmail = (h.email || '').trim().toLowerCase();
-            const hId = (h.hospitalId || h.id || '').trim().toLowerCase();
-            const hReg = (h.registrationId || '').trim().toLowerCase();
-            return hEmail === cleanId.toLowerCase() || hId === cleanId.toLowerCase() || hReg === cleanId.toLowerCase();
-          });
-
-          if (!matchedUser && matchedHospital) {
-            matchedUser = {
-              id: matchedHospital.userId || `usr-hosp-${matchedHospital.id}`,
-              email: matchedHospital.email || `admin@${(matchedHospital.code || matchedHospital.hospitalId || 'hosp').toLowerCase()}.in`,
-              password: matchedHospital.password || 'Hospital@123',
-              phone: matchedHospital.emergencyContact || matchedHospital.phone || '',
-              fullName: matchedHospital.hospitalName,
-              role: 'HOSPITAL_ADMIN',
-              hospitalId: matchedHospital.hospitalId || matchedHospital.id,
-              createdAt: matchedHospital.createdAt || new Date().toISOString()
-            };
-          }
-
-          if (matchedUser) {
-            // Verify password
-            if (cleanPass) {
-              const expectedPass = (matchedUser.password || matchedPatient?.password || '').trim();
-              if (expectedPass && expectedPass !== cleanPass) {
-                return { success: false, message: 'Incorrect password. Please verify your credentials and try again.' };
-              }
-            }
-
-            const token = `mb-tok-${matchedUser.id}-${Date.now()}`;
-            const resObj: AuthResult = {
-              success: true,
-              token,
-              user: matchedUser,
-              patientProfile: matchedPatient,
-              hospitalAccount: matchedHospital
-            };
-            this.hydrateLocalDatabase(resObj);
-            this.persistSession({
-              isAuthenticated: true,
-              token,
-              user: matchedUser,
-              patientProfile: matchedPatient,
-              hospitalAccount: matchedHospital
-            });
-            return resObj;
-          }
-        }
-      } catch (directErr) {
-      console.warn('[Central Auth Service] Direct cloud store error:', directErr);
-    }
-
-    // 3. Fallback: Check local client database cache
-    const localUser = db.findUserByIdentifier(cleanId);
-    if (localUser) {
-      if (cleanPass && localUser.password && localUser.password.trim() !== cleanPass) {
-        return { success: false, message: 'Incorrect password. Please verify your credentials and try again.' };
+      if (data.emailUnverified === true) {
+        return {
+          success: false,
+          emailUnverified: true,
+          email: data.email,
+          patientId: data.patientId,
+          message: data.error || 'Your email address is not verified yet. Please enter the verification code sent to your email.'
+        };
       }
-      const p = db.getPatientByUserId(localUser.id) || db.getPatientByPatientId(cleanId);
-      const d = db.getDoctorByUserId(localUser.id);
-      const h = db.getHospitalAccountByUserId(localUser.id);
-      const token = `mb-tok-${localUser.id}-${Date.now()}`;
+
+      // Exact error from server (400, 401, 403, 404, 409)
       return {
-        success: true,
-        token,
-        user: localUser,
-        patientProfile: p,
-        doctorProfile: d,
-        hospitalAccount: h
+        success: false,
+        message: data.error || 'Authentication failed. Please check your credentials.',
+        notFound: data.notFound === true
+      };
+    } catch (apiErr: any) {
+      console.error('[CentralAuthService] Server connection error:', apiErr);
+      return {
+        success: false,
+        message: 'Could not connect to the central authentication server. Please check your network connection and verify the server is running.'
       };
     }
-
-    return {
-      success: false,
-      notFound: true,
-      message: `No registered account found for "${cleanId}". Please check your credentials or click 'Create Account' to register.`
-    };
   }
 
   /**
-   * Centralized Patient Registration
+   * Centralized Patient Registration:
+   * Creates patient centrally on the server. Accessible from all devices.
    */
   public async registerPatient(data: {
     fullName: string;
@@ -329,133 +151,187 @@ class CentralAuthService {
     city?: string;
     pincode?: string;
   }): Promise<AuthResult> {
-    const cleanEmail = data.email.trim().toLowerCase();
-    const userId = `usr-pat-${Date.now()}`;
-    const generatedPatientId = db.generateUniquePatientId();
+    const cleanName = String(data.fullName || '').trim();
+    const cleanEmail = String(data.email || '').trim().toLowerCase();
+    const cleanPhone = String(data.phone || '').trim();
+    const cleanPassword = String(data.password || '').trim();
 
-    const newUser: User = {
-      id: userId,
-      email: cleanEmail,
-      password: data.password || 'MediBridge@123',
-      phone: data.phone.trim(),
-      fullName: data.fullName.trim(),
-      role: 'PATIENT',
-      createdAt: new Date().toISOString()
-    };
-
-    let calculatedAge = 35;
-    if (data.dob) {
-      const birthYear = new Date(data.dob).getFullYear();
-      if (!isNaN(birthYear)) calculatedAge = new Date().getFullYear() - birthYear;
+    if (!cleanName) {
+      return { success: false, message: 'Full name is required.' };
+    }
+    if (!cleanEmail) {
+      return { success: false, message: 'Email address is required.' };
+    }
+    if (!cleanPhone) {
+      return { success: false, message: 'Mobile phone number is required.' };
+    }
+    if (!cleanPassword || cleanPassword.length < 4) {
+      return { success: false, message: 'Password must be at least 4 characters long.' };
     }
 
-    const newProfile: PatientProfile = {
-      id: `pat-${Date.now()}`,
-      userId: userId,
-      patientId: generatedPatientId,
-      abhaId: `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
-      abhaAddress: `${data.fullName.toLowerCase().replace(/\s+/g, '.') || 'patient'}@abdm`,
-      fullName: data.fullName.trim(),
-      email: cleanEmail,
-      phone: data.phone.trim(),
-      dob: data.dob || '1990-01-01',
-      age: calculatedAge,
-      gender: data.gender,
-      bloodGroup: data.bloodGroup || 'B+',
-      emergencyContactName: data.emergencyContactName || 'Primary Emergency Contact',
-      emergencyContactPhone: data.emergencyContactPhone || data.phone.trim(),
-      emergencyContactRelation: data.emergencyContactRelation || 'Family Member',
-      preferredLanguage: data.preferredLanguage || 'en',
-      address: data.address || 'Registered Residential Address',
-      city: data.city || 'Mumbai',
-      pincode: data.pincode || '400001',
-      createdAt: new Date().toISOString()
-    };
-
-    // 1. Post to Serverless /api/auth
     try {
-      if (typeof window !== 'undefined' && window.location) {
-        const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'register',
-            user: newUser,
-            patientProfile: newProfile
-          })
-        });
+      const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'register',
+          accountType: 'patient',
+          data: {
+            ...data,
+            fullName: cleanName,
+            email: cleanEmail,
+            phone: cleanPhone,
+            password: cleanPassword
+          }
+        })
+      });
 
-        if (response.ok) {
-          const resData = await response.json();
+      const resData = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.success) {
+        if (resData.requiresVerification) {
+          return {
+            success: true,
+            requiresVerification: true,
+            email: resData.email,
+            patientId: resData.patientId,
+            devCode: resData.devCode,
+            message: resData.message
+          };
+        }
+
+        if (resData.user) {
           this.hydrateLocalDatabase(resData);
           this.persistSession({
             isAuthenticated: true,
             token: resData.token,
-            user: newUser,
-            patientProfile: newProfile
+            user: resData.user,
+            patientProfile: resData.patientProfile
           });
-          return { success: true, patientId: generatedPatientId, user: newUser, patientProfile: newProfile };
-        } else if (response.status === 409) {
-          return { success: false, message: 'An account with this email address already exists. Please sign in.' };
+          return {
+            success: true,
+            patientId: resData.patientProfile?.patientId,
+            user: resData.user,
+            patientProfile: resData.patientProfile
+          };
         }
       }
-    } catch (err) {
-      console.warn('[Central Auth Register] Serverless route unreachable, falling back to direct cloud store:', err);
+
+      return {
+        success: false,
+        message: resData.error || 'Failed to create patient account in central database.'
+      };
+    } catch (err: any) {
+      console.error('[CentralAuthService] Patient registration error:', err);
+      return {
+        success: false,
+        message: 'Could not connect to the central registration server. Please check your network connection.'
+      };
     }
-
-    // 2. Direct Cloud Store Fallback
-    try {
-      const getRes = await fetch(DIRECT_CLOUD_STORE_URL, { cache: 'no-store' });
-      if (getRes.ok) {
-        const cloudData = await getRes.json();
-        const registry = cloudData?.data || { users: [], patients: [], doctors: [], hospitals: [] };
-        
-        // Check duplicate
-        if ((registry.users || []).some((u: any) => (u.email || '').trim().toLowerCase() === cleanEmail)) {
-          return { success: false, message: 'An account with this email address already exists. Please sign in.' };
-        }
-
-        registry.users = registry.users || [];
-        registry.patients = registry.patients || [];
-        registry.users.unshift(newUser);
-        registry.patients.unshift({ ...newProfile, password: newUser.password });
-
-        await fetch(DIRECT_CLOUD_STORE_URL, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: 'MediBridge_Auth_Store_v1',
-            data: registry
-          })
-        });
-      }
-    } catch (directErr) {
-      console.warn('[Central Auth Register] Direct save error:', directErr);
-    }
-
-    // Sync cloudDb & mockDb
-    await cloudDb.savePatient({
-      ...newProfile,
-      fullName: newProfile.fullName || newUser.fullName,
-      password: newUser.password,
-      status: 'ACTIVE',
-      createdAt: newProfile.createdAt || new Date().toISOString()
-    });
-    db.createUser(newUser);
-    db.createPatientProfile(newProfile);
-
-    this.persistSession({
-      isAuthenticated: true,
-      token: `mb-tok-${newUser.id}-${Date.now()}`,
-      user: newUser,
-      patientProfile: newProfile
-    });
-
-    return { success: true, patientId: generatedPatientId, user: newUser, patientProfile: newProfile };
   }
 
   /**
-   * Centralized Staff / Doctor / Admin Registration
+   * Verifies 6-digit Email OTP and activates account
+   */
+  public async verifyEmailOtp(email: string, code: string): Promise<AuthResult> {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanCode = String(code || '').trim();
+
+    if (!cleanEmail) {
+      return { success: false, message: 'Email address is required.' };
+    }
+    if (!cleanCode) {
+      return { success: false, message: 'Please enter the 6-digit verification code.' };
+    }
+
+    try {
+      const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify_otp',
+          email: cleanEmail,
+          code: cleanCode
+        })
+      });
+
+      const resData = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.success && resData.user) {
+        this.hydrateLocalDatabase(resData);
+        this.persistSession({
+          isAuthenticated: true,
+          token: resData.token,
+          user: resData.user,
+          patientProfile: resData.patientProfile
+        });
+        return {
+          success: true,
+          token: resData.token,
+          user: resData.user,
+          patientProfile: resData.patientProfile,
+          patientId: resData.user.patientId,
+          message: resData.message
+        };
+      }
+
+      return {
+        success: false,
+        message: resData.error || 'Failed to verify email. Please check your code and try again.'
+      };
+    } catch (err: any) {
+      console.error('[CentralAuthService] OTP verification error:', err);
+      return {
+        success: false,
+        message: 'Could not connect to the verification server. Please check your network connection.'
+      };
+    }
+  }
+
+  /**
+   * Dispatches a fresh 6-digit OTP code to the patient's registered email
+   */
+  public async resendVerificationOtp(email: string): Promise<AuthResult> {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      return { success: false, message: 'Email address is required.' };
+    }
+
+    try {
+      const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'resend_otp',
+          email: cleanEmail
+        })
+      });
+
+      const resData = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.success) {
+        return {
+          success: true,
+          devCode: resData.devCode,
+          message: resData.message || 'Verification code resent successfully.'
+        };
+      }
+
+      return {
+        success: false,
+        message: resData.error || 'Failed to resend verification code.'
+      };
+    } catch (err: any) {
+      console.error('[CentralAuthService] Resend OTP error:', err);
+      return {
+        success: false,
+        message: 'Could not connect to server to resend verification code.'
+      };
+    }
+  }
+
+  /**
+   * Centralized Staff / Doctor Registration
    */
   public async registerStaff(data: {
     fullName: string;
@@ -468,105 +344,63 @@ class CentralAuthService {
     hospitalId?: string;
     hospitalName?: string;
   }): Promise<AuthResult> {
-    const cleanEmail = data.email.trim().toLowerCase();
-    const userId = `usr-staff-${Date.now()}`;
+    const cleanEmail = String(data.email || '').trim().toLowerCase();
+    const cleanPassword = String(data.password || '').trim();
 
-    const newUser: User = {
-      id: userId,
-      email: cleanEmail,
-      password: data.password || 'Staff@123',
-      phone: data.phone.trim(),
-      fullName: data.fullName.trim(),
-      role: data.role,
-      createdAt: new Date().toISOString()
-    };
+    if (!cleanEmail) {
+      return { success: false, message: 'Email is required.' };
+    }
+    if (!cleanPassword) {
+      return { success: false, message: 'Password is required.' };
+    }
 
-    let newDoctor: DoctorProfile | undefined = undefined;
-    if (data.role === 'DOCTOR') {
-      newDoctor = {
-        id: `doc-${Date.now()}`,
-        userId: userId,
-        registrationNumber: data.registrationNumber || `MCI-2026-${Math.floor(10000 + Math.random() * 90000)}`,
-        qualification: 'MBBS, MD',
-        specialization: data.specialization || 'General & Emergency Medicine',
-        hospitalId: data.hospitalId || '',
-        hospitalName: data.hospitalName || 'Registered Medical Facility',
-        departmentId: 'dept-001',
-        departmentName: 'Emergency & Critical Care',
-        experienceYears: 10,
-        isAvailable: true,
-        activePatientsCount: 0
+    try {
+      const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'register',
+          accountType: data.role.toLowerCase(),
+          data: {
+            ...data,
+            email: cleanEmail,
+            password: cleanPassword
+          }
+        })
+      });
+
+      const resData = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.success && resData.user) {
+        this.hydrateLocalDatabase(resData);
+        this.persistSession({
+          isAuthenticated: true,
+          token: resData.token,
+          user: resData.user,
+          doctorProfile: resData.doctorProfile
+        });
+        return {
+          success: true,
+          user: resData.user,
+          doctorProfile: resData.doctorProfile
+        };
+      }
+
+      return {
+        success: false,
+        message: resData.error || 'Staff registration failed.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: 'Could not connect to central server.'
       };
     }
-
-    // 1. Post to Serverless /api/auth
-    try {
-      if (typeof window !== 'undefined' && window.location) {
-        const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'register',
-            user: newUser,
-            doctorProfile: newDoctor
-          })
-        });
-
-        if (response.ok) {
-          const resData = await response.json();
-          this.hydrateLocalDatabase(resData);
-          this.persistSession({
-            isAuthenticated: true,
-            token: resData.token,
-            user: newUser,
-            doctorProfile: newDoctor
-          });
-          return { success: true, user: newUser, doctorProfile: newDoctor };
-        } else if (response.status === 409) {
-          return { success: false, message: 'An account with this email address already exists.' };
-        }
-      }
-    } catch (err) {
-      console.warn('[Central Auth Register Staff] Serverless route error:', err);
-    }
-
-    // 2. Direct Cloud Store Fallback
-    try {
-      const getRes = await fetch(DIRECT_CLOUD_STORE_URL, { cache: 'no-store' });
-      if (getRes.ok) {
-        const cloudData = await getRes.json();
-        const registry = cloudData?.data || { users: [], patients: [], doctors: [], hospitals: [] };
-        registry.users = registry.users || [];
-        registry.doctors = registry.doctors || [];
-        registry.users.unshift(newUser);
-        if (newDoctor) registry.doctors.unshift(newDoctor);
-
-        await fetch(DIRECT_CLOUD_STORE_URL, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: 'MediBridge_Auth_Store_v1',
-            data: registry
-          })
-        });
-      }
-    } catch {}
-
-    db.createUser(newUser);
-    if (newDoctor) db.createDoctorProfile(newDoctor);
-
-    this.persistSession({
-      isAuthenticated: true,
-      token: `mb-tok-${newUser.id}-${Date.now()}`,
-      user: newUser,
-      doctorProfile: newDoctor
-    });
-
-    return { success: true, user: newUser, doctorProfile: newDoctor };
   }
 
   /**
-   * Centralized Hospital Registration
+   * Centralized Hospital Registration:
+   * Registers hospital in central database. Login accessible across all devices.
    */
   public async registerHospital(data: {
     hospitalName: string;
@@ -583,120 +417,70 @@ class CentralAuthService {
     coordinates?: { lat: number; lng: number };
     departments?: string[];
   }): Promise<AuthResult> {
-    const cleanEmail = data.email.trim().toLowerCase();
-    const userId = `usr-hosp-${Date.now()}`;
-    const hospitalId = db.generateUniqueHospitalId();
+    const cleanName = String(data.hospitalName || '').trim();
+    const cleanRegId = String(data.registrationId || '').trim();
+    const cleanEmail = String(data.email || '').trim().toLowerCase();
+    const cleanPassword = String(data.password || '').trim();
 
-    const newUser: User = {
-      id: userId,
-      email: cleanEmail,
-      password: data.password,
-      phone: data.emergencyContact,
-      fullName: data.hospitalName.trim(),
-      role: 'HOSPITAL_ADMIN',
-      createdAt: new Date().toISOString()
-    };
-
-    const newHospitalAccount: HospitalAccount = {
-      id: hospitalId,
-      userId: userId,
-      hospitalName: data.hospitalName.trim(),
-      registrationId: data.registrationId.trim(),
-      address: data.address.trim(),
-      city: data.city.trim(),
-      location: data.location.trim(),
-      emergencyContact: data.emergencyContact.trim(),
-      email: cleanEmail,
-      ambulanceAvailable: data.ambulanceAvailable,
-      coordinates: data.coordinates,
-      departments: data.departments || ['Emergency & Trauma', 'General Medicine', 'Cardiology', 'ICU'],
-      linkedHospitalId: hospitalId,
-      createdAt: new Date().toISOString()
-    };
-
-    // 1. Post to Serverless /api/auth
-    try {
-      if (typeof window !== 'undefined' && window.location) {
-        const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'register',
-            user: newUser,
-            hospitalAccount: newHospitalAccount
-          })
-        });
-
-        if (response.ok) {
-          const resData = await response.json();
-          this.hydrateLocalDatabase(resData);
-          this.persistSession({
-            isAuthenticated: true,
-            token: resData.token,
-            user: newUser,
-            hospitalAccount: newHospitalAccount
-          });
-          return { success: true, hospitalId, user: newUser, hospitalAccount: newHospitalAccount };
-        } else if (response.status === 409) {
-          return { success: false, message: 'A hospital account with this email already exists.' };
-        }
-      }
-    } catch (err) {
-      console.warn('[Central Auth Register Hospital] Serverless route error:', err);
+    if (!cleanName) {
+      return { success: false, message: 'Hospital Name is required.' };
+    }
+    if (!cleanRegId) {
+      return { success: false, message: 'Registration / License ID is required.' };
+    }
+    if (!cleanEmail) {
+      return { success: false, message: 'Hospital Email is required.' };
+    }
+    if (!cleanPassword || cleanPassword.length < 4) {
+      return { success: false, message: 'Password must be at least 4 characters long.' };
     }
 
-    // 2. Direct Cloud Store Fallback
     try {
-      const getRes = await fetch(DIRECT_CLOUD_STORE_URL, { cache: 'no-store' });
-      if (getRes.ok) {
-        const cloudData = await getRes.json();
-        const registry = cloudData?.data || { users: [], patients: [], doctors: [], hospitals: [] };
-        registry.users = registry.users || [];
-        registry.hospitals = registry.hospitals || [];
-        registry.users.unshift(newUser);
-        registry.hospitals.unshift({ ...newHospitalAccount, password: newUser.password });
+      const response = await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'register',
+          accountType: 'hospital',
+          hospitalAccount: {
+            ...data,
+            hospitalName: cleanName,
+            registrationId: cleanRegId,
+            email: cleanEmail,
+            password: cleanPassword
+          }
+        })
+      });
 
-        await fetch(DIRECT_CLOUD_STORE_URL, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: 'MediBridge_Auth_Store_v1',
-            data: registry
-          })
+      const resData = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.success && resData.user) {
+        this.hydrateLocalDatabase(resData);
+        this.persistSession({
+          isAuthenticated: true,
+          token: resData.token,
+          user: resData.user,
+          hospitalAccount: resData.hospitalAccount
         });
+        return {
+          success: true,
+          hospitalId: resData.hospitalAccount?.hospitalId || resData.hospitalAccount?.id,
+          user: resData.user,
+          hospitalAccount: resData.hospitalAccount
+        };
       }
-    } catch {}
 
-    await cloudDb.saveHospital({
-      id: hospitalId,
-      hospitalId,
-      userId,
-      hospitalName: data.hospitalName.trim(),
-      registrationId: data.registrationId.trim(),
-      email: cleanEmail,
-      phone: data.emergencyContact,
-      emergencyContact: data.emergencyContact,
-      address: data.address.trim(),
-      city: data.city.trim(),
-      location: data.location.trim(),
-      coordinates: data.coordinates,
-      ambulanceAvailable: data.ambulanceAvailable,
-      departments: newHospitalAccount.departments,
-      status: 'VERIFIED',
-      createdAt: new Date().toISOString()
-    });
-
-    db.createUser(newUser);
-    db.createHospitalAccount(newHospitalAccount);
-
-    this.persistSession({
-      isAuthenticated: true,
-      token: `mb-tok-${newUser.id}-${Date.now()}`,
-      user: newUser,
-      hospitalAccount: newHospitalAccount
-    });
-
-    return { success: true, hospitalId, user: newUser, hospitalAccount: newHospitalAccount };
+      return {
+        success: false,
+        message: resData.error || 'Failed to create hospital account in central database.'
+      };
+    } catch (err: any) {
+      console.error('[CentralAuthService] Hospital registration error:', err);
+      return {
+        success: false,
+        message: 'Could not connect to central registration server. Please check your network connection.'
+      };
+    }
   }
 
   /**
@@ -718,7 +502,7 @@ class CentralAuthService {
   }
 
   /**
-   * Persists authenticated session token and profile
+   * Persists authenticated session token and profile in browser storage
    */
   public persistSession(session: AuthSessionData) {
     try {
@@ -744,6 +528,7 @@ class CentralAuthService {
 
   /**
    * Wipes all registration data across Patient, Hospital, and Doctor portals
+   * Starts with a 100% clean registration state.
    */
   public async clearAllRegistrations(): Promise<boolean> {
     try {
