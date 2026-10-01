@@ -495,12 +495,7 @@ class CloudDatabaseEngine {
     let found = matchInList(this.patientsCache);
     if (found) return found;
 
-    // 2. Fetch fresh cloud records
-    const all = await this.getPatients();
-    found = matchInList(all);
-    if (found) return found;
-
-    // 3. Fallback: try serverless /api/search endpoint
+    // 2. Direct Query to Central Serverless Endpoints (/api/search & /api/patients)
     try {
       if (typeof window !== 'undefined' && window.location) {
         const queryParam = cleanId.includes('@')
@@ -514,8 +509,22 @@ class CloudDatabaseEngine {
             return data.patient;
           }
         }
+
+        const res2 = await fetch(`/api/patients?patientId=${encodeURIComponent(cleanId)}`);
+        if (res2.ok) {
+          const data2 = await res2.json();
+          if (data2?.success && data2?.patient) {
+            this.savePatient(data2.patient);
+            return data2.patient;
+          }
+        }
       }
     } catch {}
+
+    // 3. Fetch fresh cloud records
+    const all = await this.getPatients();
+    found = matchInList(all);
+    if (found) return found;
 
     return undefined;
   }
@@ -782,6 +791,16 @@ class CloudDatabaseEngine {
     this.sessionsCache = filtered;
     setPersistedCache(LOCAL_PERSIST_KEYS.SESSIONS, filtered);
 
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_session', session })
+        }).catch(() => {});
+      }
+    } catch {}
+
     return await this.postCloudEvent('SAVE_CLINICAL_SESSION', session);
   }
 
@@ -805,6 +824,16 @@ class CloudDatabaseEngine {
     filtered.unshift(doc);
     this.documentsCache = filtered;
     setPersistedCache(LOCAL_PERSIST_KEYS.DOCUMENTS, filtered);
+
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_document', document: doc })
+        }).catch(() => {});
+      }
+    } catch {}
 
     return await this.postCloudEvent('SAVE_DOCUMENT', doc);
   }

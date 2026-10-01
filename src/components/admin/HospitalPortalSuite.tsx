@@ -11,6 +11,7 @@ import { db } from '../../services/mockDatabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { cloudDataService, syncRelay } from '../../services/firebaseService';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
 import { PatientProfile, ClinicalSession, MedicalDocument, Hospital, AccessRequest } from '../../types';
 
 interface BedCategory {
@@ -124,9 +125,17 @@ export const HospitalPortalSuite: React.FC = () => {
     const authCheck = await cloudDataService.checkHospitalAccess(currentHospitalId, patient.patientId);
     const isAuthorized = forceBreakGlass || authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(currentHospitalId, patient.patientId);
 
-    // Retrieve full clinical records from database
-    const sessions = db.getClinicalSessionsForPatient(patient.patientId);
-    const documents = db.getDocuments(patient.patientId);
+    // Retrieve full clinical records from database (hydrating cross-device from cloud if needed)
+    let sessions = db.getClinicalSessionsForPatient(patient.patientId);
+    if (sessions.length === 0) {
+      sessions = await cloudDb.getClinicalSessions(patient.patientId);
+      sessions.forEach(s => db.saveClinicalSession(s));
+    }
+    let documents = db.getDocuments(patient.patientId);
+    if (documents.length === 0) {
+      documents = await cloudDb.getDocuments(patient.patientId);
+      documents.forEach(d => db.addDocument(d));
+    }
     const consents = db.getConsents(patient.id);
 
     if (isAuthorized) {

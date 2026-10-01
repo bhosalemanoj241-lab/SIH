@@ -14,6 +14,7 @@ import {
   ClinicalTriageAssessment
 } from '../src/types';
 import { MedicineRecommendationService } from '../src/services/medicineRecommendationService';
+import { saveClinicalSession, getClinicalSessionsForPatient } from './centralDb';
 
 const CENTRAL_AUTH_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508';
 const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4';
@@ -903,6 +904,7 @@ Generate the physician-ready short clinical intake report.`;
   // 3. ACTION: SAVE_REPORT (Persistent Multi-Device Storage)
   if (action === 'save_report') {
     const sessionToSave = payload.session;
+    try { if (sessionToSave?.id) saveClinicalSession(sessionToSave); } catch {}
     if (!sessionToSave || !sessionToSave.id) {
       return res.status(400).json({ success: false, error: 'Invalid session payload' });
     }

@@ -1,7 +1,12 @@
 // Vercel Serverless Function & Vite Middleware: /api/search
 // Rapid Central Patient Search by Patient ID, Email, Phone, or Name
 
-import { getDatabase, findPatientByIdentifier } from './centralDb';
+import {
+  getDatabase,
+  findPatientByIdentifier,
+  getClinicalSessionsForPatient,
+  getMedicalDocumentsForPatient
+} from './centralDb';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -29,7 +34,15 @@ export default async function handler(req: any, res: any) {
     const exactMatch = findPatientByIdentifier(cleanQuery);
     if (exactMatch) {
       const { password: _p, ...safePatient } = exactMatch;
-      return res.status(200).json({ success: true, found: true, patient: safePatient });
+      const sessions = getClinicalSessionsForPatient(exactMatch.patientId);
+      const documents = getMedicalDocumentsForPatient(exactMatch.patientId);
+      return res.status(200).json({
+        success: true,
+        found: true,
+        patient: safePatient,
+        sessions,
+        documents
+      });
     }
 
     // 2. Fuzzy / Substring Search in central database
@@ -53,7 +66,15 @@ export default async function handler(req: any, res: any) {
 
     if (found) {
       const { password: _p, ...safePatient } = found;
-      return res.status(200).json({ success: true, found: true, patient: safePatient });
+      const sessions = getClinicalSessionsForPatient(found.patientId);
+      const documents = getMedicalDocumentsForPatient(found.patientId);
+      return res.status(200).json({
+        success: true,
+        found: true,
+        patient: safePatient,
+        sessions,
+        documents
+      });
     }
 
     return res.status(404).json({

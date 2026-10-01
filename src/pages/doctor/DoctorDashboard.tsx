@@ -13,6 +13,7 @@ import { ClinicalReviewPanel } from '../../components/doctor/ClinicalReviewPanel
 import { SharedPatientsPanel } from '../../components/doctor/SharedPatientsPanel';
 import { db } from '../../services/mockDatabase';
 import { cloudDataService } from '../../services/firebaseService';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
 import { ClinicalSession, PatientProfile, MedicalDocument, TimelineEvent, Appointment } from '../../types';
 import { Modal } from '../../components/common/Modal';
 
@@ -155,9 +156,17 @@ export const DoctorDashboard: React.FC = () => {
       return;
     }
 
-    // Lookup all associated patient records
-    const patientSessions = db.getClinicalSessionsForPatient(patient.patientId);
-    const patientDocs = db.getDocuments(patient.patientId);
+    // Lookup all associated patient records (hydrating cross-device from cloud if needed)
+    let patientSessions = db.getClinicalSessionsForPatient(patient.patientId);
+    if (patientSessions.length === 0) {
+      patientSessions = await cloudDb.getClinicalSessions(patient.patientId);
+      patientSessions.forEach(s => db.saveClinicalSession(s));
+    }
+    let patientDocs = db.getDocuments(patient.patientId);
+    if (patientDocs.length === 0) {
+      patientDocs = await cloudDb.getDocuments(patient.patientId);
+      patientDocs.forEach(d => db.addDocument(d));
+    }
     const patientTimeline = db.getTimeline(patient.patientId);
 
     // Check ABDM Consent / Trusted Hospital Authorization from live Cloud and DB
@@ -364,19 +373,28 @@ export const DoctorDashboard: React.FC = () => {
             {db.getPatients().length > 0 ? (
               <div className="flex items-center gap-2 flex-wrap text-xs pt-1">
                 <span className="text-slate-500 font-medium">Recently Registered Patients:</span>
-                {db.getPatients().slice(0, 5).map(sample => (
+                {db.getPatients().slice(0, 5).map(regPat => (
                   <button
-                    key={sample.patientId}
+                    key={regPat.patientId}
                     type="button"
                     onClick={async () => {
-                      setSearchPatientId(sample.patientId);
-                      const patient = await cloudDataService.findPatientByPatientId(sample.patientId) || db.getPatientByPatientId(sample.patientId) || sample;
+                      setSearchPatientId(regPat.patientId);
+                      const patient = await cloudDataService.findPatientByPatientId(regPat.patientId) || db.getPatientByPatientId(regPat.patientId) || regPat;
                       if (patient) {
-                        const pSessions = db.getClinicalSessionsForPatient(patient.patientId);
-                        const pDocs = db.getDocuments(patient.patientId);
+                        let pSessions = db.getClinicalSessionsForPatient(patient.patientId);
+                        if (pSessions.length === 0) {
+                          pSessions = await cloudDb.getClinicalSessions(patient.patientId);
+                          pSessions.forEach(s => db.saveClinicalSession(s));
+                        }
+                        let pDocs = db.getDocuments(patient.patientId);
+                        if (pDocs.length === 0) {
+                          pDocs = await cloudDb.getDocuments(patient.patientId);
+                          pDocs.forEach(d => db.addDocument(d));
+                        }
                         const pTimeline = db.getTimeline(patient.patientId);
                         const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
-                        const isAuthorized = db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
+                        const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);
+                        const isAuthorized = authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
                         setSearchResult({
                           found: true,
                           patient,
@@ -391,8 +409,8 @@ export const DoctorDashboard: React.FC = () => {
                     }}
                     className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-300 border border-slate-200 text-slate-700 rounded-lg font-mono text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span className="font-mono text-blue-700">{sample.patientId}</span>
-                    <span className="text-[10px] text-slate-500 font-sans font-normal">({sample.fullName || 'Registered Patient'})</span>
+                    <span className="font-mono text-blue-700">{regPat.patientId}</span>
+                    <span className="text-[10px] text-slate-500 font-sans font-normal">({regPat.fullName || 'Registered Patient'})</span>
                   </button>
                 ))}
               </div>

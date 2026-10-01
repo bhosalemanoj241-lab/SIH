@@ -5,6 +5,10 @@ import {
   getDatabase,
   saveDatabase,
   findPatientByIdentifier,
+  saveClinicalSession,
+  getClinicalSessionsForPatient,
+  saveMedicalDocument,
+  getMedicalDocumentsForPatient,
   PatientProfile
 } from './centralDb';
 
@@ -34,7 +38,15 @@ export default async function handler(req: any, res: any) {
       const found = findPatientByIdentifier(q);
       if (found) {
         const { password: _p, ...safePatient } = found;
-        return res.status(200).json({ success: true, patient: safePatient, data: safePatient });
+        const sessions = getClinicalSessionsForPatient(found.patientId);
+        const documents = getMedicalDocumentsForPatient(found.patientId);
+        return res.status(200).json({
+          success: true,
+          patient: safePatient,
+          data: safePatient,
+          sessions,
+          documents
+        });
       }
       return res.status(404).json({ success: false, notFound: true, error: `Patient with identifier "${q}" not found` });
     }
@@ -49,10 +61,31 @@ export default async function handler(req: any, res: any) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // POST / PUT: Create or update patient in central database
+  // POST / PUT: Create or update patient, clinical session, or document
   // ─────────────────────────────────────────────────────────────────────────
   if (req.method === 'POST' || req.method === 'PUT') {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+
+    // Save Clinical Session action
+    if (body.action === 'save_session' || body.session) {
+      const sessionData = body.session || body.data;
+      if (sessionData && sessionData.id) {
+        saveClinicalSession(sessionData);
+        return res.status(200).json({ success: true, message: 'Clinical session saved', session: sessionData });
+      }
+      return res.status(400).json({ success: false, error: 'Valid session object required.' });
+    }
+
+    // Save Medical Document action
+    if (body.action === 'save_document' || body.document) {
+      const docData = body.document || body.data;
+      if (docData && docData.id) {
+        saveMedicalDocument(docData);
+        return res.status(200).json({ success: true, message: 'Medical document saved', document: docData });
+      }
+      return res.status(400).json({ success: false, error: 'Valid document object required.' });
+    }
+
     const incoming = body.patient || body.data || body;
 
     if (!incoming || (!incoming.patientId && !incoming.email && !incoming.fullName)) {

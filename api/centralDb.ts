@@ -356,15 +356,59 @@ export function findPatientByIdentifier(identifier: string): PatientProfile | un
     const pAbha = (p.abhaId || '').trim().toLowerCase();
     const pAbhaAlpha = pAbha.replace(/[^a-z0-9]/g, '');
     const pPhone = (p.phone || p.emergencyContactPhone || '').replace(/[^0-9]/g, '');
+    const queryCore = cleanAlphaNum.length >= 6 ? cleanAlphaNum.slice(-6) : cleanAlphaNum;
+    const pCore = pIdAlpha.length >= 6 ? pIdAlpha.slice(-6) : pIdAlpha;
 
     return (
       pId === cleanId ||
       pInternalId === cleanId ||
       pEmail === cleanId ||
-      (cleanAlphaNum.length >= 6 && pIdAlpha === cleanAlphaNum) ||
+      pIdAlpha === cleanAlphaNum ||
+      (queryCore.length >= 4 && queryCore === pCore) ||
+      (cleanAlphaNum.length >= 4 && (pIdAlpha.endsWith(cleanAlphaNum) || cleanAlphaNum.endsWith(pIdAlpha))) ||
       (cleanAlphaNum.length >= 10 && pAbhaAlpha === cleanAlphaNum) ||
       (cleanDigits.length >= 10 && pPhone.endsWith(cleanDigits.slice(-10)))
     );
+  });
+}
+
+export function saveClinicalSession(session: any): boolean {
+  if (!session || !session.id) return false;
+  const db = getDatabase();
+  db.sessions = db.sessions.filter(s => s.id !== session.id);
+  db.sessions.unshift(session);
+  return saveDatabase(db);
+}
+
+export function getClinicalSessionsForPatient(patientId: string): any[] {
+  if (!patientId) return [];
+  const clean = patientId.trim().toLowerCase();
+  const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
+  const db = getDatabase();
+  return db.sessions.filter(s => {
+    const sId = (s.patientId || '').trim().toLowerCase();
+    const sAlpha = sId.replace(/[^a-z0-9]/g, '');
+    return sId === clean || sAlpha === cleanAlpha;
+  });
+}
+
+export function saveMedicalDocument(document: any): boolean {
+  if (!document || !document.id) return false;
+  const db = getDatabase();
+  db.documents = db.documents.filter(d => d.id !== document.id);
+  db.documents.unshift(document);
+  return saveDatabase(db);
+}
+
+export function getMedicalDocumentsForPatient(patientId: string): any[] {
+  if (!patientId) return [];
+  const clean = patientId.trim().toLowerCase();
+  const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
+  const db = getDatabase();
+  return db.documents.filter(d => {
+    const dId = (d.patientId || '').trim().toLowerCase();
+    const dAlpha = dId.replace(/[^a-z0-9]/g, '');
+    return dId === clean || dAlpha === cleanAlpha;
   });
 }
 

@@ -771,6 +771,51 @@ class CloudDataService {
     const cleanAlpha = cleanId.replace(/[^A-Z0-9]/g, '');
     if (!cleanAlpha) return undefined;
 
+    // 0. Direct Central Serverless Endpoint Query (/api/search & /api/patients)
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        const queryParam = cleanId.includes('@')
+          ? `q=${encodeURIComponent(cleanId.toLowerCase())}`
+          : `patientId=${encodeURIComponent(cleanId)}`;
+
+        const resSearch = await fetch(`/api/search?${queryParam}`);
+        if (resSearch.ok) {
+          const json = await resSearch.json();
+          if (json.success && json.patient) {
+            const pat = json.patient;
+            db.createPatientProfile(pat);
+            cloudDb.savePatient(pat as any);
+            if (Array.isArray(json.sessions)) {
+              json.sessions.forEach((s: any) => db.saveClinicalSession(s));
+            }
+            if (Array.isArray(json.documents)) {
+              json.documents.forEach((d: any) => db.addDocument(d));
+            }
+            return pat;
+          }
+        }
+
+        const resPatients = await fetch(`/api/patients?patientId=${encodeURIComponent(cleanId)}`);
+        if (resPatients.ok) {
+          const json = await resPatients.json();
+          if (json.success && json.patient) {
+            const pat = json.patient;
+            db.createPatientProfile(pat);
+            cloudDb.savePatient(pat as any);
+            if (Array.isArray(json.sessions)) {
+              json.sessions.forEach((s: any) => db.saveClinicalSession(s));
+            }
+            if (Array.isArray(json.documents)) {
+              json.documents.forEach((d: any) => db.addDocument(d));
+            }
+            return pat;
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[findPatientByPatientId API query]:', apiErr);
+    }
+
     // 1. Query Firebase Firestore if active
     if (firestore) {
       try {
@@ -930,6 +975,17 @@ class CloudDataService {
       reason: params.reason || 'Patient registration and clinical evaluation'
     };
 
+    // 0. Central Serverless API Persistence
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/access-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newRequest)
+        }).catch(() => {});
+      }
+    } catch {}
+
     // 1. Firebase Firestore Write (with sanitize and timeout)
     if (firestore) {
       try {
@@ -973,6 +1029,17 @@ class CloudDataService {
 
     target.status = status;
     target.respondedAt = new Date().toISOString();
+
+    // 0. Central Serverless API Persistence
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch(`/api/access-requests?id=${encodeURIComponent(requestId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: requestId, status })
+        }).catch(() => {});
+      }
+    } catch {}
 
     // 1. Firebase Firestore Update (with sanitize and timeout)
     if (firestore) {
@@ -1020,6 +1087,16 @@ class CloudDataService {
 
       await cloudDb.saveTrustedHospital(trustRecord);
       db.saveTrustedHospital(trustRecord);
+
+      try {
+        if (typeof window !== 'undefined' && window.location) {
+          fetch('/api/trusted-hospitals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(trustRecord)
+          }).catch(() => {});
+        }
+      } catch {}
     } else if (status === 'DENIED') {
       const trusted = db.getTrustedHospitals(target.patientId);
       trusted.filter(t => t.hospitalId === target.hospitalId).forEach(t => db.revokeTrustedHospital(t.id));
@@ -1113,6 +1190,28 @@ class CloudDataService {
       }
     }
 
+    // 0. Query Serverless Endpoint
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        const cleanPat = patientId.trim().toUpperCase();
+        const cleanHosp = hospitalId.trim().toUpperCase();
+        const res = await fetch(`/api/access-requests?patientId=${encodeURIComponent(cleanPat)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.requests)) {
+            const req = json.requests.find((r: any) => {
+              const rHosp = (r.hospitalId || '').trim().toUpperCase();
+              return rHosp === cleanHosp || (r.hospitalName && cleanHosp.includes(r.hospitalName.toUpperCase()));
+            });
+            if (req) {
+              if (req.status === 'APPROVED') return { isAuthorized: true, status: 'APPROVED', activeRequest: req };
+              return { isAuthorized: false, status: req.status, activeRequest: req };
+            }
+          }
+        }
+      }
+    } catch {}
+
     return syncRes;
   }
 
@@ -1158,6 +1257,23 @@ class CloudDataService {
   public async getPendingRequestsForPatient(patientId: string): Promise<AccessRequest[]> {
     if (!patientId) return [];
     const clean = patientId.trim().toUpperCase();
+
+    // 0. Query Serverless Endpoint
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        const res = await fetch(`/api/access-requests?patientId=${encodeURIComponent(clean)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.requests)) {
+            const pending = json.requests.filter((r: any) => r.status === 'PENDING');
+            if (pending.length > 0) {
+              this.setAccessRequests(json.requests);
+              return pending;
+            }
+          }
+        }
+      }
+    } catch {}
 
     // 1. Query Firebase Firestore
     if (firestore) {
@@ -1305,6 +1421,17 @@ class CloudDataService {
       }
     }
 
+    // 0. Central Serverless API Persistence
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/access-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(emergencyReq)
+        }).catch(() => {});
+      }
+    } catch {}
+
     const all = this.getAccessRequests();
     all.unshift(emergencyReq);
     this.setAccessRequests(all);
@@ -1323,6 +1450,18 @@ class CloudDataService {
         console.warn('[Firestore saveClinicalSession warning]:', err);
       }
     }
+
+    // Persist to central API
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_session', session })
+        }).catch(() => {});
+      }
+    } catch {}
+
     await cloudDb.saveClinicalSession(session);
     syncRelay.publish('clinical_session_saved', session);
   }
@@ -1338,6 +1477,18 @@ class CloudDataService {
         console.warn('[Firestore saveMedicalDocument warning]:', err);
       }
     }
+
+    // Persist to central API
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_document', document })
+        }).catch(() => {});
+      }
+    } catch {}
+
     await cloudDb.saveDocument(document);
     syncRelay.publish('document_saved', document);
   }

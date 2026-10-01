@@ -6,6 +6,7 @@ async function run() {
   const testEmail = `suresh.patil.${uniqueId}@medibridge.ai`;
   const testPassword = 'SecurePassword123!';
 
+  const BASE_URL = process.env.APP_URL || 'http://localhost:3000';
   console.log(`[Device A] 1. Registering new patient account: ${testEmail}...`);
   const regPayload = {
     action: 'register',
@@ -13,7 +14,7 @@ async function run() {
     data: {
       fullName: 'Suresh Baban Patil',
       email: testEmail,
-      phone: '9820011223',
+      phone: `98${uniqueId.toString().slice(-8)}`,
       password: testPassword,
       dateOfBirth: '1988-04-12',
       gender: 'male',
@@ -23,7 +24,7 @@ async function run() {
     }
   };
 
-  const regRes = await fetch('http://localhost:4173/api/auth', {
+  const regRes = await fetch(`${BASE_URL}/api/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(regPayload)
@@ -34,8 +35,9 @@ async function run() {
     success: regData.success,
     token: regData.token ? `${regData.token.slice(0, 18)}...` : undefined,
     userEmail: regData.user?.email,
-    patientId: regData.user?.patientId,
-    fullName: regData.user?.fullName
+    patientId: regData.user?.patientId || regData.patientId,
+    fullName: regData.user?.fullName,
+    requiresVerification: regData.requiresVerification
   });
 
   if (!regData.success) {
@@ -43,12 +45,31 @@ async function run() {
     process.exit(1);
   }
 
-  const assignedPatientId = regData.user?.patientId;
+  const assignedPatientId = regData.user?.patientId || regData.patientId;
   console.log(`[Device A] Patient registered with Patient ID: ${assignedPatientId}`);
+
+  if (regData.requiresVerification && regData.devCode) {
+    console.log(`[Device A] Verifying OTP for ${testEmail} with code ${regData.devCode}...`);
+    const verifyRes = await fetch(`${BASE_URL}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'verify_otp',
+        email: testEmail,
+        code: regData.devCode
+      })
+    });
+    const verifyData = await verifyRes.json();
+    if (!verifyData.verified) {
+      console.error('OTP verification failed:', verifyData);
+      process.exit(1);
+    }
+    console.log('[Device A] OTP verified successfully!');
+  }
 
   console.log('\n[Device B - Completely Isolated Device/Browser]');
   console.log(`2. Testing cross-device login with email (${testEmail}) and WRONG password...`);
-  const wrongPassRes = await fetch('http://localhost:4173/api/auth', {
+  const wrongPassRes = await fetch(`${BASE_URL}/api/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -65,7 +86,7 @@ async function run() {
   }
 
   console.log(`\n3. Testing cross-device login with email (${testEmail}) and CORRECT password...`);
-  const emailLoginRes = await fetch('http://localhost:4173/api/auth', {
+  const emailLoginRes = await fetch(`${BASE_URL}/api/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -91,7 +112,7 @@ async function run() {
 
   console.log('\n[Device C - Third Device/Mobile Browser]');
   console.log(`4. Testing cross-device login using Patient ID (${assignedPatientId}) directly...`);
-  const pidLoginRes = await fetch('http://localhost:4173/api/auth', {
+  const pidLoginRes = await fetch(`${BASE_URL}/api/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -116,7 +137,7 @@ async function run() {
 
   console.log('\n[Device D - System Admin Multi-Device Verification]');
   console.log('5. Testing admin login across devices (admin@medibridge.ai)...');
-  const adminLoginRes = await fetch('http://localhost:4173/api/auth', {
+  const adminLoginRes = await fetch(`${BASE_URL}/api/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -139,7 +160,7 @@ async function run() {
 
   console.log('\n[Global Sync]');
   console.log('6. Verifying /api/auth?action=sync status endpoint...');
-  const syncRes = await fetch('http://localhost:4173/api/auth?action=sync');
+  const syncRes = await fetch(`${BASE_URL}/api/auth?action=sync`);
   const syncData = await syncRes.json();
   console.log(`Sync verification: ${syncData.patientsCount} patients and ${syncData.usersCount} users synchronized centrally.`);
 
