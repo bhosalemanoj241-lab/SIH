@@ -198,6 +198,12 @@ class CloudDatabaseEngine {
 
   private handleIncomingCloudEvent(eventData: any) {
     if (!eventData || !eventData.type) return;
+
+    if (eventData.type === 'CLEAR_ALL_REGISTRATIONS' || eventData.type === 'PURGE_ALL_DATA') {
+      this.clearAllData();
+      return;
+    }
+
     const { type, data, patient, hospital, req, trusted, session, document, alert, event, appointment } = eventData;
     const payload = data || patient || hospital || req || trusted || session || document || alert || event || appointment;
     if (!payload) return;
@@ -873,6 +879,33 @@ class CloudDatabaseEngine {
     setPersistedCache(LOCAL_PERSIST_KEYS.APPOINTMENTS, filtered);
 
     return await this.postCloudEvent('SAVE_APPOINTMENT', apt);
+  }
+
+  public clearAllData(): void {
+    this.patientsCache = [];
+    this.hospitalsCache = [];
+    this.accessRequestsCache = [];
+    this.trustedHospitalsCache = [];
+    this.sessionsCache = [];
+    this.documentsCache = [];
+    this.emergenciesCache = [];
+    this.timelineCache = [];
+    this.appointmentsCache = [];
+
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage) {
+        Object.values(LOCAL_PERSIST_KEYS).forEach(k => localStorage.removeItem(k));
+        localStorage.removeItem('medibridge_sessions');
+        localStorage.removeItem('medibridge_documents');
+        localStorage.removeItem('medibridge_patients');
+        localStorage.removeItem('medibridge_hospitals');
+        localStorage.removeItem('medibridge_doctors');
+      }
+    } catch {}
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_cloud_sync', { detail: { type: 'CLEAR_ALL_REGISTRATIONS' } }));
+    }
   }
 }
 

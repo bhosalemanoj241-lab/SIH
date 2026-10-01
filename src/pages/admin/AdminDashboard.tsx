@@ -4,12 +4,14 @@ import {
   Search, RefreshCw, CheckCircle2, Lock, X,
   Phone, Mail, MapPin, Calendar, HeartPulse,
   FileText, Activity, AlertTriangle, ArrowRight,
-  ExternalLink, UserCheck, Stethoscope, Clock
+  ExternalLink, UserCheck, Stethoscope, Clock,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { db } from '../../services/mockDatabase';
 import { cloudDb } from '../../services/cloudDatabaseEngine';
+import { centralAuthService } from '../../services/centralAuthService';
 import { PatientProfile, HospitalAccount, ClinicalSession, Appointment } from '../../types';
 
 export const AdminDashboard: React.FC = () => {
@@ -297,6 +299,23 @@ export const AdminDashboard: React.FC = () => {
     );
   }
 
+  const handleClearAllRegistrations = async () => {
+    if (!window.confirm('⚠️ Are you sure you want to clear ALL registration data from all 3 portals (Patient, Doctor, and Hospital)? This will wipe all test registrations and reset to a clean state.')) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await centralAuthService.clearAllRegistrations();
+      await loadAdminData();
+      alert('✅ All registration data across Patient, Doctor, and Hospital portals has been cleared.');
+    } catch (err) {
+      console.error('Error clearing data:', err);
+      alert('Failed to clear registration data.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Filtered queries
   const filteredPatients = patients.filter(p => {
     if (!patientSearch.trim()) return true;
@@ -352,6 +371,15 @@ export const AdminDashboard: React.FC = () => {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Refresh Data</span>
+          </button>
+          <button
+            onClick={handleClearAllRegistrations}
+            disabled={isLoading}
+            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-red-200 shadow-sm"
+            title="Clear all registered Patients, Doctors, and Hospitals from the 3 portals"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear 3 Portals Data</span>
           </button>
         </div>
       </div>

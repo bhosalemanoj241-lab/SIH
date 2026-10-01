@@ -820,6 +820,53 @@ export class MockDatabase {
     this.clearNotifications();
   }
 
+  public clearAllRegistrations(): void {
+    // 1. Reset Users to SEED_USERS (admin accounts)
+    this.setItems(STORAGE_KEYS.USERS, SEED_USERS);
+
+    // 2. Clear Patients
+    this.setItems(STORAGE_KEYS.PATIENTS, []);
+    try {
+      setStorageItem('medibridge_cloud_patients_cache', '[]');
+      setStorageItem('medibridge_patients', '[]');
+    } catch {}
+
+    // 3. Clear Doctors
+    this.setItems(STORAGE_KEYS.DOCTORS, []);
+    try {
+      setStorageItem('medibridge_doctors', '[]');
+    } catch {}
+
+    // 4. Clear Hospitals
+    this.setItems(STORAGE_KEYS.HOSPITALS, []);
+    try {
+      setStorageItem('medibridge_cloud_hospitals_cache', '[]');
+      setStorageItem('medibridge_hospitals', '[]');
+    } catch {}
+
+    // 5. Clear Requests, Sessions, Emergencies, Appointments, Documents
+    this.clearClinicalSessions();
+    this.clearEmergencyAlerts();
+    this.clearAppointments();
+    this.clearNotifications();
+    this.setItems(STORAGE_KEYS.DOCUMENTS, []);
+    this.setItems(STORAGE_KEYS.HOSPITAL_ACCOUNTS, []);
+    this.setItems(STORAGE_KEYS.TRUSTED_HOSPITALS, []);
+    this.setItems(STORAGE_KEYS.AUDIT_LOGS, []);
+
+    try {
+      setStorageItem('medibridge_cloud_requests_cache', '[]');
+      setStorageItem('medibridge_cloud_trusted_cache', '[]');
+      setStorageItem('medibridge_cloud_documents_cache', '[]');
+      setStorageItem('medibridge_cloud_timeline_cache', '[]');
+      setStorageItem('medibridge_active_auth_session', '');
+    } catch {}
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'CLEAR_ALL_REGISTRATIONS' } }));
+    }
+  }
+
   // Documents
   public getDocuments(patientIdOrCode?: string): MedicalDocument[] {
     const local = this.getItems<MedicalDocument>(STORAGE_KEYS.DOCUMENTS);

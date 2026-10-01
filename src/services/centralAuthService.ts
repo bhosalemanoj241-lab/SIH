@@ -741,6 +741,31 @@ class CentralAuthService {
       }
     } catch {}
   }
+
+  /**
+   * Wipes all registration data across Patient, Hospital, and Doctor portals
+   */
+  public async clearAllRegistrations(): Promise<boolean> {
+    try {
+      this.clearSession();
+      cloudDb.clearAllData();
+      db.clearAllRegistrations();
+
+      await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear_all_registrations' }),
+        signal: AbortSignal.timeout(5000)
+      }).catch(err => {
+        console.warn('[CentralAuth clear API warning]:', err);
+      });
+
+      return true;
+    } catch (err) {
+      console.error('[CentralAuth clear error]:', err);
+      return false;
+    }
+  }
 }
 
 export const centralAuthService = CentralAuthService.getInstance();

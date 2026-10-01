@@ -15,6 +15,7 @@ interface CentralAuthPayload {
   hospitals: any[];
   version: number;
   lastUpdated: string;
+  clearedAt?: string;
 }
 
 const DEFAULT_ADMIN_USERS = [
@@ -79,7 +80,8 @@ function sanitizeRegistry(data: any): CentralAuthPayload {
     doctors: Array.isArray(data?.doctors) ? data.doctors : [],
     hospitals: Array.isArray(data?.hospitals) ? data.hospitals : [],
     version: data?.version || 1,
-    lastUpdated: data?.lastUpdated || new Date().toISOString()
+    lastUpdated: data?.lastUpdated || new Date().toISOString(),
+    clearedAt: data?.clearedAt
   };
 }
 
@@ -295,6 +297,31 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true, exists: false });
     }
 
+    if (action === 'clear' || action === 'clear_all_registrations' || action === 'reset') {
+      const now = new Date().toISOString();
+      const resetRegistry: CentralAuthPayload = {
+        users: [...DEFAULT_ADMIN_USERS],
+        patients: [],
+        doctors: [],
+        hospitals: [],
+        version: Date.now(),
+        lastUpdated: now,
+        clearedAt: now
+      };
+      await saveCentralAuthRegistry(resetRegistry);
+      await broadcastSyncEvent('CLEAR_ALL_REGISTRATIONS', { clearedAt: now, timestamp: Date.now() });
+
+      return res.status(200).json({
+        success: true,
+        message: 'All registration data across Patient, Hospital, and Doctor portals has been cleared.',
+        clearedAt: now,
+        usersCount: resetRegistry.users.length,
+        patientsCount: 0,
+        doctorsCount: 0,
+        hospitalsCount: 0
+      });
+    }
+
     if (action === 'all' || action === 'sync') {
       return res.status(200).json({
         success: true,
@@ -319,10 +346,64 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // 2. POST: Central Login or Registration
+  // 2. DELETE: Wipe all registration data
+  if (method === 'DELETE') {
+    const now = new Date().toISOString();
+    const resetRegistry: CentralAuthPayload = {
+      users: [...DEFAULT_ADMIN_USERS],
+      patients: [],
+      doctors: [],
+      hospitals: [],
+      version: Date.now(),
+      lastUpdated: now,
+      clearedAt: now
+    };
+    await saveCentralAuthRegistry(resetRegistry);
+    await broadcastSyncEvent('CLEAR_ALL_REGISTRATIONS', { clearedAt: now, timestamp: Date.now() });
+
+    return res.status(200).json({
+      success: true,
+      message: 'All registration data across Patient, Hospital, and Doctor portals has been cleared.',
+      clearedAt: now,
+      usersCount: resetRegistry.users.length,
+      patientsCount: 0,
+      doctorsCount: 0,
+      hospitalsCount: 0
+    });
+  }
+
+  // 3. POST: Central Login, Registration, or Clear
   if (method === 'POST') {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const action = (body.action || 'login').toLowerCase();
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTION: CLEAR ALL REGISTRATIONS
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'clear' || action === 'clear_all_registrations' || action === 'reset') {
+      const now = new Date().toISOString();
+      const resetRegistry: CentralAuthPayload = {
+        users: [...DEFAULT_ADMIN_USERS],
+        patients: [],
+        doctors: [],
+        hospitals: [],
+        version: Date.now(),
+        lastUpdated: now,
+        clearedAt: now
+      };
+      await saveCentralAuthRegistry(resetRegistry);
+      await broadcastSyncEvent('CLEAR_ALL_REGISTRATIONS', { clearedAt: now, timestamp: Date.now() });
+
+      return res.status(200).json({
+        success: true,
+        message: 'All registration data across Patient, Hospital, and Doctor portals has been cleared.',
+        clearedAt: now,
+        usersCount: resetRegistry.users.length,
+        patientsCount: 0,
+        doctorsCount: 0,
+        hospitalsCount: 0
+      });
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // ACTION A: CENTRAL LOGIN
