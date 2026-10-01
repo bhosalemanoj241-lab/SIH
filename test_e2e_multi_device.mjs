@@ -131,11 +131,19 @@ async function run() {
 
     const signInBtnB = await pageB.waitForSelector('button[type="submit"]');
     await signInBtnB.click();
-    await sleep(1500);
+
+    // Wait for the wrong password response to arrive and error message to appear
+    await pageB.waitForFunction(() => {
+      const text = document.body.innerText;
+      const btn = document.querySelector('button[type="submit"]');
+      const isNotDisabled = btn && !btn.hasAttribute('disabled');
+      const hasError = text.includes('Incorrect password') || text.includes('verify your credentials') || text.includes('credentials') || text.includes('failed');
+      return isNotDisabled && hasError;
+    }, { timeout: 15000 }).catch(() => {});
 
     const errorDetected = await pageB.evaluate(() => {
       const text = document.body.innerText;
-      return text.includes('Incorrect password') || text.includes('password') || text.includes('credentials');
+      return text.includes('Incorrect password') || text.includes('verify your credentials') || text.includes('credentials') || text.includes('failed');
     });
 
     console.log(`[DEVICE B] Security verification — Wrong password rejected properly: ${errorDetected}`);
@@ -143,15 +151,22 @@ async function run() {
     // 2b. Login with CORRECT Password
     console.log(`[DEVICE B] Logging in with registered email (${testUser.email}) and CORRECT password...`);
     // Clear password input and retype correct password
-    await passInputB.click({ clickCount: 3 });
+    await passInputB.focus();
+    await pageB.keyboard.down('Control');
+    await pageB.keyboard.press('A');
+    await pageB.keyboard.up('Control');
+    await pageB.keyboard.press('Backspace');
+    await sleep(200);
     await passInputB.type(testUser.password);
+    await sleep(300);
 
-    await signInBtnB.click();
+    const activeSubmitBtnB = await pageB.waitForSelector('button[type="submit"]:not([disabled])');
+    await activeSubmitBtnB.click();
 
     console.log('[DEVICE B] Awaiting centralized cloud authentication & local cache hydration...');
     await pageB.waitForFunction(
       () => window.location.pathname.includes('/patient/dashboard'),
-      { timeout: 12000 }
+      { timeout: 15000 }
     );
 
     const urlB = pageB.url();

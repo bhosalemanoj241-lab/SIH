@@ -1221,7 +1221,7 @@ export class AIIntakeEngine {
       },
       relevantFindings: [
         {
-          text: `Intake conducted in ${language.toUpperCase()} through conversational interview.`,
+          text: `Intake conducted in ${(typeof language === 'string' && language ? language : 'en').toUpperCase()} through conversational interview.`,
           source: 'PATIENT REPORTED'
         }
       ],
