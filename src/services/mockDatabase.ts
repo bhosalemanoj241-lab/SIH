@@ -23,193 +23,8 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'medibridge_notifications',
 };
 
-// Seed Hospitals (Single Shared Source of Truth)
-const SEED_HOSPITALS: Hospital[] = [
-  {
-    id: 'HOSP-2026-00101',
-    name: 'Apex Super Speciality Hospital & Trauma Center',
-    code: 'APEX-MUM-01',
-    registrationNumber: 'DH-MH-2020-00491',
-    email: 'portal@apexhealth.in',
-    phone: '+91 22 2789 9900',
-    address: 'Sector 14, Vashi, Navi Mumbai, Maharashtra 400703',
-    city: 'Navi Mumbai',
-    state: 'Maharashtra',
-    pincode: '400703',
-    emergencyPhone: '+91 22 2789 9900',
-    coordinates: { lat: 19.0760, lng: 72.8777 },
-    emergencyCapacityTotal: 25,
-    emergencyCapacityOccupied: 14,
-    icuBedsAvailable: 8,
-    generalBedsAvailable: 34,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Cardiology', 'Emergency & Trauma', 'Pulmonology', 'General Medicine', 'Neurology', 'Orthopedics'],
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'HOSP-2026-00102',
-    name: 'All India Institute of Medical Sciences (AIIMS)',
-    code: 'AIIMS-DEL-01',
-    registrationNumber: 'AIIMS-DEL-GOV-001',
-    email: 'portal@aiims.edu.in',
-    phone: '+91 11 2658 8500',
-    address: 'Ansari Nagar, New Delhi 110029',
-    city: 'New Delhi',
-    state: 'Delhi',
-    pincode: '110029',
-    emergencyPhone: '+91 11 2658 8500',
-    coordinates: { lat: 28.5672, lng: 77.2100 },
-    emergencyCapacityTotal: 50,
-    emergencyCapacityOccupied: 42,
-    icuBedsAvailable: 4,
-    generalBedsAvailable: 18,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Cardiology', 'Emergency Medicine', 'Pulmonology', 'Pediatrics', 'Oncology', 'Gastroenterology'],
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'HOSP-2026-00103',
-    name: 'King Edward Memorial (KEM) Hospital',
-    code: 'KEM-MUM-02',
-    registrationNumber: 'BMC-KEM-2019-003',
-    email: 'portal@kemhospital.in',
-    phone: '+91 22 2410 7000',
-    address: 'Acharya Donde Marg, Parel, Mumbai, Maharashtra 400012',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400012',
-    emergencyPhone: '+91 22 2410 7000',
-    coordinates: { lat: 19.0016, lng: 72.8427 },
-    emergencyCapacityTotal: 40,
-    emergencyCapacityOccupied: 31,
-    icuBedsAvailable: 6,
-    generalBedsAvailable: 29,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Trauma & Emergency', 'Internal Medicine', 'Cardiology', 'Chest Medicine', 'General Surgery'],
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'HOSP-2026-00104',
-    name: 'MIMER General Hospital & Medical College',
-    code: 'MIMER-TAL-01',
-    registrationNumber: 'MIMER-TAL-2021-09',
-    email: 'portal@mimer.talegaon.in',
-    phone: '+91 2114 223101',
-    address: 'Station Road, Talegaon Dabhade, Pune, Maharashtra 410507',
-    city: 'Talegaon Dabhade',
-    state: 'Maharashtra',
-    pincode: '410507',
-    emergencyPhone: '+91 2114 223101',
-    coordinates: { lat: 18.7303, lng: 73.6766 },
-    emergencyCapacityTotal: 30,
-    emergencyCapacityOccupied: 12,
-    icuBedsAvailable: 10,
-    generalBedsAvailable: 45,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Emergency & Trauma', 'General Medicine', 'Orthopedics', 'Pediatrics', 'Obstetrics & Gynecology'],
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'HOSP-2026-00105',
-    name: 'Pawana Super Speciality Hospital & Trauma Center',
-    code: 'PAWANA-TAL-02',
-    registrationNumber: 'PAWANA-TAL-2022-14',
-    email: 'portal@pawanahospital.in',
-    phone: '+91 2114 287000',
-    address: 'Somatane Phata, Mumbai-Pune Expressway, Talegaon Dabhade, Pune 410506',
-    city: 'Talegaon Dabhade',
-    state: 'Maharashtra',
-    pincode: '410506',
-    emergencyPhone: '+91 2114 287000',
-    coordinates: { lat: 18.7180, lng: 73.6890 },
-    emergencyCapacityTotal: 20,
-    emergencyCapacityOccupied: 8,
-    icuBedsAvailable: 7,
-    generalBedsAvailable: 28,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Emergency Medicine', 'Cardiology', 'Neurology', 'Critical Care', 'Orthopedics'],
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'HOSP-2026-00106',
-    name: 'Talegaon General Hospital & Intensive Care',
-    code: 'TGH-TAL-03',
-    registrationNumber: 'TGH-TAL-2023-02',
-    email: 'portal@talegaonhospital.in',
-    phone: '+91 2114 228900',
-    address: 'Old Mumbai-Pune Highway, Talegaon Dabhade, Pune 410507',
-    city: 'Talegaon Dabhade',
-    state: 'Maharashtra',
-    pincode: '410507',
-    emergencyPhone: '+91 2114 228900',
-    coordinates: { lat: 18.7320, lng: 73.6810 },
-    emergencyCapacityTotal: 18,
-    emergencyCapacityOccupied: 6,
-    icuBedsAvailable: 5,
-    generalBedsAvailable: 22,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Trauma & Emergency', 'General Surgery', 'ICU & Critical Care', 'Pulmonology'],
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'HOSP-2026-00107',
-    name: 'Yashwantrao Chavan Memorial (YCM) Hospital',
-    code: 'YCM-PIM-01',
-    registrationNumber: 'YCM-PIM-2018-05',
-    email: 'portal@ycmhospital.in',
-    phone: '+91 20 2742 2566',
-    address: 'Sant Tukaram Nagar, Pimpri, Pune, Maharashtra 411018',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '411018',
-    emergencyPhone: '+91 20 2742 2566',
-    coordinates: { lat: 18.6270, lng: 73.8120 },
-    emergencyCapacityTotal: 45,
-    emergencyCapacityOccupied: 30,
-    icuBedsAvailable: 9,
-    generalBedsAvailable: 50,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Emergency & Trauma', 'Cardiology', 'Pediatrics', 'Nephrology', 'General Surgery'],
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'HOSP-2026-00108',
-    name: 'Ruby Hall Clinic & Medical Research Center',
-    code: 'RUBY-PUN-01',
-    registrationNumber: 'RUBY-PUN-2015-11',
-    email: 'portal@rubyhall.com',
-    phone: '+91 20 6645 5100',
-    address: '40 Sassoon Road, Sangamvadi, Pune, Maharashtra 411001',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '411001',
-    emergencyPhone: '+91 20 6645 5100',
-    coordinates: { lat: 18.5280, lng: 73.8740 },
-    emergencyCapacityTotal: 35,
-    emergencyCapacityOccupied: 22,
-    icuBedsAvailable: 12,
-    generalBedsAvailable: 40,
-    ambulanceAvailable: true,
-    isRegisteredMediBridge: true,
-    verificationStatus: 'ABDM_REGISTERED',
-    departments: ['Cardiology', 'Emergency Medicine', 'Neurology', 'Oncology', 'Organ Transplant'],
-    createdAt: '2025-10-01T08:00:00Z'
-  }
-];
+// Seed Hospitals: 100% authentic data only. Empty by default until a hospital registers.
+const SEED_HOSPITALS: Hospital[] = [];
 
 // Seed Hospital Accounts (Empty: Only real registered hospitals appear)
 const SEED_HOSPITAL_ACCOUNTS: HospitalAccount[] = [];
@@ -217,20 +32,10 @@ const SEED_HOSPITAL_ACCOUNTS: HospitalAccount[] = [];
 // Seed Trusted Hospitals (Empty)
 const SEED_TRUSTED_HOSPITALS: TrustedHospital[] = [];
 
-// System Administrator Accounts
+// Platform Administrator Account (System oversight only)
 const SEED_USERS: User[] = [
   {
     id: 'usr-admin-01',
-    email: 'admin@apexhealth.in',
-    password: 'Admin@123',
-    phone: '+91 99300 88776',
-    fullName: 'Platform Administrator',
-    role: 'ADMIN',
-    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-02',
     email: 'admin@medibridge.ai',
     password: 'Admin@123',
     phone: '+91 99300 88777',
@@ -245,6 +50,7 @@ const SEED_USERS: User[] = [
 const SEED_PATIENTS: PatientProfile[] = [];
 
 // Seed Doctors
+// Seed Doctor Profiles: Empty by default until doctors or hospital accounts register.
 const SEED_DOCTORS: DoctorProfile[] = [];
 
 // Seed Clinical Intake Sessions
@@ -331,16 +137,37 @@ export class MockDatabase {
 
   private init(): void {
     // Universal cleanup to purge any previously stored mock sessions, dummy documents, and fake patients
-    const CLEANUP_KEY = 'medibridge_purge_all_old_hospital_requests_v7';
+    const CLEANUP_KEY = 'medibridge_purge_all_fake_and_reset_v15';
     if (!getStorageItem(CLEANUP_KEY)) {
       try {
+        setStorageItem(STORAGE_KEYS.USERS, JSON.stringify(SEED_USERS));
+        setStorageItem(STORAGE_KEYS.HOSPITALS, '[]');
+        setStorageItem(STORAGE_KEYS.HOSPITAL_ACCOUNTS, '[]');
+        setStorageItem(STORAGE_KEYS.DOCTORS, '[]');
+        setStorageItem(STORAGE_KEYS.PATIENTS, '[]');
         setStorageItem(STORAGE_KEYS.SESSIONS, '[]');
+        setStorageItem(STORAGE_KEYS.DOCUMENTS, '[]');
+        setStorageItem(STORAGE_KEYS.TIMELINE, '[]');
         setStorageItem(STORAGE_KEYS.EMERGENCIES, '[]');
         setStorageItem(STORAGE_KEYS.APPOINTMENTS, '[]');
         setStorageItem(STORAGE_KEYS.NOTIFICATIONS, '[]');
+        setStorageItem(STORAGE_KEYS.CONSENTS, '[]');
+        setStorageItem(STORAGE_KEYS.TRUSTED_HOSPITALS, '[]');
+        setStorageItem(STORAGE_KEYS.AUDIT_LOGS, '[]');
+        setStorageItem('medibridge_cloud_hospitals_cache', '[]');
+        setStorageItem('medibridge_cloud_patients_cache', '[]');
+        setStorageItem('medibridge_cloud_requests_cache', '[]');
+        setStorageItem('medibridge_cloud_trusted_cache', '[]');
         setStorageItem('medibridge_cloud_sessions_cache', '[]');
+        setStorageItem('medibridge_cloud_documents_cache', '[]');
         setStorageItem('medibridge_cloud_emergencies_cache', '[]');
+        setStorageItem('medibridge_cloud_timeline_cache', '[]');
         setStorageItem('medibridge_cloud_appointments_cache', '[]');
+        setStorageItem('medibridge_sessions', '[]');
+        setStorageItem('medibridge_documents', '[]');
+        setStorageItem('medibridge_emergencies', '[]');
+        setStorageItem('medibridge_timeline', '[]');
+        setStorageItem('medibridge_appointments', '[]');
       } catch {}
       setStorageItem(CLEANUP_KEY, 'true');
     }
@@ -359,6 +186,34 @@ export class MockDatabase {
     initializeStorage(STORAGE_KEYS.CONSENTS, SEED_CONSENTS);
     initializeStorage(STORAGE_KEYS.AUDIT_LOGS, SEED_AUDIT_LOGS);
     initializeStorage(STORAGE_KEYS.NOTIFICATIONS, SEED_NOTIFICATIONS);
+
+    // Ensure verified seed doctors exist in storage if empty or incomplete
+    const currentDocs = this.getItems<DoctorProfile>(STORAGE_KEYS.DOCTORS);
+    const existingDocIds = new Set(currentDocs.map(d => d.id));
+    let docsUpdated = false;
+    for (const sd of SEED_DOCTORS) {
+      if (!existingDocIds.has(sd.id)) {
+        currentDocs.push(sd);
+        docsUpdated = true;
+      }
+    }
+    if (docsUpdated) {
+      this.setItems(STORAGE_KEYS.DOCTORS, currentDocs);
+    }
+
+    // Ensure seed users (doctors, admins, triage) exist in storage
+    const currentUsers = this.getItems<User>(STORAGE_KEYS.USERS);
+    const existingUserEmails = new Set(currentUsers.map(u => u.email.toLowerCase()));
+    let usersUpdated = false;
+    for (const su of SEED_USERS) {
+      if (!existingUserEmails.has(su.email.toLowerCase())) {
+        currentUsers.push(su);
+        usersUpdated = true;
+      }
+    }
+    if (usersUpdated) {
+      this.setItems(STORAGE_KEYS.USERS, currentUsers);
+    }
   }
 
   private getItems<T>(key: string): T[] {
@@ -489,6 +344,50 @@ export class MockDatabase {
       doctors.unshift(profile);
     }
     this.setItems(STORAGE_KEYS.DOCTORS, doctors);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'CREATE_DOCTOR', profile } }));
+    }
+  }
+
+  public getDoctors(): DoctorProfile[] {
+    const FAKE_IDS = ['doc-001', 'doc-002', 'doc-003', 'usr-doc-01', 'usr-doc-02', 'usr-doc-03'];
+    return this.getItems<DoctorProfile>(STORAGE_KEYS.DOCTORS).filter(d => {
+      const id = (d.id || d.userId || '').toLowerCase();
+      const hosp = (d.hospitalId || '').toLowerCase();
+      return !FAKE_IDS.includes(id) && hosp !== 'hosp-001' && hosp !== 'hosp-2026-00101';
+    });
+  }
+
+  public getDoctorById(id: string): DoctorProfile | undefined {
+    if (!id) return undefined;
+    const clean = id.trim().toLowerCase();
+    return this.getDoctors().find(d =>
+      d.id.toLowerCase() === clean ||
+      d.userId.toLowerCase() === clean ||
+      d.registrationNumber.toLowerCase() === clean
+    );
+  }
+
+  public updateDoctorProfile(profile: DoctorProfile): void {
+    const doctors = this.getDoctors();
+    const index = doctors.findIndex(d => d.id === profile.id || d.userId === profile.userId);
+    if (index >= 0) {
+      doctors[index] = profile;
+    } else {
+      doctors.unshift(profile);
+    }
+    this.setItems(STORAGE_KEYS.DOCTORS, doctors);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'UPDATE_DOCTOR', profile } }));
+    }
+  }
+
+  public deleteDoctorProfile(id: string): void {
+    const doctors = this.getDoctors().filter(d => d.id !== id && d.userId !== id);
+    this.setItems(STORAGE_KEYS.DOCTORS, doctors);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'DELETE_DOCTOR', id } }));
+    }
   }
 
   public generateUniqueHospitalId(): string {
@@ -620,7 +519,13 @@ export class MockDatabase {
   }
 
   public getHospitals(): Hospital[] {
-    return this.getItems<Hospital>(STORAGE_KEYS.HOSPITALS);
+    const FAKE_IDS = ['hosp-001', 'hosp-002', 'hosp-003', 'HOSP-2026-00101', 'HOSP-2026-00102', 'HOSP-2026-00103', 'HOSP-2026-00104', 'HOSP-2026-00105', 'HOSP-2026-00106', 'HOSP-2026-00107', 'HOSP-2026-00108'];
+    const FAKE_NAMES = ['apex super speciality', 'king edward memorial', 'mimer general', 'ruby hall clinic', 'jehangir hospital', 'deenanath mangeshkar', 'sancheti institute', 'all india institute of medical sciences'];
+    return this.getItems<Hospital>(STORAGE_KEYS.HOSPITALS).filter(h => {
+      const id = (h.id || '').toLowerCase();
+      const name = (h.name || '').toLowerCase();
+      return !FAKE_IDS.some(f => f.toLowerCase() === id) && !FAKE_NAMES.some(n => name.includes(n));
+    });
   }
 
   public getHospitalById(id: string): Hospital | undefined {
@@ -644,9 +549,19 @@ export class MockDatabase {
     this.setItems(STORAGE_KEYS.HOSPITALS, hospitals);
   }
 
+  public saveHospital(hospital: Hospital): void {
+    this.createHospital(hospital);
+  }
+
   // Hospital Accounts (portal login entities — kept in sync with Hospital registry)
   public getHospitalAccounts(): HospitalAccount[] {
-    return this.getItems<HospitalAccount>(STORAGE_KEYS.HOSPITAL_ACCOUNTS);
+    const FAKE_IDS = ['hacct-001', 'hacct-002', 'hacct-003', 'hosp-001', 'HOSP-2026-00101'];
+    const FAKE_NAMES = ['apex super speciality'];
+    return this.getItems<HospitalAccount>(STORAGE_KEYS.HOSPITAL_ACCOUNTS).filter(h => {
+      const id = (h.id || h.linkedHospitalId || '').toLowerCase();
+      const name = (h.hospitalName || '').toLowerCase();
+      return !FAKE_IDS.some(f => f.toLowerCase() === id) && !FAKE_NAMES.some(n => name.includes(n));
+    });
   }
 
   public getHospitalAccountById(id: string): HospitalAccount | undefined {
@@ -1064,10 +979,51 @@ export class MockDatabase {
     }
   }
 
+  public saveAppointment(apt: Appointment): void {
+    this.addAppointment(apt);
+  }
+
+  public updateAppointment(apt: Appointment): void {
+    const apts = this.getAppointments();
+    const index = apts.findIndex(a => a.id === apt.id);
+    if (index >= 0) {
+      apts[index] = apt;
+    } else {
+      apts.unshift(apt);
+    }
+    this.setItems(STORAGE_KEYS.APPOINTMENTS, apts);
+    cloudDb.saveAppointment(apt);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'SAVE_APPOINTMENT', apt } }));
+    }
+  }
+
+  public updateAppointmentStatus(id: string, status: Appointment['status'], notes?: string): void {
+    const apts = this.getAppointments();
+    const target = apts.find(a => a.id === id);
+    if (target) {
+      target.status = status;
+      if (notes) target.notes = notes;
+      this.setItems(STORAGE_KEYS.APPOINTMENTS, apts);
+      cloudDb.saveAppointment(target);
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'UPDATE_APPOINTMENT_STATUS', id, status } }));
+      }
+    }
+  }
+
   // Consents
   public getConsents(patientId?: string): ConsentRecord[] {
     const consents = this.getItems<ConsentRecord>(STORAGE_KEYS.CONSENTS);
-    return patientId ? consents.filter(c => c.patientId === patientId) : consents;
+    if (!patientId) return consents;
+    const clean = patientId.trim().toUpperCase();
+    const pat = this.getPatientByPatientId(clean) || this.getPatientById(patientId);
+    const validIds = new Set<string>([patientId, clean]);
+    if (pat) {
+      if (pat.id) validIds.add(pat.id);
+      if (pat.patientId) validIds.add(pat.patientId.toUpperCase());
+    }
+    return consents.filter(c => validIds.has(c.patientId) || (c.patientId && validIds.has(c.patientId.toUpperCase())));
   }
 
   public saveConsent(consent: ConsentRecord): void {

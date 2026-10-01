@@ -22,11 +22,11 @@ export const TrustedHospitalsManager: React.FC = () => {
 
   const patientId = patientProfile?.patientId || '';
   const patientProfileId = patientProfile?.id || '';
-  const defaultCity = patientProfile?.city || 'Talegaon Dabhade';
+  const defaultCity = patientProfile?.city || '';
 
   const [locationState, setLocationState] = useState<PatientLocationState>({
     coordinates: null,
-    label: defaultCity ? `${defaultCity}` : 'Location Not Set',
+    label: defaultCity ? `${defaultCity}` : 'Select or Search Location',
     isGps: false,
     city: defaultCity
   });
@@ -190,7 +190,7 @@ export const TrustedHospitalsManager: React.FC = () => {
         hospitalId: hospital.id,
         hospitalName: hospital.hospitalName,
         hospitalAddress: hospital.address,
-        hospitalCity: hospital.city || locationState.city || 'Talegaon Dabhade',
+        hospitalCity: hospital.city || locationState.city || '',
         grantedAt: new Date().toISOString(),
         status: 'ACTIVE',
         allowEmergencyAlert: true,

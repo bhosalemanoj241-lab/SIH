@@ -83,7 +83,7 @@ export const AmbulanceDispatchMap: React.FC<AmbulanceDispatchMapProps> = ({ aler
             <Heart className="w-4 h-4" />
           </div>
           <span className="text-[10px] font-bold text-white bg-slate-950 px-2 py-0.5 rounded shadow mt-1 border border-slate-700">
-            Apex Trauma ER
+            {alert.hospitalName || 'Emergency Center ER'}
           </span>
         </div>
 

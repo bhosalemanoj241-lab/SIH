@@ -44,12 +44,32 @@ export interface PatientProfile {
   createdAt?: string;
 }
 
+export type MedicalSystem = 'ALLOPATHY' | 'AYURVEDA';
+
+export interface DashavidhaPariksha {
+  prakriti?: string; // Vata / Pitta / Kapha / Dwandwaja / Tridoshaja
+  vikriti?: string; // Current doshic vitiation
+  sara?: string; // Tissue essence (Pravara / Madhyama / Avara)
+  samhanana?: string; // Body compactness/build
+  pramana?: string; // Anthropometric proportions
+  satmya?: string; // Habituation / adaptability
+  sattva?: string; // Mental strength / psychological resilience
+  aharaShakti?: string; // Digestive capacity (Abhyavaharana & Jarana Shakti)
+  vyayamaShakti?: string; // Physical endurance & exercise capacity
+  vaya?: string; // Age stage (Bala / Madhyama / Vriddha)
+  aharaViharaNotes?: string; // Diet, sleep, circadian, lifestyle factors
+}
+
 export interface DoctorProfile {
   id: string;
   userId: string;
-  registrationNumber: string; // MCI/NMC Reg
+  doctorName?: string;
+  email?: string;
+  phone?: string;
+  registrationNumber: string; // MCI/NMC/CCIM Reg
   qualification: string;
   specialization: string;
+  medicalSystem?: MedicalSystem;
   hospitalId: string;
   hospitalName: string;
   departmentId: string;
@@ -57,6 +77,8 @@ export interface DoctorProfile {
   experienceYears: number;
   isAvailable: boolean;
   activePatientsCount: number;
+  availableDays?: string[];
+  timeSlots?: string[];
 }
 
 export interface Hospital {
@@ -189,6 +211,36 @@ export interface TimelineEvent {
   tags: string[];
 }
 
+export type ConditionCategory = 'CRITICAL_EMERGENCY' | 'NORMAL_MINOR_ISSUE' | 'SPECIALIZED_DOCTOR_REQUIRED';
+
+export interface MedicineBuyingLink {
+  storeName: 'Tata 1mg' | 'Apollo Pharmacy' | 'PharmEasy' | 'Netmeds';
+  url: string;
+  priceEstimate?: string;
+  badge?: string;
+}
+
+export interface MedicineRecommendation {
+  id: string;
+  name: string;
+  genericName: string;
+  dosage: string;
+  timing: string;
+  indication: string;
+  category: 'FEVER' | 'HEADACHE' | 'COLD_FLU' | 'COUGH_THROAT' | 'ACIDITY_GAS' | 'BODY_PAIN' | 'DEHYDRATION';
+  buyingLinks: MedicineBuyingLink[];
+  caution: string;
+}
+
+export interface ClinicalTriageAssessment {
+  category: ConditionCategory;
+  rationale: string;
+  recommendedDepartment?: string;
+  isMedicationRecommended: boolean;
+  medicationDisclaimer?: string;
+  medicines?: MedicineRecommendation[];
+}
+
 export interface ConversationMessage {
   id: string;
   sessionId: string;
@@ -198,6 +250,9 @@ export interface ConversationMessage {
   timestamp: string;
   audioUrl?: string;
   suggestedQuickReplies?: string[];
+  conditionCategory?: ConditionCategory;
+  medicineRecommendations?: MedicineRecommendation[];
+  triageAssessment?: ClinicalTriageAssessment;
   extractedEntities?: {
     symptoms?: string[];
     redFlags?: string[];
@@ -228,6 +283,68 @@ export interface ClinicalSession {
   originalPatientStatement?: string;
   translatedSummary?: string;
   aiSummary?: ClinicalHistorySummary;
+  encounterId?: string;
+  appointmentId?: string;
+  conversationMessages?: ConversationMessage[];
+  shortReport?: PhysicianShortReport;
+}
+
+export type ClinicalSourceTag = 'PATIENT REPORTED' | 'DOCUMENT EXTRACTED' | 'AI SUMMARIZED' | 'DOCTOR ENTERED';
+
+export interface ClinicalSourceItem {
+  text: string;
+  source: ClinicalSourceTag;
+  notes?: string;
+}
+
+export interface PhysicianShortReport {
+  patientId: string;
+  age?: number;
+  gender?: string;
+  encounterDate: string;
+  encounterId?: string;
+  appointmentId?: string;
+  chiefComplaint: {
+    mainReason: string;
+    source: ClinicalSourceTag;
+  };
+  symptoms: {
+    importantSymptoms: string[];
+    duration?: string;
+    severity?: string;
+    location?: string;
+    onset?: string;
+    associatedSymptoms?: string[];
+    source: ClinicalSourceTag;
+  };
+  medicalHistory: {
+    existingConditions: string[];
+    previousHistory: string[];
+    source: ClinicalSourceTag;
+  };
+  medicationsAndAllergies: {
+    currentMedications: string[];
+    knownAllergies: string[];
+    source: ClinicalSourceTag;
+  };
+  relevantFindings: ClinicalSourceItem[];
+  redFlags?: {
+    detected: boolean;
+    flags: string[];
+    source: ClinicalSourceTag;
+  };
+  summary: {
+    text: string; // 3–6 short sentences
+    source: ClinicalSourceTag;
+  };
+  missingOrUncertainInfo: {
+    items: string[];
+    source: ClinicalSourceTag;
+  };
+  doctorNotes?: {
+    notes?: string;
+    source: ClinicalSourceTag;
+  };
 }
 
 export interface ClinicalHistorySummary {
@@ -241,6 +358,9 @@ export interface ClinicalHistorySummary {
   disclaimer: string; // Mandatory "AI-generated - Requires physician verification"
   chiefComplaints: string;
   historyOfPresentIllness: string;
+  shortReport?: PhysicianShortReport;
+  encounterId?: string;
+  appointmentId?: string;
   painScore?: number;
   symptomsList: SymptomEntry[];
   pastMedicalHistory: MedicalCondition[];
@@ -253,6 +373,10 @@ export interface ClinicalHistorySummary {
   differentialConsiderations: string[];
   redFlagChecklist: { item: string; detected: boolean; note: string }[];
   safetyWarnings: string[]; // e.g. "Patient is allergic to Penicillin - avoid beta-lactams"
+  medicalSystem?: MedicalSystem;
+  dashavidhaPariksha?: DashavidhaPariksha;
+  diagnosis?: string;
+  treatmentRemarks?: string;
   verificationStatus: 'PENDING_PHYSICIAN_REVIEW' | 'VERIFIED_BY_PHYSICIAN' | 'EDITED_AND_VERIFIED' | 'REJECTED';
   verifiedByDoctorId?: string;
   verifiedByDoctorName?: string;
@@ -280,6 +404,7 @@ export interface EmergencyAlert {
   detectedEmergencyConcern?: string;
   status: 'DISPATCHED' | 'ACKNOWLEDGED' | 'EN_ROUTE' | 'ARRIVED_AT_HOSPITAL' | 'HANDOVER_COMPLETED' | 'RESOLVED';
   timestamp: string;
+  resolvedAt?: string;
   ambulanceAssigned?: {
     vehicleNumber: string;
     driverName: string;
@@ -306,11 +431,13 @@ export interface Appointment {
   departmentName: string;
   doctorId?: string;
   doctorName?: string;
+  medicalSystem?: MedicalSystem;
   date: string;
   timeSlot: string;
-  status: 'PRE_REGISTERED' | 'CONFIRMED' | 'IN_CONSULTATION' | 'COMPLETED' | 'CANCELLED';
+  status: 'PRE_REGISTERED' | 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'IN_CONSULTATION' | 'COMPLETED' | 'CANCELLED' | 'EMERGENCY';
   clinicalSessionId?: string;
   triagePriority: TriagePriority;
+  notes?: string;
 }
 
 export interface ConsentRecord {

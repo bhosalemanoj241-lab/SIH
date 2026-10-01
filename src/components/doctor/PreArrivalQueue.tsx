@@ -19,6 +19,7 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
 }) => {
   const { showToast } = useNotification();
   const [filterPriority, setFilterPriority] = useState<string>('ALL');
+  const [filterSystem, setFilterSystem] = useState<string>('ALL');
   const [sessions, setSessions] = useState<ClinicalSession[]>(() => db.getClinicalSessions());
 
   React.useEffect(() => {
@@ -45,9 +46,12 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
     showToast('Request Removed', `Removed intake request for ${patientName}.`, 'INFO');
   };
 
-  const filteredSessions = filterPriority === 'ALL'
-    ? sessions
-    : sessions.filter(s => s.triagePriority === filterPriority);
+  const filteredSessions = sessions.filter(s => {
+    const matchesPriority = filterPriority === 'ALL' || s.triagePriority === filterPriority;
+    const sessionSystem = s.aiSummary?.medicalSystem || (s.aiSummary?.dashavidhaPariksha ? 'AYURVEDA' : 'ALLOPATHY');
+    const matchesSystem = filterSystem === 'ALL' || sessionSystem === filterSystem;
+    return matchesPriority && matchesSystem;
+  });
 
   const getPriorityBadge = (priority: TriagePriority) => {
     switch (priority) {
@@ -123,21 +127,51 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
             </button>
           )}
 
-          {/* Priority Filter Buttons */}
-          <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px]">
-            {['ALL', 'RED', 'YELLOW', 'GREEN'].map(p => (
-              <button
-                key={p}
-                onClick={() => setFilterPriority(p)}
-                className={`px-2.5 py-1 rounded-lg font-bold transition ${
-                  filterPriority === p
-                    ? 'bg-teal-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+          {/* Priority & System Filter Buttons */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">System:</span>
+              <div className="flex flex-wrap gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[10px]">
+                {[
+                  { id: 'ALL', label: 'All Systems' },
+                  { id: 'ALLOPATHY', label: '🏥 Allopathy' },
+                  { id: 'AYURVEDA', label: '🌿 Ayush' }
+                ].map(sys => (
+                  <button
+                    key={sys.id}
+                    onClick={() => setFilterSystem(sys.id)}
+                    className={`px-2 py-0.5 rounded-lg font-bold transition ${
+                      filterSystem === sys.id
+                        ? sys.id === 'AYURVEDA'
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'bg-teal-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {sys.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Triage:</span>
+              <div className="flex flex-wrap gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[10px]">
+                {['ALL', 'RED', 'YELLOW', 'GREEN'].map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setFilterPriority(p)}
+                    className={`px-2 py-0.5 rounded-lg font-bold transition ${
+                      filterPriority === p
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -147,7 +181,7 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
         {filteredSessions.length === 0 ? (
           <div className="py-12 text-center text-slate-400 space-y-2">
             <Users className="w-8 h-8 text-slate-400 mx-auto" />
-            <p className="text-xs font-semibold text-slate-700">No pre-arrival intake patients in queue.</p>
+            <p className="text-xs font-semibold text-slate-700">No pre-arrival intake patients matching criteria.</p>
             <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
               When patients complete their AI clinical intake from home, their summary and triage level will appear here in real time.
             </p>
@@ -155,6 +189,7 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
         ) : (
           filteredSessions.map(s => {
             const isSelected = s.id === selectedSessionId;
+            const isAyurveda = s.aiSummary?.medicalSystem === 'AYURVEDA' || Boolean(s.aiSummary?.dashavidhaPariksha);
             return (
               <div
                 key={s.id}
@@ -167,12 +202,23 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
                 <div>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                        <span>{s.patientName}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {s.patientName}
+                        </h4>
                         <span className="text-[11px] font-normal text-slate-500">
                           ({s.patientAge}y • {s.patientGender})
                         </span>
-                      </h4>
+                        {isAyurveda ? (
+                          <span className="text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded-full">
+                            🌿 Ayush
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.2 rounded-full">
+                            🏥 Allopathy
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-slate-400 font-mono mt-0.5">
                         Session: {s.id}
                       </p>

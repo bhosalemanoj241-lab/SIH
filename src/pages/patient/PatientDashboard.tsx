@@ -3,7 +3,7 @@ import {
   Mic, FileText, Clock, Building2, ShieldCheck,
   Siren, User, Activity, AlertTriangle, ArrowRight,
   Sparkles, CheckCircle2, Download, Phone, MapPin,
-  Heart, AlertCircle, Hospital
+  Heart, AlertCircle, Hospital, Ban, Square
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -12,12 +12,12 @@ import { AIIntakeChat } from '../../components/patient/AIIntakeChat';
 import { DocumentUploader } from '../../components/patient/DocumentUploader';
 import { MedicalTimeline } from '../../components/patient/MedicalTimeline';
 import { ClinicalSummaryView } from '../../components/patient/ClinicalSummaryView';
-import { EmergencyStatusCard } from '../../components/patient/EmergencyStatusCard';
+import { EmergencyStatusCard, EmergencyAudioService } from '../../components/patient/EmergencyStatusCard';
 import { ConsentManager } from '../../components/patient/ConsentManager';
 import { AppointmentBooker } from '../../components/patient/AppointmentBooker';
 import { TrustedHospitalsManager } from '../../components/patient/TrustedHospitalsManager';
 import { db } from '../../services/mockDatabase';
-import { cloudDataService, syncRelay } from '../../services/supabaseService';
+import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { AccessRequest, ClinicalSession } from '../../types';
 
 interface PatientDashboardProps {
@@ -67,6 +67,22 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
     setActiveEmergencyAlert(active || null);
   };
 
+  const handleStopEmergencyAlert = () => {
+    if (activeEmergencyAlert) {
+      EmergencyAudioService.stopSiren();
+      const updated = {
+        ...activeEmergencyAlert,
+        status: 'RESOLVED' as const,
+        resolvedAt: new Date().toISOString()
+      };
+      db.saveEmergencyAlert(updated);
+      setActiveEmergencyAlert(null);
+      setShowEmergencyDetails(false);
+      window.dispatchEvent(new CustomEvent('medibridge_db_update'));
+      showToast('Emergency Alert Stopped', 'Red flag status resolved and emergency stood down.', 'INFO');
+    }
+  };
+
   useEffect(() => {
     checkEmergencyAlerts();
     loadPendingRequests();
@@ -87,10 +103,26 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
       });
     }
 
+    const refreshSessions = () => {
+      const pId = patientProfile?.patientId || patientProfile?.id;
+      const sessions = db.getClinicalSessions().filter(s =>
+        (pId && (s.patientId === pId || s.patientId === patientProfile?.id || s.patientId === patientProfile?.patientId)) ||
+        s.patientName === currentUser?.fullName
+      );
+      setPatientSessions(sessions);
+      setActiveSession(prev => {
+        if (!prev) return sessions[0] || null;
+        const match = sessions.find(s => s.id === prev.id);
+        return match || sessions[0] || null;
+      });
+    };
+
     const handleUpdate = () => {
       checkEmergencyAlerts();
       loadPendingRequests();
+      refreshSessions();
     };
+    refreshSessions();
     window.addEventListener('medibridge_db_update', handleUpdate);
     window.addEventListener('medibridge_db_reset', handleUpdate);
 
@@ -107,9 +139,12 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
   }, [patientProfile?.patientId, currentUser?.fullName]);
 
   // Retrieve sessions for the current patient
-  const patientSessions = patientProfile?.patientId
-    ? db.getClinicalSessions().filter(s => s.patientId === patientProfile.id || s.patientId === patientProfile.patientId || s.patientName === currentUser?.fullName)
-    : [];
+  const [patientSessions, setPatientSessions] = useState<ClinicalSession[]>(() => {
+    const pId = patientProfile?.patientId || patientProfile?.id;
+    return pId
+      ? db.getClinicalSessions().filter(s => s.patientId === patientProfile?.id || s.patientId === patientProfile?.patientId || s.patientName === currentUser?.fullName)
+      : [];
+  });
 
   const [activeSession, setActiveSession] = useState<ClinicalSession | null>(
     patientSessions[0] || null
@@ -211,13 +246,24 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
             </div>
           </div>
 
-          <button
-            onClick={() => setShowEmergencyDetails(!showEmergencyDetails)}
-            className="px-5 py-2.5 bg-white text-red-700 hover:bg-slate-100 font-extrabold text-xs rounded-xl shadow-lg flex items-center gap-2 transition flex-shrink-0"
-          >
-            <span>{showEmergencyDetails ? 'Hide Status Details' : t('view_live_map')}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+            <button
+              onClick={handleStopEmergencyAlert}
+              className="px-4 py-2.5 bg-red-950/80 hover:bg-black text-white font-extrabold text-xs rounded-xl shadow border border-white/30 flex items-center gap-1.5 transition"
+              title="Stop red flag alert and stand down emergency"
+            >
+              <Ban className="w-3.5 h-3.5 text-red-300" />
+              <span>Stop Red Flag Alert</span>
+            </button>
+
+            <button
+              onClick={() => setShowEmergencyDetails(!showEmergencyDetails)}
+              className="px-5 py-2.5 bg-white text-red-700 hover:bg-slate-100 font-extrabold text-xs rounded-xl shadow-lg flex items-center gap-2 transition"
+            >
+              <span>{showEmergencyDetails ? 'Hide Status Details' : t('view_live_map')}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -329,16 +375,16 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 w-full md:w-auto text-xs">
           <div className="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-slate-500 block text-[10px] uppercase font-bold">Blood Group</span>
-            <span className="text-teal-700 font-black font-mono text-sm">{patientProfile?.bloodGroup || 'B+'}</span>
+            <span className="text-teal-700 font-black font-mono text-sm">{patientProfile?.bloodGroup || 'Not Specified'}</span>
           </div>
           <div className="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-slate-500 block text-[10px] uppercase font-bold">Emergency Contact</span>
-            <span className="text-slate-800 font-semibold">{patientProfile?.emergencyContactName || 'Family Contact'}</span>
+            <span className="text-slate-800 font-semibold">{patientProfile?.emergencyContactName || patientProfile?.emergencyContactPhone || 'Not Configured'}</span>
           </div>
           <div className="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-slate-500 block text-[10px] uppercase font-bold">Preferred Hospital</span>
+            <span className="text-slate-500 block text-[10px] uppercase font-bold">Connected Hospital</span>
             <span className="text-slate-800 font-semibold truncate block max-w-[180px]">
-              {db.getTrustedHospitals(patientProfile?.patientId || '').find(t => t.status === 'ACTIVE')?.hospitalName || (patientProfile?.city ? `${patientProfile.city} General Facility` : 'Network Hospital')}
+              {db.getTrustedHospitals(patientProfile?.patientId || '').find(t => t.status === 'ACTIVE')?.hospitalName || 'No hospital connected'}
             </span>
           </div>
         </div>
@@ -415,24 +461,46 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
 
         {activeTab === 'summary' && (
           activeSession?.aiSummary ? (
-            <ClinicalSummaryView
-              summary={activeSession.aiSummary}
-              patient={patientProfile || (currentUser ? db.getPatientByUserId(currentUser.id) : undefined) || {
-                id: `pat-${currentUser?.id || 'default'}`,
-                userId: currentUser?.id || 'usr-1',
-                patientId: (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || 'Registered Patient',
-                dob: '1990-01-01',
-                age: 35,
-                gender: 'MALE',
-                bloodGroup: 'B+',
-                emergencyContactName: 'Family Member',
-                emergencyContactPhone: '+91 98000 00000',
-                emergencyContactRelation: 'Spouse',
-                address: 'Registered Residence',
-                city: 'Mumbai',
-                pincode: '400001'
-              }}
-            />
+            <div className="space-y-4">
+              {patientSessions.length > 1 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-slate-200 px-4 py-3 rounded-2xl gap-2 shadow-sm">
+                  <span className="text-xs font-bold text-slate-700">Clinical Encounter / Intake Episode:</span>
+                  <select
+                    value={activeSession.id}
+                    onChange={e => {
+                      const sel = patientSessions.find(s => s.id === e.target.value);
+                      if (sel) setActiveSession(sel);
+                    }}
+                    className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-800 focus:border-teal-500 focus:bg-white"
+                  >
+                    {patientSessions.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {new Date(s.startedAt).toLocaleDateString()} — {s.chiefComplaint ? s.chiefComplaint.slice(0, 35) : 'Intake Episode'} ({s.encounterId || `ENC-${s.id.slice(-6)}`})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <ClinicalSummaryView
+                summary={activeSession.aiSummary}
+                patient={patientProfile || (currentUser ? db.getPatientByUserId(currentUser.id) : undefined) || {
+                  id: `pat-${currentUser?.id || 'reg'}`,
+                  userId: currentUser?.id || '',
+                  patientId: (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || currentUser?.fullName || 'Registered Patient',
+                  fullName: currentUser?.fullName || 'Registered Patient',
+                  dob: '1995-01-01',
+                  age: 30,
+                  gender: 'OTHER',
+                  bloodGroup: 'Not Specified',
+                  emergencyContactName: 'Emergency Contact',
+                  emergencyContactPhone: currentUser?.phone || '+91 98000 00000',
+                  emergencyContactRelation: 'Contact',
+                  address: 'Registered Address',
+                  city: 'Central',
+                  pincode: '400001'
+                }}
+              />
+            </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-12 text-center space-y-4 max-w-2xl mx-auto shadow-sm">
               <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 mx-auto">

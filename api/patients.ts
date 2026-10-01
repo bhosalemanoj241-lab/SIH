@@ -1,6 +1,7 @@
 // Vercel Serverless Function: /api/patients
 // Central Persistent Patient Registry for MediBridge AI
 
+const CENTRAL_AUTH_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508';
 const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4';
 
 function generatePatientId(): string {
@@ -13,35 +14,73 @@ function generatePatientId(): string {
 }
 
 async function fetchAllPatientsFromCloud(): Promise<any[]> {
+  const map = new Map<string, any>();
+
+  // 1. Fetch from persistent central cloud registry
+  try {
+    const res = await fetch(CENTRAL_AUTH_OBJECT_URL, { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.data && Array.isArray(json.data.patients)) {
+        json.data.patients.forEach((p: any) => {
+          const pId = (p.patientId || '').trim().toUpperCase();
+          if (pId) map.set(pId, p);
+        });
+      }
+    }
+  } catch {}
+
+  // 2. Fetch from realtime topic
   try {
     const res = await fetch(`${CLOUD_SYNC_ENDPOINT}/json?poll=1&since=24h`, { cache: 'no-store' });
-    if (!res.ok) return [];
-    const text = await res.text();
-    const map = new Map<string, any>();
-
-    text.trim().split('\n').forEach(l => {
-      try {
-        const item = JSON.parse(l);
-        if (item.message) {
-          const parsed = JSON.parse(item.message);
-          if (parsed.type === 'SAVE_PATIENT' && (parsed.patient || parsed.data)) {
-            const p = parsed.patient || parsed.data;
-            const pId = (p.patientId || '').trim().toUpperCase();
-            if (pId) {
-              map.set(pId, p);
+    if (res.ok) {
+      const text = await res.text();
+      text.trim().split('\n').forEach(l => {
+        try {
+          const item = JSON.parse(l);
+          if (item.message) {
+            const parsed = JSON.parse(item.message);
+            if (parsed.type === 'SAVE_PATIENT' && (parsed.patient || parsed.data)) {
+              const p = parsed.patient || parsed.data;
+              const pId = (p.patientId || '').trim().toUpperCase();
+              if (pId) {
+                map.set(pId, p);
+              }
             }
           }
-        }
-      } catch {}
-    });
+        } catch {}
+      });
+    }
+  } catch {}
 
-    return Array.from(map.values()).reverse();
-  } catch {
-    return [];
-  }
+  return Array.from(map.values()).reverse();
 }
 
 async function savePatientToCloud(patient: any): Promise<boolean> {
+  let ok = false;
+
+  // 1. Persist to central cloud registry
+  try {
+    const getRes = await fetch(CENTRAL_AUTH_OBJECT_URL, { cache: 'no-store' });
+    if (getRes.ok) {
+      const json = await getRes.json();
+      const registry = json?.data || { users: [], patients: [], doctors: [], hospitals: [] };
+      const cleanId = (patient.patientId || '').trim().toUpperCase();
+      registry.patients = (registry.patients || []).filter((p: any) => (p.patientId || '').toUpperCase() !== cleanId);
+      registry.patients.unshift(patient);
+      await fetch(CENTRAL_AUTH_OBJECT_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'MediBridge_Auth_Store_v1',
+          data: registry
+        })
+      });
+      ok = true;
+    }
+  } catch {}
+
+  // 2. Broadcast to realtime topic
   try {
     const res = await fetch(CLOUD_SYNC_ENDPOINT, {
       method: 'POST',
@@ -56,10 +95,10 @@ async function savePatientToCloud(patient: any): Promise<boolean> {
         ts: Date.now()
       })
     });
-    return res.ok;
-  } catch {
-    return false;
-  }
+    if (res.ok) ok = true;
+  } catch {}
+
+  return ok;
 }
 
 export default async function handler(req: any, res: any) {

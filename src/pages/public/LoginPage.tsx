@@ -225,10 +225,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
         hospitalName: hospName.trim(),
         registrationId: hospRegId.trim(),
         address: hospAddress.trim() || 'Hospital Facility Address',
-        city: hospCity.trim() || 'Talegaon Dabhade',
-        location: hospLocation.trim() || hospCity.trim() || 'Talegaon Dabhade',
-        state: hospState.trim() || 'Maharashtra',
-        pincode: hospPincode.trim() || '410507',
+        city: hospCity.trim() || hospLocation.trim() || 'Central',
+        location: hospLocation.trim() || hospCity.trim() || 'Clinical Medical Campus',
+        state: hospState.trim() || 'India',
+        pincode: hospPincode.trim() || '400001',
         emergencyContact: hospEmergencyContact.trim() || '+91 22 0000 0000',
         email: hospEmail.trim(),
         password: hospPassword,
@@ -646,7 +646,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
                 <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-3">Hospital Information</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2"><label className={labelCls}><Building2 className="w-3.5 h-3.5 text-blue-600" />Hospital Name *</label>
-                    <input type="text" required value={hospName} onChange={e => setHospName(e.target.value)} placeholder="e.g. Apex Super Speciality Hospital" className={inputCls} /></div>
+                    <input type="text" required value={hospName} onChange={e => setHospName(e.target.value)} placeholder="e.g. City General Hospital & Trauma Centre" className={inputCls} /></div>
                   <div><label className={labelCls}><FileText className="w-3.5 h-3.5 text-blue-600" />Registration / License ID *</label>
                     <input type="text" required value={hospRegId} onChange={e => setHospRegId(e.target.value)} placeholder="e.g. DH-MH-2024-00491" className={inputCls} /></div>
                   <div><label className={labelCls}><Phone className="w-3.5 h-3.5 text-blue-600" />Emergency Contact</label>

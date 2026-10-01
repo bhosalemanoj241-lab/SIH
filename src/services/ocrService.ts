@@ -21,8 +21,8 @@ export class OCRService {
     const todayStr = new Date().toISOString().split('T')[0];
 
     let fileType: MedicalDocument['fileType'] = 'PRESCRIPTION';
-    let facility = 'Metro Multispeciality Clinic';
-    let doctor = 'Dr. R. K. Sen, MD';
+    let facility = 'Registered Healthcare Facility';
+    let doctor = 'Consulting Physician';
     let diagnoses: string[] = ['Acute Bronchitis', 'Mild Hypertension'];
     let extractedMeds: Medication[] = [
       { name: 'Azithromycin', dosage: '500 mg', frequency: 'Once daily (5 days)', route: 'Oral', startDate: todayStr, isActive: true, indication: 'Respiratory infection' },
@@ -34,8 +34,8 @@ export class OCRService {
 
     if (fileName.includes('lab') || fileName.includes('blood') || fileName.includes('panel') || fileName.includes('test')) {
       fileType = 'LAB_REPORT';
-      facility = 'Metropolis Diagnostic Centre';
-      doctor = 'Dr. Archana Das, MD Pathologist';
+      facility = 'Diagnostic Laboratory';
+      doctor = 'Reporting Pathologist';
       diagnoses = ['Elevated Inflammatory Markers'];
       extractedMeds = [];
       labResults = [
@@ -48,8 +48,8 @@ export class OCRService {
       procedures = ['Venipuncture Blood Chemistry'];
     } else if (fileName.includes('discharge') || fileName.includes('summary')) {
       fileType = 'DISCHARGE_SUMMARY';
-      facility = 'Apollo Health City Hospital';
-      doctor = 'Dr. Sanjeev Kapoor, MS, FRCS';
+      facility = 'Inpatient Medical Facility';
+      doctor = 'Attending Surgeon';
       diagnoses = ['Acute Appendicitis', 'Post-Op Day 2 Recovery'];
       extractedMeds = [
         { name: 'Cefixime', dosage: '200 mg', frequency: 'Twice daily', route: 'Oral', startDate: todayStr, isActive: true },

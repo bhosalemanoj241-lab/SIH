@@ -18,7 +18,7 @@ export const TriageDashboard: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl sm:text-2xl font-black text-slate-900">{currentUser?.fullName || 'ER Command Staff'}</h2>
               <span className="text-xs bg-red-50 text-red-700 border border-red-200 px-2.5 py-0.5 rounded-full font-mono font-bold">
-                Apex ER Resuscitation Desk
+                ER Resuscitation Desk
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">

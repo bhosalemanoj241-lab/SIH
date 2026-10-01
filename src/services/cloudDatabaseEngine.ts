@@ -52,6 +52,7 @@ export interface CloudHospitalRecord {
   coordinates?: { lat: number; lng: number };
   departments?: string[];
   status: 'VERIFIED' | 'REGISTERED' | 'ACTIVE';
+  password?: string;
   createdAt: string;
 }
 
@@ -125,6 +126,16 @@ function setPersistedCache<T>(key: string, items: T[]): void {
 }
 
 const FAKE_PATIENT_IDS = ['MB-2026-7F42K9', 'MB-2026-38491A', 'MB-2026-99210B', 'MB-2026-44109C'];
+const FAKE_HOSPITAL_IDS = [
+  'HOSP-2026-00101', 'HOSP-2026-00102', 'HOSP-2026-00103', 'HOSP-2026-00104',
+  'HOSP-2026-00105', 'HOSP-2026-00106', 'HOSP-2026-00107', 'HOSP-2026-00108',
+  'hosp-001', 'hosp-002', 'hosp-003', 'hacct-001', 'hacct-002', 'hacct-003'
+];
+const FAKE_HOSPITAL_KEYWORDS = [
+  'apex super speciality', 'king edward memorial', 'mimer general',
+  'ruby hall clinic', 'jehangir hospital', 'deenanath mangeshkar', 'sancheti institute',
+  'all india institute of medical sciences'
+];
 
 class CloudDatabaseEngine {
   private static instance: CloudDatabaseEngine;
@@ -143,7 +154,14 @@ class CloudDatabaseEngine {
   private constructor() {
     const rawPatients = getPersistedCache<CloudPatientRecord>(LOCAL_PERSIST_KEYS.PATIENTS);
     this.patientsCache = rawPatients.filter(p => !FAKE_PATIENT_IDS.includes(p.patientId));
-    this.hospitalsCache = getPersistedCache<CloudHospitalRecord>(LOCAL_PERSIST_KEYS.HOSPITALS);
+    const rawHospitals = getPersistedCache<CloudHospitalRecord>(LOCAL_PERSIST_KEYS.HOSPITALS);
+    this.hospitalsCache = rawHospitals.filter(h => {
+      const id = (h.hospitalId || h.id || '').toUpperCase();
+      const name = (h.hospitalName || '').toLowerCase();
+      const isFakeId = FAKE_HOSPITAL_IDS.some(f => f.toUpperCase() === id);
+      const isFakeName = FAKE_HOSPITAL_KEYWORDS.some(k => name.includes(k));
+      return !isFakeId && !isFakeName;
+    });
     this.accessRequestsCache = getPersistedCache<CloudAccessRequestRecord>(LOCAL_PERSIST_KEYS.REQUESTS);
     this.trustedHospitalsCache = getPersistedCache<CloudTrustedHospitalRecord>(LOCAL_PERSIST_KEYS.TRUSTED);
     this.sessionsCache = getPersistedCache<ClinicalSession>(LOCAL_PERSIST_KEYS.SESSIONS);
@@ -172,8 +190,8 @@ class CloudDatabaseEngine {
         body: JSON.stringify({ type, data, ts: Date.now() })
       });
       return res.ok;
-    } catch (err) {
-      console.warn('[CloudDB Event Publish Error]:', err);
+    } catch (err: any) {
+      console.warn('[CloudDB Event Publish Error]:', err?.message || 'Network offline');
       return false;
     }
   }
@@ -298,6 +316,48 @@ class CloudDatabaseEngine {
   }
 
   public async syncAll(): Promise<void> {
+    // 1. Fetch from Central Cloud Registry
+    try {
+      let centralData: any = null;
+      if (typeof window !== 'undefined' && window.location) {
+        try {
+          const apiRes = await fetch('/api/auth?action=sync', { cache: 'no-store' });
+          if (apiRes.ok) {
+            const json = await apiRes.json();
+            if (json && json.data) centralData = json.data;
+          }
+        } catch {}
+      }
+
+      if (!centralData) {
+        const directRes = await fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508', { cache: 'no-store' });
+        if (directRes.ok) {
+          const directJson = await directRes.json();
+          if (directJson?.data) centralData = directJson.data;
+        }
+      }
+
+      if (centralData) {
+        if (Array.isArray(centralData.patients)) {
+          centralData.patients.forEach((p: any) => {
+            if (p && p.patientId && !FAKE_PATIENT_IDS.includes(p.patientId)) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_PATIENT', patient: p });
+            }
+          });
+        }
+        if (Array.isArray(centralData.hospitals)) {
+          centralData.hospitals.forEach((h: any) => {
+            if (h && (h.hospitalId || h.id)) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_HOSPITAL', hospital: h });
+            }
+          });
+        }
+      }
+    } catch (centralErr) {
+      console.warn('[CloudDB central sync]:', centralErr);
+    }
+
+    // 2. Fetch from Real-time PubSub Event Topic
     try {
       const response = await fetch(`${CLOUD_SYNC_ENDPOINT}/json?poll=1&since=24h`, {
         cache: 'no-store'
@@ -316,8 +376,8 @@ class CloudDatabaseEngine {
         });
       }
       this.isInitialized = true;
-    } catch (err) {
-      console.warn('[CloudDB syncAll error]:', err);
+    } catch (err: any) {
+      console.warn('[CloudDB syncAll error]:', err?.message || 'Network offline');
     }
   }
 
@@ -437,7 +497,10 @@ class CloudDatabaseEngine {
     // 3. Fallback: try serverless /api/search endpoint
     try {
       if (typeof window !== 'undefined' && window.location) {
-        const res = await fetch(`/api/search?patientId=${encodeURIComponent(cleanId)}`);
+        const queryParam = cleanId.includes('@')
+          ? `q=${encodeURIComponent(cleanId.toLowerCase())}`
+          : `patientId=${encodeURIComponent(cleanId)}`;
+        const res = await fetch(`/api/search?${queryParam}`);
         if (res.ok) {
           const data = await res.json();
           if (data?.success && data?.patient) {
@@ -458,12 +521,14 @@ class CloudDatabaseEngine {
     return all.find(p => (p.email || '').trim().toLowerCase() === cleanEmail);
   }
 
-  public async findUserByIdentifier(identifier: string): Promise<{ user: any; patient?: CloudPatientRecord; hospital?: CloudHospitalRecord } | undefined> {
+  public async findUserByIdentifier(identifier: string): Promise<{ user: any; patient?: CloudPatientRecord; hospital?: CloudHospitalRecord; doctor?: any } | undefined> {
     if (!identifier) return undefined;
     const clean = identifier.trim();
 
-    // 1. Try finding patient by Patient ID, email, ABHA, phone
-    const patient = await this.findPatientById(clean) || await this.findPatientByEmail(clean);
+    // 1. Try finding patient in local cache
+    const patient = clean.includes('@')
+      ? ((await this.findPatientByEmail(clean)) || (await this.findPatientById(clean)))
+      : ((await this.findPatientById(clean)) || (await this.findPatientByEmail(clean)));
     if (patient) {
       const user = {
         id: patient.userId || `usr-${patient.patientId}`,
@@ -477,19 +542,109 @@ class CloudDatabaseEngine {
       return { user, patient };
     }
 
-    // 2. Try finding hospital account
+    // 2. Try finding hospital account in local cache
     const hospital = await this.findHospitalById(clean);
     if (hospital) {
       const user = {
         id: hospital.userId || `usr-hosp-${hospital.hospitalId}`,
         email: hospital.email || `admin@${(hospital.code || hospital.hospitalId).toLowerCase()}.in`,
-        password: 'Hospital@123',
+        password: hospital.password || 'Hospital@123',
         phone: hospital.phone || hospital.emergencyContact,
         fullName: hospital.hospitalName,
         role: 'HOSPITAL_ADMIN',
         createdAt: hospital.createdAt
       };
       return { user, hospital };
+    }
+
+    // 3. Query Central Cloud Store for universal cross-device resolution
+    try {
+      let centralData: any = null;
+      if (typeof window !== 'undefined' && window.location) {
+        try {
+          const apiRes = await fetch(`/api/auth?action=lookup&identifier=${encodeURIComponent(clean)}`, { cache: 'no-store' });
+          if (apiRes.ok) {
+            const json = await apiRes.json();
+            if (json && json.exists) {
+              const fullRes = await fetch(`/api/auth?action=sync`, { cache: 'no-store' });
+              if (fullRes.ok) {
+                const fullJson = await fullRes.json();
+                if (fullJson?.data) centralData = fullJson.data;
+              }
+            }
+          }
+        } catch {}
+      }
+
+      if (!centralData) {
+        const directRes = await fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508', { cache: 'no-store' });
+        if (directRes.ok) {
+          const directJson = await directRes.json();
+          if (directJson?.data) centralData = directJson.data;
+        }
+      }
+
+      if (centralData) {
+        const cleanLower = clean.toLowerCase();
+        const cleanAlpha = clean.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+
+        // Check users
+        const matchedUser = (centralData.users || []).find((u: any) => {
+          const uEmail = (u.email || '').trim().toLowerCase();
+          const uId = (u.id || '').trim().toLowerCase();
+          const uPatId = (u.patientId || '').trim().toLowerCase();
+          const uPatAlpha = uPatId.replace(/[^a-z0-9]/g, '');
+          const uPhone = (u.phone || '').replace(/[^0-9]/g, '');
+          return (
+            uEmail === cleanLower ||
+            uId === cleanLower ||
+            uPatId === cleanLower ||
+            (cleanAlpha.length >= 6 && uPatAlpha === cleanAlpha) ||
+            (cleanAlpha.length >= 10 && uPhone.endsWith(cleanAlpha.slice(-10)))
+          );
+        });
+
+        // Check patients
+        const matchedPat = (centralData.patients || []).find((p: any) => {
+          const pEmail = (p.email || '').trim().toLowerCase();
+          const pId = (p.patientId || '').trim().toLowerCase();
+          const pAlpha = pId.replace(/[^a-z0-9]/g, '');
+          const pAbha = (p.abhaId || '').trim().toLowerCase();
+          return (
+            pEmail === cleanLower ||
+            pId === cleanLower ||
+            (cleanAlpha.length >= 6 && pAlpha === cleanAlpha) ||
+            pAbha === cleanLower
+          );
+        });
+
+        if (matchedPat) {
+          this.handleIncomingCloudEvent({ type: 'SAVE_PATIENT', patient: matchedPat });
+          const userObj = matchedUser || {
+            id: matchedPat.userId || `usr-${matchedPat.patientId}`,
+            email: matchedPat.email || `${matchedPat.patientId.toLowerCase()}@patient.medibridge.in`,
+            password: matchedPat.password,
+            fullName: matchedPat.fullName,
+            role: 'PATIENT',
+            createdAt: matchedPat.createdAt
+          };
+          return { user: userObj, patient: matchedPat };
+        }
+
+        if (matchedUser) {
+          if (matchedUser.role === 'DOCTOR') {
+            const matchedDoc = (centralData.doctors || []).find((d: any) => d.userId === matchedUser.id || d.id === matchedUser.id);
+            return { user: matchedUser, doctor: matchedDoc };
+          }
+          if (matchedUser.role === 'HOSPITAL_ADMIN' || matchedUser.role === 'HOSPITAL') {
+            const matchedHosp = (centralData.hospitals || []).find((h: any) => h.userId === matchedUser.id || h.hospitalId === matchedUser.hospitalId);
+            return { user: matchedUser, hospital: matchedHosp };
+          }
+          return { user: matchedUser };
+        }
+      }
+    } catch (centralErr) {
+      console.warn('[CloudDB lookup central store]:', centralErr);
     }
 
     return undefined;
@@ -500,7 +655,13 @@ class CloudDatabaseEngine {
   // ==========================================
   public async getHospitals(): Promise<CloudHospitalRecord[]> {
     await this.syncAll();
-    return this.hospitalsCache;
+    return this.hospitalsCache.filter(h => {
+      const id = (h.hospitalId || h.id || '').toUpperCase();
+      const name = (h.hospitalName || '').toLowerCase();
+      const isFakeId = FAKE_HOSPITAL_IDS.some(f => f.toUpperCase() === id);
+      const isFakeName = FAKE_HOSPITAL_KEYWORDS.some(k => name.includes(k));
+      return !isFakeId && !isFakeName;
+    });
   }
 
   public async saveHospital(hospital: CloudHospitalRecord): Promise<boolean> {

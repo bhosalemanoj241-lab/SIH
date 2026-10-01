@@ -1,7 +1,10 @@
 import {
   ConversationMessage, ClinicalHistorySummary, SymptomEntry,
-  TriagePriority, LanguageCode, Allergy, Medication
+  TriagePriority, LanguageCode, Allergy, Medication, MedicalSystem,
+  DashavidhaPariksha, PhysicianShortReport, ClinicalSourceTag, ClinicalSession,
+  ConditionCategory, MedicineRecommendation, ClinicalTriageAssessment
 } from '../types';
+import { MedicineRecommendationService } from './medicineRecommendationService';
 
 export interface IntakePromptOption {
   text: string;
@@ -15,6 +18,9 @@ export interface IntakeAnalysisResult {
   isRedFlagTriggered: boolean;
   redFlagsDetected: string[];
   suggestedTriagePriority: TriagePriority;
+  conditionCategory?: ConditionCategory;
+  medicineRecommendations?: MedicineRecommendation[];
+  triageAssessment?: ClinicalTriageAssessment;
   extractedSymptom?: SymptomEntry;
   extractedAllergies?: Allergy[];
   extractedMedications?: Medication[];
@@ -464,14 +470,59 @@ export class AIIntakeEngine {
   public static analyzeInput(
     userInput: string,
     history: ConversationMessage[],
-    language: LanguageCode = 'en'
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    enableRedFlagDetection: boolean = true
   ): IntakeAnalysisResult {
-    const redFlagCheck = this.detectEmergencyRedFlags(userInput, history);
+    const rawResult = this._internalAnalyzeInput(userInput, history, language, medicalSystem, enableRedFlagDetection);
+    if (rawResult.isRedFlagTriggered || rawResult.conditionCategory === 'CRITICAL_EMERGENCY') {
+      return rawResult;
+    }
+
+    const triageAssessment = MedicineRecommendationService.evaluateTriageAndMedicines(userInput, history);
+    rawResult.conditionCategory = triageAssessment.category;
+    rawResult.triageAssessment = triageAssessment;
+
+    if (triageAssessment.category === 'CRITICAL_EMERGENCY') {
+      rawResult.isRedFlagTriggered = true;
+      rawResult.suggestedTriagePriority = 'RED';
+      rawResult.medicineRecommendations = [];
+      return rawResult;
+    }
+
+    if (triageAssessment.category === 'NORMAL_MINOR_ISSUE') {
+      rawResult.medicineRecommendations = triageAssessment.isMedicationRecommended ? (triageAssessment.medicines || []) : [];
+      rawResult.suggestedTriagePriority = 'GREEN';
+    } else if (triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED') {
+      rawResult.medicineRecommendations = [];
+      rawResult.suggestedTriagePriority = 'YELLOW';
+      const adv = MedicineRecommendationService.getLocalizedAdvisory(triageAssessment, language);
+      if (adv && !rawResult.nextBotMessage.includes('⚠️')) {
+        rawResult.nextBotMessage = `${adv}\n\n${rawResult.nextBotMessage}`;
+      }
+    }
+
+    return rawResult;
+  }
+
+  private static _internalAnalyzeInput(
+    userInput: string,
+    history: ConversationMessage[],
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    enableRedFlagDetection: boolean = true
+  ): IntakeAnalysisResult {
+    const redFlagCheck = enableRedFlagDetection
+      ? this.detectEmergencyRedFlags(userInput, history)
+      : { isRedFlag: false, redFlags: [], priority: 'GREEN' as TriagePriority };
+
+    const triageAssessment = MedicineRecommendationService.evaluateTriageAndMedicines(userInput, history);
+    const isCritical = redFlagCheck.isRedFlag || triageAssessment.category === 'CRITICAL_EMERGENCY';
 
     // ─────────────────────────────────────────────────────────────────────────
     // If Red Flag Emergency is Detected
     // ─────────────────────────────────────────────────────────────────────────
-    if (redFlagCheck.isRedFlag) {
+    if (isCritical) {
       const flagSummary = redFlagCheck.redFlags.join(', ');
 
       const emergencyMessages: Record<LanguageCode, string> = {
@@ -501,8 +552,11 @@ export class AIIntakeEngine {
         suggestedReplies: replies[language] || replies.en,
         isComplete: true,
         isRedFlagTriggered: true,
-        redFlagsDetected: redFlagCheck.redFlags,
+        redFlagsDetected: redFlagCheck.redFlags.length > 0 ? redFlagCheck.redFlags : ['Acute Emergency Symptoms Detected'],
         suggestedTriagePriority: 'RED',
+        conditionCategory: 'CRITICAL_EMERGENCY',
+        medicineRecommendations: [],
+        triageAssessment,
         detectedLanguage: language,
         translatedConcern: redFlagCheck.concernText
       };
@@ -512,6 +566,228 @@ export class AIIntakeEngine {
     // Adaptive Multi-Turn Intake Conversation
     // ─────────────────────────────────────────────────────────────────────────
     const patientTurns = history.filter(m => m.sender === 'PATIENT').length;
+
+    // ── AYUSH / AYURVEDA MODE DIALOGUE SEQUENCE ──────────────────────────────
+    if (medicalSystem === 'AYURVEDA') {
+      if (patientTurns === 0) {
+        const ayurQ1: Record<LanguageCode, string> = {
+          en: 'Pranam. In Ayurvedic intake: When did this begin? Do you notice dominant heat/acidity (Pitta), stiffness/dry pain (Vata), or heaviness/sluggishness/mucus (Kapha)?',
+          hi: 'प्रणाम। आयुर्वेदिक निदान हेतु: यह तकलीफ कब से शुरू हुई? क्या आपको जलन/अम्लपित्त/गर्मी (पित्त), दर्द/रूखापन/जकड़न (वात), या भारीपन/कफ (कफ) अधिक महसूस हो रहा है?',
+          mr: 'प्रणाम. आयुर्वेदिक निदानासाठी: हा त्रास कधीपासून सुरू झाला? तुम्हाला दाह/उष्णता (पित्त), वेदना/जकडणे (वात), की जडपणा/कफ (कफ) जाणवत आहे?',
+          ur: 'آداب۔ آیورویدک طبی معائنے کے لیے: کیا آپ کو جلن/گرمی، خشکی/درد، یا بھاری پن/سستی زیادہ محسوس ہو رہی ہے؟',
+          kn: 'ನಮಸ್ಕಾರ. ಆಯುರ್ವೇದ ಪರೀಕ್ಷೆಗೆ: ಉರಿ/ಶಾಖ (ಪಿತ್ತ), ನೋವು/ಒಣಗುವಿಕೆ (ವಾತ), ಅಥವಾ ಭಾರ/ಕಫ (ಕಫ) ಹೆಚ್ಚಾಗಿದೆಯೇ?',
+          gu: 'પ્રણામ. આયુર્વેદિક નિદાન માટે: તમને બળતરા/ગરમી (પિત્ત), દુખાવો/શુષ્કતા (વાત), કે ભારેપણું/કફ (કફ) અનુભવાય છે?',
+          ta: 'வணக்கம். ஆயுர்வேத பரிசோதனைக்கு: எரிச்சல்/உஷ்ணம் (பித்தம்), வலி/வறட்சி (வாதம்), அல்லது மந்தநிலை/கபம் உள்ளதா?',
+          bn: 'নমস্কার। আয়ুর্বেদিক মূল্যায়নের জন্য: আপনি কি জ্বালা/উত্তাপ (পিত্ত), ব্যথা/শুষ্কতা (বাত), নাকি ভারাক্রান্ত ভাব/কফ (কফ) অনুভব করছেন?'
+        };
+        const ayurR1: Record<LanguageCode, string[]> = {
+          en: [
+            'Burning acidity, sour belching & skin heat (Pitta Lakshana)',
+            'Joint stiffness, radiating dry aches & gas (Vata Lakshana)',
+            'Heaviness, morning sluggishness & mucus (Kapha Lakshana)',
+            'Intermittent colic pain with loss of appetite (Agni Mandya)'
+          ],
+          hi: [
+            'सीने में जलन, खट्टी डकारें व पित्त प्रकोप (पित्त)',
+            'जोड़ों में दर्द, अकड़न व गैस का दर्द (वात)',
+            'शरीर में भारीपन, कफ व आलस्य (कफ)',
+            'पेट में दर्द व भूख न लगना (अग्निमांद्य)'
+          ],
+          mr: [
+            'छातीत जळजळ, आंबट ढेकर व उष्णता (पित्त)',
+            'सांधेदुखी, जकडणे व वाताचा त्रास (वात)',
+            'अंगात जडपणा, कफ व सुस्ती (कफ)',
+            'पोटदुखी आणि अजिबात भूक न लागणे (अग्निमांद्य)'
+          ],
+          ur: ['سینے میں جلن اور کھٹی ڈکاریں', 'جوڑوں کا درد اور جکڑن', 'جسم میں بھاری پن اور بلغم', 'پیٹ درد اور بھوک کی کمی'],
+          kn: ['ಎದೆ ಉರಿ ಮತ್ತು ಹುಳಿ ತೇಗು', 'ಕೀಲು ನೋವು ಮತ್ತು ಸೆಳೆತ', 'ದೇಹದ ಭಾರ ಮತ್ತು ಜಡತ್ವ', 'ಹಸಿವಿಲ್ಲದಿರುವುದು ಮತ್ತು ಹೊಟ್ಟೆ ನೋವು'],
+          gu: ['છાતીમાં બળતરા અને ખાટા ઓડકાર', 'સાંધાનો દુખાવો અને જકડન', 'શરીરમાં ભારેપણું અને કફ', 'ભૂખ ન લાગવી અને પેટનો દુખાવો'],
+          ta: ['நெஞ்செரிச்சல் மற்றும் புளித்த ஏப்பம்', 'மூட்டு வலி மற்றும் வாத பிடிப்பு', 'உடல் பருமன் ಮತ್ತು கப மந்தம்', 'பசியின்மை மற்றும் வயிற்று வலி'],
+          bn: ['বুকে জ্বালা ও টক ঢেকুর', 'গাঁটে গাঁটে ব্যথা ও বাত', 'শরীরে ভারী ভাব ও কফ', 'ক্ষুধামন্দা ও পেটে ব্যথা']
+        };
+        return {
+          nextBotMessage: ayurQ1[language] || ayurQ1.en,
+          suggestedReplies: ayurR1[language] || ayurR1.en,
+          isComplete: false,
+          isRedFlagTriggered: false,
+          redFlagsDetected: [],
+          suggestedTriagePriority: 'YELLOW',
+          detectedLanguage: language
+        };
+      }
+
+      if (patientTurns === 1) {
+        const ayurQ2: Record<LanguageCode, string> = {
+          en: 'Crucial for Dashavidha Pariksha: How is your digestive capacity (Ahara Shakti) and metabolic fire (Agni)? Is your digestion sharp with intense acid reflux (Tikshnagni), irregular with gas/bloating (Vishamagni), or slow and heavy (Mandagni)?',
+          hi: 'दशविध परीक्षा हेतु: आपकी पाचन अग्नि (अग्नि) और भूख (आहार शक्ति) कैसी है? क्या बहुत तेज भूख व जलन है (तीक्ष्णाग्नि), अनियमित भूख व कब्ज (विषमाग्नि), या धीमी व भारी पाचन क्रिया (मंदाग्नि)?',
+          mr: 'दशविध परीक्षेसाठी: तुमची पचनशक्ती (अग्नी) आणि भूक कशी आहे? खूप जास्त भूक व अ‍ॅसिडिटी (तीक्ष्णाग्नी), अनियमित भूक व गॅस (विषमाग्नी), की मंद व जड पचन (मंदाग्नी)?',
+          ur: 'ہاضمے کی صلاحیت اور اشتہا کیسی ہے؟ کیا بہت تیز بھوک اور تیزابیت ہے، غیر متوازن ہاضمہ ہے، یا سست اور بھاری ہاضمہ ہے؟',
+          kn: 'ನಿಮ್ಮ ಜೀರ್ಣಶಕ್ತಿ (ಅಗ್ನಿ) ಹೇಗಿದೆ? ತೀವ್ರ ಹಸಿವು ಮತ್ತು ಆಮ್ಲೀಯತೆ (ತೀಕ್ಷ್ಣಾಗ್ನಿ), ಅನಿಶ್ಚಿತ ಹಸಿವು (ವಿಷಮಾಗ್ನಿ), ಅಥವಾ ನಿಧಾನಗತಿಯ ಜೀರ್ಣಕ್ರಿಯೆ (ಮಂದಾಗ್ನಿ)?',
+          gu: 'તમારી પાચન શક્તિ (અગ્નિ) કેવી છે? વધુ પડતી ભૂખ અને એસિડિટી (તીક્ષ્ણાગ્નિ), અનિયમિત ભૂખ (વિષમાગ્નિ), કે મંદ પાચન (મંદાગ્નિ)?',
+          ta: 'உங்கள் செரிமான சக்தி (அக்னி) எவ்வாறு உள்ளது? தீவிர பசி மற்றும் அமிலத்தன்மை, ஒழுங்கற்ற செரிமானம், அல்லது மந்தமான செரிமானமா?',
+          bn: 'আপনার হজম ক্ষমতা (অগ্নি) কেমন? তীব্র ক্ষুধা ও অ্যাসিডিটি (তীক্ষ্ণাগ্নি), অনিয়মিত ক্ষুধা (বিষমাগ্নি), নাকি ধীরগতির হজম (মন্দাগ্নি)?'
+        };
+        const ayurR2: Record<LanguageCode, string[]> = {
+          en: [
+            'Mandagni: Sluggish digestion, feeling heavy 5-6 hours after food',
+            'Tikshnagni: Sharp intense hunger, acidity & irritability',
+            'Vishamagni: Variable appetite, bloating, gas & irregular bowels',
+            'Samagni: Normal balanced digestion and regular morning evacuation'
+          ],
+          hi: [
+            'मंदाग्नि: भोजन के बाद 5-6 घंटे भारीपन व अपच',
+            'तीक्ष्णाग्नि: तेज़ भूख, खाना देर होने पर सिरदर्द व एसिडिटी',
+            'विषमाग्नि: कभी भूख लगती है कभी नहीं, पेट में गैस व कब्ज',
+            'समाग्नि: सामान्य पाचन और नियमित पेट साफ'
+          ],
+          mr: [
+            'मंदाग्नी: जेवणानंतर ५-६ तास पोट जड वाटणे व अपचन',
+            'तीक्ष्णाग्नी: तीव्र भूक, जेवणास उशीर झाल्यास डोकेदुखी व पित्त',
+            'विषमाग्नी: कधी भूक लागते कधी नाही, गॅस व बद्धकोष्ठता',
+            'समाग्नी: नियमित पचन आणि पोट व्यवस्थित साफ'
+          ],
+          ur: ['کھانے کے بعد کافی دیر تک بھاری پن اور بدہضمی', 'تیز بھوک اور تیزابیت', 'کبھی بھوک کبھی نہیں، گیس اور قبض', 'معمول کا متوازن ہاضمہ'],
+          kn: ['ಊಟದ ನಂತರ ಹೊಟ್ಟೆ ಭಾರ ಮತ್ತು ಅಜೀರ್ಣ', 'ತೀವ್ರ ಹಸಿವು ಮತ್ತು ಎದೆ ಉರಿ', 'ಅನಿಶ್ಚಿತ ಹಸಿವು ಮತ್ತು ಗ್ಯಾಸ್', 'ಸಮತೋಲಿತ ಸಾಮಾನ್ಯ ಜೀರ್ಣಕ್ರಿಯೆ'],
+          gu: ['જમ્યા પછી ભારેપણું અને અપચો', 'તીવ્ર ભૂખ અને એસિડિટી', 'અનિયમિત ભૂખ અને ગેસ', 'સામાન્ય સંતુલિત પાચન'],
+          ta: ['உணவுக்குப் பின் கனமான உணர்வு மற்றும் அஜீரணம்', 'அதிக பசி மற்றும் நெஞ்செரிச்சல்', 'ஒழுங்கற்ற பசி மற்றும் வாயு தொல்லை', 'சீரான செரிமானம்'],
+          bn: ['খাওয়ার পর পেট ভার ও বদহজম', 'তীব্র ক্ষুধা ও অম্লপিত্ত', 'অনিয়মিত ক্ষুধা ও পেটে গ্যাস', 'স্বাভাবিক ভারসাম্যপূর্ণ হজম']
+        };
+        return {
+          nextBotMessage: ayurQ2[language] || ayurQ2.en,
+          suggestedReplies: ayurR2[language] || ayurR2.en,
+          isComplete: false,
+          isRedFlagTriggered: false,
+          redFlagsDetected: [],
+          suggestedTriagePriority: 'YELLOW',
+          detectedLanguage: language
+        };
+      }
+
+      if (patientTurns === 2) {
+        const ayurQ3: Record<LanguageCode, string> = {
+          en: 'To evaluate physical endurance (Vyayama Shakti) and mental resilience (Sattva): How is your stamina during physical activity, sleep quality (Nidra), and daily dietary habits (Ahara-Vihara)?',
+          hi: 'शारीरिक कार्यक्षमता (व्यायाम शक्ति) व मानसिक दृढ़ता (सत्त्व) के लिए: परिश्रम पर आपकी सहनशक्ति कैसी है? नींद (निद्रा) और दैनिक खानपान (आहार-विहार) कैसा है?',
+          mr: 'शारीरिक कार्यक्षमता (व्यायाम शक्ती) व मानसिक ताकद (सत्त्व): हालचालींवर दम लागतो का? झोप (निद्रा) आणि दैनंदिन दिनचर्या (आहार-विहार) कशी आहे?',
+          ur: 'آپ کی جسمانی برداشت، نیند کا معیار اور روزمرہ خوراک و طرز زندگی کیسی ہے؟',
+          kn: 'ನಿಮ್ಮ ದೈಹಿಕ ಸಾಮರ್ಥ್ಯ (ವ್ಯಾಯಾಮ ಶಕ್ತಿ), ನಿದ್ರೆಯ ಗುಣಮಟ್ಟ ಮತ್ತು ದೈನಂದಿನ ಆಹಾರ ಪದ್ಧತಿ ಹೇಗಿದೆ?',
+          gu: 'તમારી શારીરિક શક્તિ (વ્યાયામ શક્તિ), ઊંઘની ગુણવત્તા અને દૈનિક ખાનપાનની આદતો કેવી છે?',
+          ta: 'உங்கள் உடற்பயிற்சி திறன் (வியாயாம சக்தி), தூக்கத்தின் தரம் மற்றும் தினசரி வாழ்க்கை முறை எவ்வாறு உள்ளது?',
+          bn: 'আপনার শারীরিক সহনশীলতা (ব্যায়াম শক্তি), ঘুমের ধরন এবং দৈনন্দিন খাদ্যাভ্যাস ও জীবনযাত্রা কেমন?'
+        };
+        const ayurR3: Record<LanguageCode, string[]> = {
+          en: [
+            'Low stamina, tires easily, disturbed light sleep, high work stress',
+            'Moderate stamina, sound sleep of 7-8 hours, balanced routine',
+            'Sedentary lifestyle, heavy deep sleep, irregular late night meals',
+            'Regular yoga/exercise, but shift work disrupts sleep'
+          ],
+          hi: [
+            'कम सहनशक्ति, जल्दी थकान, कच्ची नींद व मानसिक तनाव',
+            'मध्यम शक्ति, 7-8 घंटे अच्छी नींद व संतुलित दिनचर्या',
+            'बैठकर काम करना, देर रात भोजन व भारी नींद',
+            'नियमित योग व व्यायाम, लेकिन काम के कारण अनियमित नींद'
+          ],
+          mr: [
+            'कमी ताकद, लवकर थकवा, अपुरी झोप आणि मानसिक ताण',
+            'मध्यम ताकद, ७-८ तास शांत झोप आणि संतुलित दिनचर्या',
+            'बैठे काम, रात्री उशिरा जेवण आणि जड झोप',
+            'नियमित योगासने, परंतु कामाच्या वेळेमुळे अनियमित दिनचर्या'
+          ],
+          ur: ['کم قوت برداشت، جلد تھکن، کچی نیند اور ذہنی تناؤ', 'معتدل قوت، ۷-۸ گھنٹے پرسکون نیند', 'بیٹھ کر کام کرنا اور دیر رات کھانا', 'باقاعدہ ورزش مگر بے قاعدہ نیند'],
+          kn: ['ಕಡಿಮೆ ಸಹಿಷ್ಣುತೆ, ಬೇಗ ದಣಿವು ಮತ್ತು ಅಸಮರ್ಪಕ ನಿದ್ರೆ', 'ಮಧ್ಯಮ ಶಕ್ತಿ, ೭-೮ ಗಂಟೆಗಳ ಉತ್ತಮ ನಿದ್ರೆ', 'ಕುಳಿತು ಕೆಲಸ, ತಡರಾತ್ರಿ ಊಟ', 'ದಿನನಿತ್ಯದ ಯೋಗ, ಆದರೆ ಪಾಳಿ ಕೆಲಸದ ನಿದ್ರಾಭಂಗ'],
+          gu: ['ઓછી સહનશક્તિ, જલ્દી થાક અને અનિદ્રા', 'મધ્યમ શક્તિ, ૭-૮ કલાક સારી ઊંઘ', 'બેઠા બેઠા કામ અને મોડી રાત્રે ભોજન', 'નિયમિત યોગ પરંતુ અનિયમિત દિનચર્યા'],
+          ta: ['குறைந்த சகிப்புத்தன்மை, எளிதில் சோர்வு மற்றும் தூக்கமின்மை', 'மிதமான பலம், 7-8 மணிநேர நல்ல தூக்கம்', 'உட்கார்ந்த வேலை மற்றும் இரவு தாமதமான உணவு', 'வழக்கமான யோகா, ஆனால் ஒழுங்கற்ற தூக்கம்'],
+          bn: ['কম সহনশীলতা, দ্রুত ক্লান্তি ও অস্থির ঘুম', 'মাঝারি শক্তি, ৭-৮ ঘণ্টা ভালো ঘুম', 'বসে কাজ, দেরিতে রাতের খাবার খাওয়া', 'নিয়মিত যোগব্যায়াম, কিন্তু অনিয়মিত রুটিন']
+        };
+        return {
+          nextBotMessage: ayurQ3[language] || ayurQ3.en,
+          suggestedReplies: ayurR3[language] || ayurR3.en,
+          isComplete: false,
+          isRedFlagTriggered: false,
+          redFlagsDetected: [],
+          suggestedTriagePriority: 'YELLOW',
+          detectedLanguage: language
+        };
+      }
+
+      if (patientTurns === 3) {
+        const ayurQ4: Record<LanguageCode, string> = {
+          en: 'For Dashavidha mapping & safety: What is your primary body constitution (Prakriti), are you taking any regular herbs/medicines, and do you have any allergies?',
+          hi: 'दशविध परीक्षा व सुरक्षा हेतु: आपकी शारीरिक प्रकृति (वात-पित्त-कफ) क्या है? क्या आप नियमित दवाइयां ले रहे हैं और कोई एलर्जी तो नहीं है?',
+          mr: 'दशविध परीक्षेसाठी: तुमची शारीरिक प्रकृती (वात-पित्त-कफ) कोणती? तुम्ही नियमित कोणती औषधे घेता आणि कसली अ‍ॅलर्जी आहे का?',
+          ur: 'طبی حفاظت کے لیے: آپ کا جسمانی مزاج کیا ہے؟ کیا آپ باقاعدہ دوائیں لے رہے ہیں اور کوئی الرجی ہے؟',
+          kn: 'ಅಂತಿಮ ಹಂತ: ನಿಮ್ಮ ಶಾರೀರಿಕ ಪ್ರಕೃತಿ ಯಾವುದು? ನೀವು ನಿಯಮಿತವಾಗಿ ಯಾವುದೇ ಔಷಧಿ ತೆಗೆದುಕೊಳ್ಳುತ್ತಿದ್ದೀರಾ ಮತ್ತು ಅಲರ್ಜಿ ಇದೆಯೇ?',
+          gu: 'અંતિમ પગલું: તમારી શારીરિક પ્રકૃતિ કઈ છે? તમે કોઈ નિયમિત દવા લો છો અને કોઈ એલર્જી છે?',
+          ta: 'இறுதி படி: உங்கள் உடல் பிரகிருதி என்ன? வழக்கமான மருந்துகள் ஏதேனும் உட்கொள்கிறீர்களா மற்றும் ஒவ்வாமை உள்ளதா?',
+          bn: 'চূড়ান্ত পদক্ষেপ: আপনার শারীরিক প্রকৃতি কী? আপনি কি কোনো ওষুধ খান এবং কোনো অ্যালার্জি আছে?'
+        };
+        const ayurR4: Record<LanguageCode, string[]> = {
+          en: [
+            'Vata-Pitta Prakriti, taking Triphala & BP medication, No known allergies',
+            'Pitta-Kapha Prakriti, taking Metformin, allergic to Penicillin',
+            'Pure Vata Prakriti, sensitive to cold winds, No regular medications',
+            'Kapha Prakriti, taking Ayurvedic digestives, NKDA'
+          ],
+          hi: [
+            'वात-पित्त प्रकृति, त्रिफला व बीपी की दवा, कोई एलर्जी नहीं',
+            'पित्त-कफ प्रकृति, शुगर की दवा, पेनिसिलिन से एलर्जी',
+            'शुद्ध वात प्रकृति, ठंडी हवा से परेशानी, कोई दवा नहीं',
+            'कफ प्रकृति, पाचन हेतु आयुर्वेदिक चूर्ण लेते हैं'
+          ],
+          mr: [
+            'वात-पित्त प्रकृती, त्रिफळा व बीपीचे औषध, कसलीही अ‍ॅलर्जी नाही',
+            'पित्त-कफ प्रकृती, मधुमेहाचे औषध, पेनिसिलिन अ‍ॅलर्जी',
+            'शुद्ध वात प्रकृती, थंडीचा त्रास होतो, औषध नाही',
+            'कफ प्रकृती, पचनासाठी आयुर्वेदिक चूर्ण घेतो'
+          ],
+          ur: ['وات پت مزاج، ترپھلا اور بی پی کی دوا، کوئی الرجی نہیں', 'پت کف مزاج، شوگر کی دوا، پینسلین سے الرجی', 'صرف وات مزاج، کوئی دوا नहीं', 'کف مزاج، ہاضمے کا چورن لیتے ہیں'],
+          kn: ['ವಾತ-ಪಿತ್ತ ಪ್ರಕೃತಿ, ತ್ರಿಫಲಾ ಚೂರ್ಣ ಮತ್ತು ಬಿಪಿ ಔಷಧಿ, ಯಾವುದೇ ಅಲರ್ಜಿ ಇಲ್ಲ', 'ಪಿತ್ತ-ಕಫ ಪ್ರಕೃತಿ, ಸಕ್ಕರೆ ಕಾಯಿಲೆ ಔಷಧಿ, ಪೆನಿಸಿಲಿನ್ ಅಲರ್ಜಿ', 'ಶುದ್ಧ ವಾತ ಪ್ರಕೃತಿ, ಯಾವುದೇ ಔಷಧಿ ಇಲ್ಲ', 'ಕಫ ಪ್ರಕೃತಿ, ಆಯುರ್ವೇದ ಚೂರ್ಣ ಬಳಕೆದಾರ'],
+          gu: ['વાત-પિત્ત પ્રકૃતિ, ત્રિફળા અને બીપીની દવા, કોઈ એલર્જી નથી', 'પિત્ત-કફ પ્રકૃતિ, ડાયાબિટીસની દવા, પેનિસિલિનથી એલર્જી', 'શુદ્ધ વાત પ્રકૃતિ, કોઈ દવા નથી', 'કફ પ્રકૃતિ, પાચન માટે આયુર્વેદિક ચૂર્ણ લઉં છું'],
+          ta: ['வாத-பித்த பிரகிருதி, திரிபலா மற்றும் பிபி மருந்து, ஒவ்வாமை இல்லை', 'பித்த-கப பிரகிருதி, நீரிழிவு மருந்து, பெனிசிலின் ஒவ்வாமை', 'சுத்த வாத பிரகிருதி, மருந்து இல்லை', 'கப பிரகிருதி, செரிமான சூரணம் உட்கொள்கிறேன்'],
+          bn: ['বাত-পিত্ত প্রকৃতি, ত্রিফলা ও বিপি-র ওষুধ, কোনো অ্যালার্জি নেই', 'পিত্ত-কফ প্রকৃতি, ডায়াবেটিসের ওষুধ, পেনিসিলিনে অ্যালার্জি', 'বিশুদ্ধ বাত প্রকৃতি, কোনো ওষুধ খাই না', 'কফ প্রকৃতি, হজমের আয়ুর্বেদিক চূর্ণ খাই']
+        };
+        return {
+          nextBotMessage: ayurQ4[language] || ayurQ4.en,
+          suggestedReplies: ayurR4[language] || ayurR4.en,
+          isComplete: false,
+          isRedFlagTriggered: false,
+          redFlagsDetected: [],
+          suggestedTriagePriority: 'YELLOW',
+          detectedLanguage: language
+        };
+      }
+
+      // AYUSH Turn >= 4: Conclude Ayurvedic Intake
+      const ayurDoneMsg: Record<LanguageCode, string> = {
+        en: '✅ **Ayurvedic Case-Taking Complete**: Your comprehensive **Dashavidha Pariksha** (Prakriti, Vikriti, Sara, Samhanana, Pramana, Satmya, Sattva, Ahara Shakti, Vyayama Shakti, Vaya) and Ahara-Vihara report has been synthesized for your Vaidya review.',
+        hi: '✅ **आयुर्वेदिक केस-टेकिंग पूर्ण**: आपकी **दशविध परीक्षा** (प्रकृति, विकृति, सार, संहनन, प्रमाण, सात्म्य, सत्त्व, आहार शक्ति, व्यायाम शक्ति, वय) और आहार-विहार का संपूर्ण सारांश आपके वैद्य जी के लिए तैयार कर दिया गया है।',
+        mr: '✅ **आयुर्वेदिक केस संकलन पूर्ण**: तुमची **दशविध परीक्षा** (प्रकृती, विकृती, सार, संहनन, प्रमाण, सात्म्य, सत्त्व, आहार शक्ती, व्यायाम शक्ती, वय) आणि आहार-विहार क्लिनिकल सारांश वैद्यांच्या पडताळणीसाठी तयार झाला आहे.',
+        ur: '✅ **آیورویدک کیس ٹیکنگ مکمل**: آپ کی دس ودھ پریکشا اور خوراک و طرز زندگی کا خلاصہ وید کے لیے تیار کر دیا گیا ہے۔',
+        kn: '✅ **ಆಯುರ್ವೇದ ಕೇಸ್-ಟೇಕಿಂಗ್ ಪೂರ್ಣಗೊಂಡಿದೆ**: ನಿಮ್ಮ **ದಶವಿಧ ಪರೀಕ್ಷಾ** ಮತ್ತು ಆಹಾರ-ವಿಹಾರ ಸಾರಾಂಶವನ್ನು ವೈದ್ಯರ ಪರಿಶೀಲನೆಗಾಗಿ ಸಿದ್ಧಪಡಿಸಲಾಗಿದೆ.',
+        gu: '✅ **આયુર્વેદિક કેસ-ટેકિંગ પૂર્ણ**: તમારો **દશવિધ પરીક્ષા** અને આહાર-વિહાર સારાંશ વૈદ્યની ચકાસણી માટે તૈયાર કરવામાં આવ્યો છે.',
+        ta: '✅ **ஆயுர்வேத கிளினிக்கல் சுருக்கம் முடிந்தது**: உங்கள் **தசவித பரீட்சை** மற்றும் ஆகார-விஹார சுருக்கம் ஆயுர்வேத மருத்துவருக்காகத் தயாரிக்கப்பட்டுள்ளது.',
+        bn: '✅ **আয়ুর্বেদিক কেস-টেকিং সম্পন্ন**: আপনার **দশবিধ পরীক্ষা** এবং আহার-বিহারের সম্পূর্ণ ক্লিনিকাল সারাংশ প্রস্তুত করা হয়েছে।'
+      };
+      const ayurDoneReplies: Record<LanguageCode, string[]> = {
+        en: ['View Ayurvedic Clinical Summary Report', 'Upload Ayurvedic Prescriptions / Scans', 'Book Vaidya Appointment'],
+        hi: ['आयुर्वेदिक सारांश देखें', 'दस्तावेज़ अपलोड करें', 'वैद्य अपॉइंटमेंट बुक करें'],
+        mr: ['आयुर्वेदिक सारांश पहा', 'कागदपत्रे जोडा', 'वैद्य अपॉइंटमेंट बुक करा'],
+        ur: ['خلاصہ دیکھیں', 'دستاویزات اپ لوڈ کریں', 'اپوائنٹمنٹ بک کریں'],
+        kn: ['ಆಯುರ್ವೇದ ಸಾರಾಂಶ ವೀಕ್ಷಿಸಿ', 'ದಾಖಲೆಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ', 'ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ ಬುಕ್ ಮಾಡಿ'],
+        gu: ['આયુર્વેદિક સારાંશ જુઓ', 'દસ્તાવેજો અપલોડ કરો', 'એપોઇન્ટમેન્ટ બુક કરો'],
+        ta: ['சுருக்கத்தைப் பார்க்கவும்', 'ஆவணங்களைப் பதிவேற்றவும்', 'முன்பதிவு செய்யவும்'],
+        bn: ['আয়ুর্বেদিক সারাংশ দেখুন', 'ডকুমেন্ট আপলোড করুন', 'অ্যাপয়েন্টমেন্ট বুক করুন']
+      };
+      return {
+        nextBotMessage: ayurDoneMsg[language] || ayurDoneMsg.en,
+        suggestedReplies: ayurDoneReplies[language] || ayurDoneReplies.en,
+        isComplete: true,
+        isRedFlagTriggered: false,
+        redFlagsDetected: [],
+        suggestedTriagePriority: 'YELLOW',
+        detectedLanguage: language
+      };
+    }
 
     // Turn 1: Assess Onset & Duration
     if (patientTurns === 0) {
@@ -641,20 +917,160 @@ export class AIIntakeEngine {
       bn: ['সারাংশ দেখুন', 'ডকুমেন্ট আপলোড করুন', 'টাইমলাইন দেখুন']
     };
 
+    const advisory = MedicineRecommendationService.getLocalizedAdvisory(triageAssessment, language);
+    const finalBotMsg = advisory
+      ? `${advisory}\n\n${conclusionMessages[language] || conclusionMessages.en}`
+      : (conclusionMessages[language] || conclusionMessages.en);
+
     return {
-      nextBotMessage: conclusionMessages[language] || conclusionMessages.en,
+      nextBotMessage: finalBotMsg,
       suggestedReplies: conclusionReplies[language] || conclusionReplies.en,
       isComplete: true,
       isRedFlagTriggered: false,
       redFlagsDetected: [],
-      suggestedTriagePriority: 'YELLOW',
+      suggestedTriagePriority: triageAssessment.category === 'SPECIALIZED_DOCTOR_REQUIRED' ? 'YELLOW' : 'GREEN',
+      conditionCategory: triageAssessment.category,
+      medicineRecommendations: triageAssessment.category === 'NORMAL_MINOR_ISSUE' ? (triageAssessment.medicines || []) : [],
+      triageAssessment,
       detectedLanguage: language
     };
   }
 
   /**
+   * Asynchronous LLM-backed Clinical Intake Analyzer
+   * Calls /api/ai-intake to interact with Gemini / Groq / OpenAI with intelligent context awareness
+   */
+  public static async analyzeInputAsync(
+    input: string,
+    history: ConversationMessage[],
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    isRedFlagDetectionEnabled: boolean = true,
+    patientProfile?: any
+  ): Promise<IntakeAnalysisResult> {
+    try {
+      const res = await fetch('/api/ai-intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'chat',
+          currentMessage: input,
+          messages: history.map(m => ({ sender: m.sender, text: m.text, language: m.language, timestamp: m.timestamp })),
+          language,
+          medicalSystem,
+          isRedFlagDetectionEnabled,
+          patientProfile
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          return {
+            nextBotMessage: data.nextBotMessage,
+            suggestedReplies: data.suggestedReplies || [],
+            isComplete: Boolean(data.isComplete),
+            isRedFlagTriggered: Boolean(data.isRedFlagTriggered),
+            redFlagsDetected: data.redFlagsDetected || [],
+            suggestedTriagePriority: data.suggestedTriagePriority || (data.isRedFlagTriggered ? 'RED' : 'GREEN'),
+            conditionCategory: data.conditionCategory,
+            medicineRecommendations: data.medicineRecommendations,
+            triageAssessment: data.triageAssessment,
+            detectedLanguage: data.detectedLanguage || language,
+            translatedConcern: data.translatedConcern
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[AIIntakeEngine.analyzeInputAsync fetch fallback]:', err);
+    }
+
+    // Fallback to local synchronous engine if network/API unavailable
+    return this.analyzeInput(input, history, language, medicalSystem, isRedFlagDetectionEnabled);
+  }
+
+  /**
+   * Asynchronous Physician-Ready Short Report Generator via LLM
+   */
+  public static async generateStructuredSummaryAsync(
+    sessionId: string,
+    patientId: string,
+    history: ConversationMessage[],
+    patientProfile?: any,
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    encounterId?: string,
+    appointmentId?: string
+  ): Promise<{ summary: ClinicalHistorySummary; shortReport: PhysicianShortReport }> {
+    try {
+      const res = await fetch('/api/ai-intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_report',
+          sessionId,
+          patientId,
+          encounterId: encounterId || appointmentId || `enc-${Date.now()}`,
+          appointmentId: appointmentId || `apt-${Date.now()}`,
+          messages: history.map(m => ({ sender: m.sender, text: m.text, language: m.language, timestamp: m.timestamp })),
+          language,
+          medicalSystem,
+          patientProfile
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.summary && data.shortReport) {
+          return { summary: data.summary, shortReport: data.shortReport };
+        }
+      }
+    } catch (err) {
+      console.warn('[AIIntakeEngine.generateStructuredSummaryAsync fetch fallback]:', err);
+    }
+
+    // Fallback to local deterministic generator
+    const chiefMsg = history.find(m => m.sender === 'PATIENT')?.text || 'Patient reported symptoms.';
+    const fullHistory = history.map(m => `${m.sender}: ${m.text}`).join('\n');
+    const summary = this.generateStructuredSummary(
+      sessionId,
+      patientId,
+      chiefMsg,
+      fullHistory,
+      patientProfile?.allergies?.map((a: string) => ({ allergen: a, type: 'OTHER' as const, reaction: 'Documented in profile', severity: 'MODERATE' as const })) || [],
+      patientProfile?.currentMedications?.map((m: string) => ({ name: m, dosage: 'Daily', frequency: 'Regular', route: 'Oral', isActive: true })) || [],
+      language,
+      medicalSystem,
+      encounterId,
+      appointmentId,
+      patientProfile
+    );
+    return { summary, shortReport: summary.shortReport! };
+  }
+
+  /**
+   * Replicates completed session across devices via persistent cloud registry
+   */
+  public static async saveSessionToCloud(session: ClinicalSession): Promise<boolean> {
+    try {
+      const res = await fetch('/api/ai-intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_report',
+          session
+        })
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('[AIIntakeEngine.saveSessionToCloud error]:', err);
+      return false;
+    }
+  }
+
+  /**
    * Generates a structured clinical history summary preserving original statement,
-   * language metadata, and standardized clinical findings.
+   * language metadata, standardized clinical findings, and PhysicianShortReport with SOURCE TRANSPARENCY.
    */
   public static generateStructuredSummary(
     sessionId: string,
@@ -663,67 +1079,219 @@ export class AIIntakeEngine {
     historyText: string,
     allergies: Allergy[] = [],
     medications: Medication[] = [],
-    language: LanguageCode = 'en'
+    language: LanguageCode = 'en',
+    medicalSystem: MedicalSystem = 'ALLOPATHY',
+    encounterId?: string,
+    appointmentId?: string,
+    patientProfile?: any
   ): ClinicalHistorySummary {
-    const isPenicillinAllergic = allergies.some(a => a.allergen.toLowerCase().includes('penicillin')) ||
-      historyText.toLowerCase().includes('penicillin') || historyText.toLowerCase().includes('पेनिसिलिन');
+    const lower = (historyText + ' ' + chiefComplaint).toLowerCase();
+
+    // Actual duration extraction
+    let duration = '2-3 days';
+    const durationMatch = lower.match(/(\d+\s*(?:days?|din|divas|weeks?|hafta|months?|mahina|hours?|ghante|years?))/i) ||
+      lower.match(/(today|aaj|yesterday|kal|since yesterday|parso)/i);
+    if (durationMatch) {
+      duration = durationMatch[0];
+    }
+
+    // Actual severity extraction
+    let severity = 'Moderate';
+    let painScore = 5;
+    if (/severe|acute|bohot tez|khup jast|extreme|8\/10|9\/10|10\/10/i.test(lower)) {
+      severity = 'Severe (8/10)';
+      painScore = 8;
+    } else if (/mild|thoda|halka|2\/10|3\/10/i.test(lower)) {
+      severity = 'Mild (3/10)';
+      painScore = 3;
+    }
+
+    // Actual onset extraction
+    const onset = /sudden|achanak|ekdum/i.test(lower) ? 'Sudden' : 'Gradual';
+
+    // Extracted medical history from conversation + patient profile
+    const existingConditions: string[] = [];
+    if (/diabet|sugar|madhumeh/i.test(lower)) existingConditions.push('Type 2 Diabetes Mellitus');
+    if (/bp|hypertension|blood pressure/i.test(lower)) existingConditions.push('Essential Hypertension');
+    if (/asthma|dama|inhaler/i.test(lower)) existingConditions.push('Bronchial Asthma');
+    if (/thyroid/i.test(lower)) existingConditions.push('Hypothyroidism');
+    if (patientProfile?.chronicConditions && Array.isArray(patientProfile.chronicConditions)) {
+      patientProfile.chronicConditions.forEach((c: string) => {
+        if (!existingConditions.includes(c)) existingConditions.push(c);
+      });
+    }
+
+    // Extracted medications from conversation + patient profile
+    const extractedMeds: Medication[] = [...medications];
+    if (/metformin|glycomet/i.test(lower) && !extractedMeds.some(m => m.name.toLowerCase().includes('metformin'))) {
+      extractedMeds.push({ name: 'Tab Metformin 500mg', dosage: '500mg', frequency: 'Twice daily', route: 'Oral', isActive: true, indication: 'Type 2 Diabetes' });
+    }
+    if (/paracetamol|crocin|dolo/i.test(lower) && !extractedMeds.some(m => m.name.toLowerCase().includes('paracetamol'))) {
+      extractedMeds.push({ name: 'Tab Paracetamol 650mg', dosage: '650mg', frequency: 'As needed', route: 'Oral', isActive: true, indication: 'Antipyretic/Analgesic' });
+    }
+    if (patientProfile?.currentMedications && Array.isArray(patientProfile.currentMedications)) {
+      patientProfile.currentMedications.forEach((m: string) => {
+        if (!extractedMeds.some(em => em.name.toLowerCase().includes(m.toLowerCase()))) {
+          extractedMeds.push({ name: m, dosage: 'Daily', frequency: 'Regular', route: 'Oral', isActive: true });
+        }
+      });
+    }
+
+    // Extracted allergies
+    const extractedAllergies: Allergy[] = [...allergies];
+    const isPenicillinAllergic = lower.includes('penicillin') || lower.includes('पेनिसिलिन');
+    if (isPenicillinAllergic && !extractedAllergies.some(a => a.allergen.toLowerCase().includes('penicillin'))) {
+      extractedAllergies.push({ allergen: 'Penicillin', type: 'DRUG', reaction: 'Hypersensitivity reported', severity: 'SEVERE_ANAPHYLACTIC' });
+    }
+    if (patientProfile?.allergies && Array.isArray(patientProfile.allergies)) {
+      patientProfile.allergies.forEach((a: string) => {
+        if (!extractedAllergies.some(ea => ea.allergen.toLowerCase().includes(a.toLowerCase()))) {
+          extractedAllergies.push({ allergen: a, type: 'OTHER', reaction: 'Documented in profile', severity: 'MODERATE' });
+        }
+      });
+    }
+
+    // Ayurvedic Dashavidha Pariksha evaluation
+    let dashavidha: DashavidhaPariksha | undefined = undefined;
+    if (medicalSystem === 'AYURVEDA') {
+      const isVata = lower.includes('vata') || lower.includes('वात') || lower.includes('stiff') || lower.includes('pain') || lower.includes('joint');
+      const isPitta = lower.includes('pitta') || lower.includes('पित्त') || lower.includes('burn') || lower.includes('acid') || lower.includes('heat');
+      const isKapha = lower.includes('kapha') || lower.includes('कफ') || lower.includes('heavy') || lower.includes('mucus');
+
+      dashavidha = {
+        prakriti: isPitta && isVata ? 'Vata-Pitta (Dwandwaja)' : isPitta ? 'Pitta-Kapha (Dwandwaja)' : isVata ? 'Vata Pradhana' : isKapha ? 'Kapha Pradhana' : 'Sama Prakriti',
+        vikriti: isPitta ? 'Pitta Vitiation with Ushna-Tikshna Guna' : isVata ? 'Vata Prakopa with Ruksha Guna' : 'Kapha Dushti with Guru Guna',
+        sara: 'Madhyama Sara (Balanced Tissue Essence)',
+        samhanana: 'Madhyama Samhanana (Moderate Compactness)',
+        pramana: 'Pramana Yukta (Normal Proportions)',
+        satmya: 'Mishra Satmya (Diverse Nutrition)',
+        sattva: 'Madhyama Sattva (Moderate Resilience)',
+        aharaShakti: isPitta ? 'Tikshnagni' : isVata ? 'Vishamagni' : 'Mandagni',
+        vyayamaShakti: 'Madhyama Vyayama Shakti',
+        vaya: 'Madhyama Vaya (Adult)',
+        aharaViharaNotes: 'Reports irregular meal intervals and varied circadian sleep schedules.'
+      };
+    }
+
+    // Construct 3 to 6 concise physician summary sentences
+    const summarySentences = [
+      `Patient (${patientId}, ${patientProfile?.age || 35}y ${patientProfile?.gender || 'Male'}) presented via MediBridge pre-arrival intake with chief complaint of: ${chiefComplaint || 'Consultation requested'}.`,
+      `Symptom onset is reported as ${onset.toLowerCase()} with a duration of ${duration}, self-assessed as ${severity}.`,
+      existingConditions.length > 0
+        ? `Documented medical history includes ${existingConditions.join(', ')}.`
+        : 'Patient reports no major prior chronic medical conditions.',
+      extractedMeds.length > 0
+        ? `Reported active medications: ${extractedMeds.map(m => m.name).join(', ')}.`
+        : 'No regular prescription medications reported.',
+      extractedAllergies.length > 0
+        ? `Known allergies documented: ${extractedAllergies.map(a => a.allergen).join(', ')}.`
+        : 'No known drug or environmental allergies reported (NKDA).',
+      'Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.'
+    ];
+
+    const shortReport: PhysicianShortReport = {
+      patientId,
+      age: patientProfile?.age || 35,
+      gender: patientProfile?.gender || 'Male',
+      encounterDate: new Date().toISOString().split('T')[0],
+      encounterId: encounterId || appointmentId || `enc-${Date.now()}`,
+      appointmentId,
+      chiefComplaint: {
+        mainReason: chiefComplaint || 'Patient consultation intake',
+        source: 'PATIENT REPORTED'
+      },
+      symptoms: {
+        importantSymptoms: [chiefComplaint || 'Primary Symptom'],
+        duration,
+        severity,
+        location: 'Reported during conversational intake',
+        onset,
+        associatedSymptoms: [],
+        source: 'PATIENT REPORTED'
+      },
+      medicalHistory: {
+        existingConditions: existingConditions.length > 0 ? existingConditions : ['No prior chronic conditions reported'],
+        previousHistory: ['No major surgeries reported'],
+        source: 'PATIENT REPORTED'
+      },
+      medicationsAndAllergies: {
+        currentMedications: extractedMeds.length > 0 ? extractedMeds.map(m => m.name) : ['No regular medications reported'],
+        knownAllergies: extractedAllergies.length > 0 ? extractedAllergies.map(a => a.allergen) : ['No known drug allergies (NKDA)'],
+        source: 'PATIENT REPORTED'
+      },
+      relevantFindings: [
+        {
+          text: `Intake conducted in ${(typeof language === 'string' && language ? language : 'en').toUpperCase()} through conversational interview.`,
+          source: 'PATIENT REPORTED'
+        }
+      ],
+      redFlags: {
+        detected: false,
+        flags: [],
+        source: 'PATIENT REPORTED'
+      },
+      summary: {
+        text: summarySentences.join(' '),
+        source: 'AI SUMMARIZED'
+      },
+      missingOrUncertainInfo: {
+        items: [
+          'Objective vitals (Blood pressure, Pulse, Temperature, SpO2) require in-person physician verification',
+          'Exact prescription dosages to be validated against active records'
+        ],
+        source: 'AI SUMMARIZED'
+      },
+      doctorNotes: {
+        notes: '',
+        source: 'DOCTOR ENTERED'
+      }
+    };
 
     return {
       id: `sum-${Date.now()}`,
       sessionId,
       patientId,
+      encounterId: shortReport.encounterId,
+      appointmentId: shortReport.appointmentId,
       generatedAt: new Date().toISOString(),
       originalLanguage: language,
       originalPatientStatement: chiefComplaint || historyText || 'Patient reported intake.',
-      translatedSummary: chiefComplaint ? `Patient presented with: ${chiefComplaint}` : 'Pre-arrival intake recorded.',
+      translatedSummary: shortReport.summary.text,
       disclaimer: 'AI-Generated Clinical Intake Summary — Requires Physician Verification. Not a final diagnosis.',
-      chiefComplaints: chiefComplaint || 'Patient presents for clinical evaluation.',
-      historyOfPresentIllness: historyText || 'Patient completed pre-arrival digital intake across adaptive multi-turn questions.',
-      painScore: 4,
+      chiefComplaints: shortReport.chiefComplaint.mainReason,
+      historyOfPresentIllness: shortReport.summary.text,
+      shortReport,
+      painScore,
+      medicalSystem,
+      dashavidhaPariksha: dashavidha,
       symptomsList: [
         {
           name: chiefComplaint ? chiefComplaint.substring(0, 40) : 'Primary Symptom',
-          severity: 5,
-          duration: '2-3 days',
-          onset: 'GRADUAL',
-          relievingFactors: ['Rest', 'Warm fluids']
+          severity: painScore,
+          duration,
+          onset: onset === 'Sudden' ? 'SUDDEN' : 'GRADUAL'
         }
       ],
-      pastMedicalHistory: [
-        { condition: 'Type 2 Diabetes Mellitus', diagnosedYear: '2019', status: 'CONTROLLED' },
-        { condition: 'Primary Hypertension', diagnosedYear: '2021', status: 'CONTROLLED' }
-      ],
-      currentMedications: medications.length > 0 ? medications : [
-        { name: 'Metformin HCl', dosage: '500 mg', frequency: 'Twice daily', route: 'Oral', isActive: true, indication: 'Type 2 Diabetes' }
-      ],
-      allergies: allergies.length > 0 ? allergies : [
-        { allergen: 'Penicillin', type: 'DRUG', reaction: 'Urticaria & facial swelling', severity: 'SEVERE_ANAPHYLACTIC' }
-      ],
-      surgicalHistory: [
-        { procedure: 'Laparoscopic Appendectomy', year: '2014', hospital: 'General Hospital' }
-      ],
-      familyHistory: [
-        { relation: 'Father', condition: 'Coronary Artery Disease', ageOfOnset: '58' }
-      ],
-      relevantLabFindings: [
-        { testName: 'HbA1c', value: '6.9', unit: '%', referenceRange: '4.0 - 5.6', isAbnormal: true, flagType: 'HIGH' }
-      ],
-      suspectedSystemicInvolvement: ['Respiratory System', 'Cardiometabolic Profile'],
-      differentialConsiderations: [
-        'Acute Upper/Lower Respiratory Tract Infection',
-        'Viral Bronchitis',
-        'Early Pneumonitis'
-      ],
+      pastMedicalHistory: existingConditions.map(c => ({
+        condition: c,
+        diagnosedYear: '2020',
+        status: 'CONTROLLED'
+      })),
+      currentMedications: extractedMeds,
+      allergies: extractedAllergies,
+      surgicalHistory: [],
+      familyHistory: [],
+      relevantLabFindings: [],
+      suspectedSystemicInvolvement: medicalSystem === 'AYURVEDA'
+        ? ['Annavaha Srotas', 'Rasavaha Srotas']
+        : ['General Clinical Evaluation'],
+      differentialConsiderations: ['Awaiting physician in-person examination and clinical orders.'],
       redFlagChecklist: [
-        { item: 'Hemoptysis', detected: false, note: 'Denied by patient' },
-        { item: 'Severe Cyanosis / SpO2 < 92%', detected: false, note: 'SpO2 stable' },
-        { item: 'Orthopnea / Paroxysmal Nocturnal Dyspnea', detected: false, note: 'Denied' }
+        { item: 'Acute Cardiac / Severe Respiratory Distress', detected: false, note: 'Denied by patient' }
       ],
-      safetyWarnings: [
-        isPenicillinAllergic
-          ? '⚠️ CRITICAL SAFETY WARNING: Patient has documented allergy to Penicillin / Beta-lactams. Avoid Amoxicillin, Ampicillin, Cephalosporins.'
-          : '⚠️ Please verify all patient medication history against active electronic health records.'
-      ],
+      safetyWarnings: extractedAllergies.length > 0
+        ? extractedAllergies.map(a => `⚠️ Safety Alert: Documented allergy to ${a.allergen}`)
+        : ['⚠️ Verify clinical history against active electronic health records.'],
       verificationStatus: 'PENDING_PHYSICIAN_REVIEW'
     };
   }
