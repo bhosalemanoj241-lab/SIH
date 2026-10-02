@@ -8,6 +8,7 @@ import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession, Med
 import { AIIntakeEngine } from '../../services/aiIntakeEngine';
 import { SpeechService } from '../../services/speechService';
 import { db } from '../../services/mockDatabase';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -254,7 +255,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
     setIsSpeaking(false);
 
     const history = historyToUse || messages;
-    const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || 'MB-2026-ACTIVE';
+    const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || currentUser?.patientId || '';
     const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE') : [];
     const registeredHospitals = db.getHospitals();
     const hospAccounts = db.getHospitalAccounts();
@@ -323,6 +324,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
 
       db.saveClinicalSession(newSession);
       await AIIntakeEngine.saveSessionToCloud(newSession);
+      await cloudDb.saveClinicalSession(newSession);
 
       // Persist directly to central database /api/patients
       try {
@@ -360,8 +362,15 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         'INTAKE_COMPLETED',
         'ClinicalSession',
         activeSessionId,
-        `Completed AI clinical intake (${language.toUpperCase()}). Linked to Encounter: ${encounterId}`
+        `Completed AI clinical intake (${language.toUpperCase()}). Linked to Patient ID: ${pRealId}, Encounter: ${encounterId}`
       );
+
+      const activeTrusted = trustedHospitals.map(t => t.hospitalName).filter(Boolean);
+      const hospitalShareMsg = activeTrusted.length > 0
+        ? `Automatically shared with your Trusted Hospitals: ${activeTrusted.join(', ')}`
+        : 'Saved to your medical record & available to your authorized Trusted Hospitals.';
+
+      showToast('AI Clinical Summary Generated', hospitalShareMsg, 'VERIFICATION');
 
       setIsIntakeDone(true);
       setIsProcessing(false);
@@ -672,6 +681,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
 
           {messages.filter(m => m.sender === 'PATIENT').length >= 1 && !isIntakeDone && (
             <button
+              id="btn-generate-report"
               type="button"
               onClick={() => handleFinishAndGenerateReport()}
               disabled={isProcessing}

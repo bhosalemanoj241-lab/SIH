@@ -46,7 +46,7 @@ export const DoctorDashboard: React.FC = () => {
     message?: string;
   } | null>(null);
 
-  // Selected document for OCR preview modal
+  // Selected document for OCR preview modal & Document Viewer modal
   const [inspectDoc, setInspectDoc] = useState<MedicalDocument | null>(null);
   const [viewingDoc, setViewingDoc] = useState<MedicalDocument | null>(null);
 
@@ -622,42 +622,63 @@ export const DoctorDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Section: Uploaded Medical Reports & OCR Extraction */}
+                  {/* Section 1: AI Intake Clinical Summaries */}
                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-teal-600" />
+                        <Sparkles className="w-5 h-5 text-purple-600" />
                         <h4 className="text-sm font-extrabold text-slate-900">
-                          Patient Uploaded Documents ({searchResult.documents.length})
+                          AI Intake Clinical Summaries ({searchResult.sessions.length})
                         </h4>
                       </div>
-                      <span className="text-[11px] text-slate-500 font-mono">ABDM Health Vault</span>
+                      <span className="text-[11px] text-slate-500 font-mono">Physician Verification Required</span>
                     </div>
 
-                    {searchResult.documents.length === 0 ? (
+                    {searchResult.sessions.length === 0 ? (
                       <div className="p-6 bg-white rounded-2xl border border-slate-200 text-center text-slate-500 text-xs">
-                        No medical documents uploaded yet by this patient.
+                        No AI Intake Clinical Summaries available.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {searchResult.documents.map(doc => (
+                      <div className="space-y-4">
+                        {searchResult.sessions.map((s, idx) => (
                           <div
-                            key={doc.id}
-                            className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2 hover:border-slate-300 hover:shadow-sm transition"
+                            key={s.id}
+                            className="p-5 bg-white border border-slate-200 rounded-2xl space-y-3 shadow-xs hover:border-slate-300 transition"
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold uppercase bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded">
-                                {doc.fileType.replace('_', ' ')}
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                {new Date(doc.uploadDate).toLocaleDateString()}
-                              </span>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-extrabold text-xs text-slate-900">
+                                  Summary #{searchResult.sessions.length - idx}
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-mono">
+                                  • Generated: {new Date(s.startedAt || s.completedAt || Date.now()).toLocaleString()}
+                                </span>
+                                <span className="font-mono text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded">
+                                  {s.patientId}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  s.status === 'VERIFIED'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : s.triagePriority === 'RED'
+                                    ? 'bg-red-50 text-red-800 border-red-200'
+                                    : 'bg-blue-50 text-blue-800 border-blue-200'
+                                }`}>
+                                  Status: {s.status === 'VERIFIED' ? 'Verified by Physician' : 'Available'}
+                                </span>
+                              </div>
                             </div>
 
-                            <h5 className="font-bold text-xs text-slate-900 line-clamp-1">{doc.fileName}</h5>
-                            <p className="text-[11px] text-slate-500">
-                              {doc.extractedData?.facilityName || 'Medical Facility'} • {doc.extractedData?.physicianName || 'Physician'}
-                            </p>
+                            <div className="space-y-1">
+                              <p className="text-xs text-slate-900 font-bold">
+                                Chief Complaint: <span className="text-slate-800 font-medium">{s.chiefComplaint || 'Consultation Intake'}</span>
+                              </p>
+                              <p className="text-xs text-slate-600 line-clamp-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                {s.aiSummary?.historyOfPresentIllness || s.shortReport?.summary?.text || s.translatedSummary || 'Intake summary recorded.'}
+                              </p>
+                            </div>
 
                             {doc.extractedData?.extractedDiagnoses && doc.extractedData.extractedDiagnoses.length > 0 && (
                               <div className="flex flex-wrap gap-1 pt-1">
@@ -712,7 +733,108 @@ export const DoctorDashboard: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Section: Medical Timeline History */}
+                  {/* Section 2: Patient Uploaded Medical Reports */}
+                  <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-teal-600" />
+                        <h4 className="text-sm font-extrabold text-slate-900">
+                          Patient Uploaded Medical Reports ({searchResult.documents.length})
+                        </h4>
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-mono">ABDM Encrypted Health Vault</span>
+                    </div>
+
+                    {!searchResult.hasConsent && !searchResult.patient ? (
+                      <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200 text-center text-amber-900 text-xs font-bold">
+                        Document access is not authorized.
+                      </div>
+                    ) : searchResult.documents.length === 0 ? (
+                      <div className="p-6 bg-white rounded-2xl border border-slate-200 text-center text-slate-500 text-xs">
+                        No medical reports uploaded by this patient.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {searchResult.documents.map(doc => (
+                          <div
+                            key={doc.id}
+                            className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3 hover:border-slate-300 hover:shadow-sm transition flex flex-col justify-between"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded">
+                                  {doc.fileType.replace(/_/g, ' ')}
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                  Uploaded: {new Date(doc.uploadDate).toLocaleDateString()}
+                                </span>
+                              </div>
+
+                              <h5 className="font-bold text-xs text-slate-900 line-clamp-1">{doc.fileName}</h5>
+                              <p className="text-[11px] text-slate-500">
+                                {doc.extractedData?.facilityName || 'Medical Facility'} • {doc.extractedData?.physicianName || 'Physician'}
+                              </p>
+
+                              {doc.extractedData?.extractedDiagnoses && doc.extractedData.extractedDiagnoses.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {doc.extractedData.extractedDiagnoses.map((d, i) => (
+                                    <span key={i} className="text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                      {d}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setViewDoc(doc)}
+                                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex items-center gap-1 text-xs shadow-xs transition"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>View Document</span>
+                              </button>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (doc.fileData || doc.fileUrl) {
+                                      const link = window.document.createElement('a');
+                                      link.href = doc.fileData || doc.fileUrl;
+                                      link.download = doc.fileName;
+                                      window.document.body.appendChild(link);
+                                      link.click();
+                                      window.document.body.removeChild(link);
+                                    } else {
+                                      setViewDoc(doc);
+                                    }
+                                  }}
+                                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition flex items-center gap-1 text-xs border border-slate-200"
+                                  title="Download actual file"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Download</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setInspectDoc(doc)}
+                                  className="text-slate-500 hover:text-slate-800 text-[11px] font-semibold"
+                                  title="OCR Inspector"
+                                >
+                                  OCR
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section 3: Longitudinal Medical Timeline */}
                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">

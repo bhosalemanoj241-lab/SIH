@@ -127,38 +127,7 @@ export interface CentralDatabase {
   clearedAt?: string;
 }
 
-export const DEFAULT_ADMIN_USERS: User[] = [
-  {
-    id: 'usr-admin-root',
-    email: 'admin@medibridge.ai',
-    password: 'Admin@123',
-    phone: '+91 99300 88777',
-    fullName: 'System Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-gov',
-    email: 'admin@medibridge.gov.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'National Health Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-in',
-    email: 'admin@medibridge.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'Platform Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  }
-];
+export const DEFAULT_ADMIN_USERS: User[] = [];
 
 let inMemoryDb: CentralDatabase | null = null;
 
@@ -181,13 +150,13 @@ export function getDbFilePath(): string {
   try {
     const cwd = process.cwd();
     const dataDir = path.join(cwd, 'data');
-    if (!fs.existsSync(dataDir)) {
-      try {
-        fs.mkdirSync(dataDir, { recursive: true });
-      } catch {}
-    }
     if (fs.existsSync(dataDir)) {
-      return path.join(dataDir, 'medibridge_central_database.json');
+      try {
+        const testFile = path.join(dataDir, '.write_test');
+        fs.writeFileSync(testFile, '1');
+        fs.unlinkSync(testFile);
+        return path.join(dataDir, 'medibridge_central_database.json');
+      } catch {}
     }
   } catch {}
 
@@ -562,6 +531,75 @@ export function isHospitalAuthorizedForPatient(hospitalIdentifier: string, patie
   if (targetedSession) return true;
 
   return false;
+}
+
+export function saveAppointment(appointment: any): boolean {
+  if (!appointment || !appointment.id) return false;
+  const db = getDatabase();
+  db.appointments = (db.appointments || []).filter(a => a.id !== appointment.id);
+  db.appointments.unshift(appointment);
+  return saveDatabase(db);
+}
+
+export function getAppointments(patientId?: string, hospitalId?: string): any[] {
+  const db = getDatabase();
+  let list = db.appointments || [];
+  if (patientId) {
+    const clean = patientId.trim().toLowerCase();
+    const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
+    list = list.filter(a => {
+      const aId = (a.patientId || '').trim().toLowerCase();
+      const aAlpha = aId.replace(/[^a-z0-9]/g, '');
+      return aId === clean || aAlpha === cleanAlpha;
+    });
+  }
+  if (hospitalId) {
+    const cleanHosp = hospitalId.trim().toLowerCase();
+    list = list.filter(a => (a.hospitalId || '').trim().toLowerCase() === cleanHosp);
+  }
+  return list;
+}
+
+export function updateAppointmentStatus(id: string, status: string, notes?: string): boolean {
+  if (!id) return false;
+  const db = getDatabase();
+  const target = (db.appointments || []).find(a => a.id === id);
+  if (target) {
+    target.status = status;
+    if (notes) target.notes = notes;
+    return saveDatabase(db);
+  }
+  return false;
+}
+
+export function deleteAppointment(id: string): boolean {
+  if (!id) return false;
+  const db = getDatabase();
+  db.appointments = (db.appointments || []).filter(a => a.id !== id);
+  return saveDatabase(db);
+}
+
+export function saveEmergencyAlert(alert: any): boolean {
+  if (!alert || !alert.id) return false;
+  const db = getDatabase();
+  db.emergencies = (db.emergencies || []).filter(e => e.id !== alert.id);
+  db.emergencies.unshift(alert);
+  return saveDatabase(db);
+}
+
+export function getEmergencyAlerts(patientId?: string): any[] {
+  const db = getDatabase();
+  let list = db.emergencies || [];
+  if (patientId) {
+    const clean = patientId.trim().toLowerCase();
+    const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
+    list = list.filter(e => {
+      const eId = (e.patientId || '').trim().toLowerCase();
+      const eAlpha = eId.replace(/[^a-z0-9]/g, '');
+      return eId === clean || eAlpha === cleanAlpha;
+    });
+  }
+  return list;
 }
 
 export function saveAppointment(appointment: any): boolean {

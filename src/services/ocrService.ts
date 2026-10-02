@@ -78,6 +78,9 @@ export class OCRService {
       ]
     };
 
+    const rawDataUrl = (file as any).base64 || (file as any).fileData || (file as any).fileUrl || '';
+    const mimeType = (file as any).type || (file as any).mimeType || (fileName.endsWith('.pdf') ? 'application/pdf' : fileName.endsWith('.png') ? 'image/png' : fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') ? 'image/jpeg' : 'application/pdf');
+
     const newDoc: MedicalDocument = {
       id: docId,
       patientId,

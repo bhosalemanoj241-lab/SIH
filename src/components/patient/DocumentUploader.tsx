@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, AlertCircle, Eye,
   Sparkles, Layers, Tag, ShieldCheck, ArrowUpRight, Check, Download, ExternalLink
@@ -35,7 +35,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
     try {
       // 1. Run local/AI OCR extraction
       const { document, timelineEvents } = await OCRService.processDocument(
-        file,
+        fileObj,
         patientId
       );
 
@@ -93,6 +93,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
         `Uploaded & securely stored ${document.fileName} in central backend file storage`
       );
 
+      setExistingDocs(db.getDocuments(patientId));
       setIsUploading(false);
       setSelectedDoc(document);
       setShowInspectionModal(true);
@@ -301,6 +302,18 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
           </div>
         )}
       </div>
+
+      {/* Document Viewer Modal */}
+      {selectedDoc && (
+        <DocumentViewerModal
+          isOpen={showDocumentViewer}
+          onClose={() => setShowDocumentViewer(false)}
+          document={selectedDoc}
+          patientId={patientId}
+          patientName={patientProfile?.fullName || currentUser?.fullName}
+          isAuthorized={true}
+        />
+      )}
 
       {/* OCR Inspection & Bounding Box Modal */}
       {selectedDoc && (
