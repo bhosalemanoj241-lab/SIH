@@ -128,8 +128,16 @@ export const DoctorDashboard: React.FC = () => {
       patient = db.getPatientByPatientId(trimmed) || db.getPatientById(trimmed);
     }
     if (patient) {
-      const patientSessions = db.getClinicalSessionsForPatient(patient.patientId);
-      const patientDocs = db.getDocuments(patient.patientId);
+      let patientSessions = db.getClinicalSessionsForPatient(patient.patientId);
+      if (patientSessions.length === 0) {
+        patientSessions = await cloudDb.getClinicalSessions(patient.patientId);
+        patientSessions.forEach(s => db.saveClinicalSession(s));
+      }
+      let patientDocs = db.getDocuments(patient.patientId);
+      if (patientDocs.length === 0) {
+        patientDocs = await cloudDb.getDocuments(patient.patientId);
+        patientDocs.forEach(d => db.addDocument(d));
+      }
       const patientTimeline = db.getTimeline(patient.patientId);
       const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
       const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);

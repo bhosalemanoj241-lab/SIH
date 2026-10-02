@@ -646,6 +646,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
 
           {messages.filter(m => m.sender === 'PATIENT').length >= 1 && !isIntakeDone && (
             <button
+              id="btn-generate-report"
               type="button"
               onClick={() => handleFinishAndGenerateReport()}
               disabled={isProcessing}

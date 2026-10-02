@@ -173,7 +173,7 @@ async function run() {
 
     // Request report completion
     console.log('   Generating Doctor-Ready Short Report...');
-    const reportBtn = await pagePatient.waitForSelector('#btn-generate-report', { timeout: 10000 });
+    const reportBtn = await pagePatient.waitForSelector('#btn-generate-report, button::-p-text(Generate Report), button::-p-text(Report)', { timeout: 10000 });
     await reportBtn.click();
     await sleep(3500);
     console.log('   ✅ AI Intake completed & clinical summary report generated!');
