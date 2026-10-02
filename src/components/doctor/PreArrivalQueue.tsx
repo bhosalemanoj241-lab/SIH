@@ -25,9 +25,11 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
   React.useEffect(() => {
     const handleUpdate = () => setSessions(db.getClinicalSessions());
     window.addEventListener('medibridge_db_update', handleUpdate);
+    window.addEventListener('medibridge_cloud_sync', handleUpdate);
     window.addEventListener('medibridge_db_reset', handleUpdate);
     return () => {
       window.removeEventListener('medibridge_db_update', handleUpdate);
+      window.removeEventListener('medibridge_cloud_sync', handleUpdate);
       window.removeEventListener('medibridge_db_reset', handleUpdate);
     };
   }, []);

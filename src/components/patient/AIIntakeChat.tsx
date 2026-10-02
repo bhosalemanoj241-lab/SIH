@@ -8,6 +8,7 @@ import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession, Med
 import { AIIntakeEngine } from '../../services/aiIntakeEngine';
 import { SpeechService } from '../../services/speechService';
 import { db } from '../../services/mockDatabase';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -317,6 +318,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
 
       db.saveClinicalSession(newSession);
       await AIIntakeEngine.saveSessionToCloud(newSession);
+      await cloudDb.saveClinicalSession(newSession);
 
       db.logAction(
         currentUser?.id || 'usr-pat',
@@ -325,8 +327,15 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         'INTAKE_COMPLETED',
         'ClinicalSession',
         activeSessionId,
-        `Completed AI clinical intake (${language.toUpperCase()}). Linked to Encounter: ${encounterId}`
+        `Completed AI clinical intake (${language.toUpperCase()}). Linked to Patient ID: ${pRealId}, Encounter: ${encounterId}`
       );
+
+      const activeTrusted = trustedHospitals.map(t => t.hospitalName).filter(Boolean);
+      const hospitalShareMsg = activeTrusted.length > 0
+        ? `Automatically shared with your Trusted Hospitals: ${activeTrusted.join(', ')}`
+        : 'Saved to your medical record & available to your authorized Trusted Hospitals.';
+
+      showToast('AI Clinical Summary Generated', hospitalShareMsg, 'VERIFICATION');
 
       setIsIntakeDone(true);
       setIsProcessing(false);

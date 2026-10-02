@@ -82,11 +82,20 @@ export default async function handler(req: any, res: any) {
         patientsCount: db.patients.length,
         doctorsCount: db.doctors.length,
         hospitalsCount: db.hospitals.length,
+        sessionsCount: db.sessions?.length || 0,
+        appointmentsCount: db.appointments?.length || 0,
+        emergenciesCount: db.emergencies?.length || 0,
         data: {
           users: db.users.map(({ password, ...rest }) => rest),
           patients: db.patients.map(({ password, ...rest }) => rest),
           doctors: db.doctors,
-          hospitals: db.hospitals.map(({ password, ...rest }) => rest)
+          hospitals: db.hospitals.map(({ password, ...rest }) => rest),
+          sessions: db.sessions || [],
+          accessRequests: db.accessRequests || [],
+          trustedHospitals: db.trustedHospitals || [],
+          documents: db.documents || [],
+          emergencies: db.emergencies || [],
+          appointments: db.appointments || []
         }
       });
     }

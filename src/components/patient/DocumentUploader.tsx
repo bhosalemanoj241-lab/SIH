@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, AlertCircle, Eye,
-  Sparkles, Layers, Tag, ShieldCheck, ArrowUpRight, Check
+  Sparkles, Layers, Tag, ShieldCheck, ArrowUpRight, Check, Download
 } from 'lucide-react';
 import { MedicalDocument, DocumentExtraction, LabResultItem } from '../../types';
 import { OCRService } from '../../services/ocrService';
 import { db } from '../../services/mockDatabase';
 import { FirebaseStorageService } from '../../services/firebaseStorageService';
 import { cloudDataService } from '../../services/firebaseService';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { Modal } from '../common/Modal';
+import { DocumentViewerModal } from '../common/DocumentViewerModal';
 
 interface DocumentUploaderProps {
   onDocumentProcessed?: (doc: MedicalDocument) => void;
@@ -23,27 +25,51 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
   const [isUploading, setIsUploading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<MedicalDocument | null>(null);
   const [showInspectionModal, setShowInspectionModal] = useState(false);
+  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
 
-  const handleFileUpload = async (file: { name: string; type: string; size: number }) => {
+  const patientId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
+  const [existingDocs, setExistingDocs] = useState<MedicalDocument[]>(() => db.getDocuments(patientId));
+
+  useEffect(() => {
+    const refresh = () => {
+      setExistingDocs(db.getDocuments(patientId));
+    };
+    refresh();
+    window.addEventListener('medibridge_db_update', refresh);
+    window.addEventListener('medibridge_cloud_sync', refresh);
+    return () => {
+      window.removeEventListener('medibridge_db_update', refresh);
+      window.removeEventListener('medibridge_cloud_sync', refresh);
+    };
+  }, [patientId]);
+
+  const handleFileUpload = async (fileObj: { name: string; type: string; size: number; base64?: string; rawFile?: File }) => {
     setIsUploading(true);
-    showToast('OCR Processing', `Extracting medical entities from ${file.name}...`, 'INFO');
-
-    const patientId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
+    showToast('OCR Processing', `Extracting medical entities from ${fileObj.name}...`, 'INFO');
 
     try {
       const { document, timelineEvents } = await OCRService.processDocument(
-        file,
+        fileObj,
         patientId
       );
 
+      if (fileObj.base64) {
+        document.fileData = fileObj.base64;
+        document.fileUrl = fileObj.base64;
+      }
+      document.mimeType = fileObj.type || (fileObj.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
       // 1. Upload to Firebase Storage
-      const storageMeta = await FirebaseStorageService.uploadMedicalDocument(file, patientId);
-      if (storageMeta?.downloadUrl) {
-        document.fileUrl = storageMeta.downloadUrl;
+      if (fileObj.rawFile) {
+        const storageMeta = await FirebaseStorageService.uploadMedicalDocument(fileObj.rawFile, patientId);
+        if (storageMeta?.downloadUrl) {
+          document.fileUrl = storageMeta.downloadUrl;
+        }
       }
 
-      // 2. Save to Firebase Firestore & local database
+      // 2. Save to Firebase Firestore, cloudDb & local database
       await cloudDataService.saveMedicalDocument(document);
+      await cloudDb.saveDocument(document);
       db.addDocument(document);
       timelineEvents.forEach(evt => db.addTimelineEvent(evt));
       db.logAction(
@@ -56,9 +82,10 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
         `Uploaded & OCR processed ${document.fileName} with ${document.extractedData?.confidenceScore! * 100}% confidence`
       );
 
+      setExistingDocs(db.getDocuments(patientId));
       setIsUploading(false);
       setSelectedDoc(document);
-      setShowInspectionModal(true);
+      setShowDocumentViewer(true);
       showToast('Extraction Complete', 'Medical entities extracted and mapped to timeline!', 'VERIFICATION');
 
       if (onDocumentProcessed) onDocumentProcessed(document);
@@ -71,16 +98,28 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
   const handleNativeFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      handleFileUpload({
-        name: file.name,
-        type: file.type,
-        size: file.size
-      });
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        handleFileUpload({
+          name: file.name,
+          type: file.type || 'application/pdf',
+          size: file.size,
+          base64: dataUrl,
+          rawFile: file
+        });
+      };
+      reader.onerror = () => {
+        handleFileUpload({
+          name: file.name,
+          type: file.type || 'application/pdf',
+          size: file.size,
+          rawFile: file
+        });
+      };
+      reader.readAsDataURL(file);
     }
   };
-
-  const patientId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
-  const existingDocs = db.getDocuments(patientId);
 
   return (
     <div className="space-y-6">
@@ -221,16 +260,28 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
                       <span>OCR Confidence {ext ? `${Math.round(ext.confidenceScore * 100)}%` : '98%'}</span>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setSelectedDoc(doc);
-                        setShowInspectionModal(true);
-                      }}
-                      className="flex items-center gap-1 text-xs text-teal-700 hover:text-teal-800 font-bold"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Inspect</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedDoc(doc);
+                          setShowDocumentViewer(true);
+                        }}
+                        className="flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold bg-blue-50 px-2 py-1 rounded-lg border border-blue-200"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View Document</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSelectedDoc(doc);
+                          setShowInspectionModal(true);
+                        }}
+                        className="flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800 font-semibold"
+                      >
+                        <span>OCR Data</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -238,6 +289,18 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentPr
           </div>
         )}
       </div>
+
+      {/* Document Viewer Modal */}
+      {selectedDoc && (
+        <DocumentViewerModal
+          isOpen={showDocumentViewer}
+          onClose={() => setShowDocumentViewer(false)}
+          document={selectedDoc}
+          patientId={patientId}
+          patientName={patientProfile?.fullName || currentUser?.fullName}
+          isAuthorized={true}
+        />
+      )}
 
       {/* OCR Inspection & Bounding Box Modal */}
       {selectedDoc && (

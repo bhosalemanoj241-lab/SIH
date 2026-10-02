@@ -78,14 +78,19 @@ export class OCRService {
       ]
     };
 
+    const rawDataUrl = (file as any).base64 || (file as any).fileData || (file as any).fileUrl || '';
+    const mimeType = (file as any).type || (file as any).mimeType || (fileName.endsWith('.pdf') ? 'application/pdf' : fileName.endsWith('.png') ? 'image/png' : fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') ? 'image/jpeg' : 'application/pdf');
+
     const newDoc: MedicalDocument = {
       id: docId,
       patientId,
       fileName: file.name || 'Medical_Record_Upload.pdf',
       fileType,
       uploadDate: new Date().toISOString(),
-      fileUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80',
-      fileSize: `${((file.size || 1024 * 1024) / (1024 * 1024)).toFixed(1)} MB`,
+      fileUrl: rawDataUrl || '',
+      fileData: rawDataUrl || undefined,
+      mimeType,
+      fileSize: `${(((file.size || 1024 * 1024)) / (1024 * 1024)).toFixed(1)} MB`,
       status: 'COMPLETED',
       extractedData: extraction
     };

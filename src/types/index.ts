@@ -182,6 +182,8 @@ export interface MedicalDocument {
   fileType: 'PRESCRIPTION' | 'LAB_REPORT' | 'DISCHARGE_SUMMARY' | 'RADIOLOGY_REPORT';
   uploadDate: string;
   fileUrl: string;
+  fileData?: string;
+  mimeType?: string;
   fileSize: string;
   status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
   extractedData?: DocumentExtraction;

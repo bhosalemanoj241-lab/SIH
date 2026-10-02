@@ -124,6 +124,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
     };
     refreshSessions();
     window.addEventListener('medibridge_db_update', handleUpdate);
+    window.addEventListener('medibridge_cloud_sync', handleUpdate);
     window.addEventListener('medibridge_db_reset', handleUpdate);
 
     // Continuous cloud polling interval to ensure requests appear within 2 seconds
@@ -134,6 +135,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
       unsub1?.();
       unsub2?.();
       window.removeEventListener('medibridge_db_update', handleUpdate);
+      window.removeEventListener('medibridge_cloud_sync', handleUpdate);
       window.removeEventListener('medibridge_db_reset', handleUpdate);
     };
   }, [patientProfile?.patientId, currentUser?.fullName]);
@@ -402,6 +404,8 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
             return (
               <button
                 key={action.id}
+                id={`tab-${action.id}`}
+                data-tab-id={action.id}
                 onClick={() => setActiveTab(action.id)}
                 className={`p-4 rounded-2xl border text-left transition transform hover:-translate-y-1 shadow-sm flex flex-col justify-between space-y-3 ${
                   isSelected
@@ -481,6 +485,20 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
                   </select>
                 </div>
               )}
+
+              {/* Trusted Hospital Sharing Indicator */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-teal-50/80 border border-teal-200 px-4 py-3 rounded-2xl gap-2 shadow-xs text-xs">
+                <div className="flex items-center gap-2 text-teal-900 font-bold">
+                  <ShieldCheck className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                  <span>✓ Automatically Shared with your Trusted Hospitals</span>
+                </div>
+                <span className="text-[11px] text-teal-800 font-medium">
+                  {db.getTrustedHospitals(patientProfile?.patientId || '').filter(t => t.status === 'ACTIVE').length > 0
+                    ? `Authorized for ${db.getTrustedHospitals(patientProfile?.patientId || '').filter(t => t.status === 'ACTIVE').map(t => t.hospitalName).join(', ')}`
+                    : 'Linked to your Patient ID & available to your authorized healthcare facilities'}
+                </span>
+              </div>
+
               <ClinicalSummaryView
                 summary={activeSession.aiSummary}
                 patient={patientProfile || (currentUser ? db.getPatientByUserId(currentUser.id) : undefined) || {

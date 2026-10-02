@@ -107,6 +107,7 @@ export interface CentralDatabase {
   sessions: any[];
   documents: any[];
   emergencies: any[];
+  appointments: any[];
   auditLogs: any[];
   verificationCodes: Record<string, EmailVerificationRecord>;
   version: number;
@@ -185,6 +186,7 @@ function sanitizeDatabase(data: any): CentralDatabase {
     sessions: Array.isArray(data?.sessions) ? data.sessions : [],
     documents: Array.isArray(data?.documents) ? data.documents : [],
     emergencies: Array.isArray(data?.emergencies) ? data.emergencies : [],
+    appointments: Array.isArray(data?.appointments) ? data.appointments : [],
     auditLogs: Array.isArray(data?.auditLogs) ? data.auditLogs : [],
     verificationCodes: (data?.verificationCodes && typeof data.verificationCodes === 'object') ? data.verificationCodes : {},
     version: typeof data?.version === 'number' ? data.version : 1,
@@ -271,7 +273,9 @@ export function clearAllRegistrations(): { success: boolean; clearedAt: string; 
     sessions: [],
     documents: [],
     emergencies: [],
+    appointments: [],
     auditLogs: [],
+    verificationCodes: {},
     version: Date.now(),
     lastUpdated: now,
     clearedAt: now
@@ -410,6 +414,75 @@ export function getMedicalDocumentsForPatient(patientId: string): any[] {
     const dAlpha = dId.replace(/[^a-z0-9]/g, '');
     return dId === clean || dAlpha === cleanAlpha;
   });
+}
+
+export function saveAppointment(appointment: any): boolean {
+  if (!appointment || !appointment.id) return false;
+  const db = getDatabase();
+  db.appointments = (db.appointments || []).filter(a => a.id !== appointment.id);
+  db.appointments.unshift(appointment);
+  return saveDatabase(db);
+}
+
+export function getAppointments(patientId?: string, hospitalId?: string): any[] {
+  const db = getDatabase();
+  let list = db.appointments || [];
+  if (patientId) {
+    const clean = patientId.trim().toLowerCase();
+    const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
+    list = list.filter(a => {
+      const aId = (a.patientId || '').trim().toLowerCase();
+      const aAlpha = aId.replace(/[^a-z0-9]/g, '');
+      return aId === clean || aAlpha === cleanAlpha;
+    });
+  }
+  if (hospitalId) {
+    const cleanHosp = hospitalId.trim().toLowerCase();
+    list = list.filter(a => (a.hospitalId || '').trim().toLowerCase() === cleanHosp);
+  }
+  return list;
+}
+
+export function updateAppointmentStatus(id: string, status: string, notes?: string): boolean {
+  if (!id) return false;
+  const db = getDatabase();
+  const target = (db.appointments || []).find(a => a.id === id);
+  if (target) {
+    target.status = status;
+    if (notes) target.notes = notes;
+    return saveDatabase(db);
+  }
+  return false;
+}
+
+export function deleteAppointment(id: string): boolean {
+  if (!id) return false;
+  const db = getDatabase();
+  db.appointments = (db.appointments || []).filter(a => a.id !== id);
+  return saveDatabase(db);
+}
+
+export function saveEmergencyAlert(alert: any): boolean {
+  if (!alert || !alert.id) return false;
+  const db = getDatabase();
+  db.emergencies = (db.emergencies || []).filter(e => e.id !== alert.id);
+  db.emergencies.unshift(alert);
+  return saveDatabase(db);
+}
+
+export function getEmergencyAlerts(patientId?: string): any[] {
+  const db = getDatabase();
+  let list = db.emergencies || [];
+  if (patientId) {
+    const clean = patientId.trim().toLowerCase();
+    const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
+    list = list.filter(e => {
+      const eId = (e.patientId || '').trim().toLowerCase();
+      const eAlpha = eId.replace(/[^a-z0-9]/g, '');
+      return eId === clean || eAlpha === cleanAlpha;
+    });
+  }
+  return list;
 }
 
 export function findHospitalByIdentifier(identifier: string): HospitalAccount | undefined {
