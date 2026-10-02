@@ -125,16 +125,17 @@ function setPersistedCache<T>(key: string, items: T[]): void {
   } catch {}
 }
 
-const FAKE_PATIENT_IDS = ['MB-2026-7F42K9', 'MB-2026-38491A', 'MB-2026-99210B', 'MB-2026-44109C'];
+const FAKE_PATIENT_IDS = ['MB-2026-7F42K9', 'MB-2026-38491A', 'MB-2026-99210B', 'MB-2026-44109C', 'MB-2026-RAJESH'];
 const FAKE_HOSPITAL_IDS = [
   'HOSP-2026-00101', 'HOSP-2026-00102', 'HOSP-2026-00103', 'HOSP-2026-00104',
   'HOSP-2026-00105', 'HOSP-2026-00106', 'HOSP-2026-00107', 'HOSP-2026-00108',
-  'hosp-001', 'hosp-002', 'hosp-003', 'hacct-001', 'hacct-002', 'hacct-003'
+  'hosp-001', 'hosp-002', 'hosp-003', 'hacct-001', 'hacct-002', 'hacct-003',
+  'hosp-lilavati', 'HOSP-MUM-001'
 ];
 const FAKE_HOSPITAL_KEYWORDS = [
   'apex super speciality', 'king edward memorial', 'mimer general',
   'ruby hall clinic', 'jehangir hospital', 'deenanath mangeshkar', 'sancheti institute',
-  'all india institute of medical sciences'
+  'all india institute of medical sciences', 'lilavati'
 ];
 
 class CloudDatabaseEngine {

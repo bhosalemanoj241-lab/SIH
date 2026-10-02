@@ -140,25 +140,15 @@ export const DEFAULT_ADMIN_USERS: User[] = [
     createdAt: '2025-10-01T08:00:00Z'
   },
   {
-    id: 'usr-doc-sharma',
-    email: 'dr.sharma@medibridge.ai',
+    id: 'usr-hosp-moraya',
+    email: 'sumithatagale93@gmail.com',
     password: 'Password@123',
-    phone: '+91 98200 12345',
-    fullName: 'Dr. Anita Sharma',
-    role: 'DOCTOR',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-hosp-lilavati',
-    email: 'lilavati.hospital@hospitalcloud.in',
-    password: 'Password@123',
-    phone: '+91 22 2675 1000',
-    fullName: 'Lilavati Hospital & Research Centre',
+    phone: '9356646910',
+    fullName: 'Moraya General Hospital',
     role: 'HOSPITAL_ADMIN',
-    hospitalId: 'HOSP-MUM-001',
+    hospitalId: 'HOSP-2026-92401',
     isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
+    createdAt: '2026-10-02T11:04:52.401Z'
   },
   {
     id: 'usr-admin-root',
@@ -166,26 +156,6 @@ export const DEFAULT_ADMIN_USERS: User[] = [
     password: 'Admin@123',
     phone: '+91 99300 88777',
     fullName: 'System Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-gov',
-    email: 'admin@medibridge.gov.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'National Health Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-in',
-    email: 'admin@medibridge.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'Platform Administrator',
     role: 'SYSTEM_ADMIN',
     isEmailVerified: true,
     createdAt: '2025-10-01T08:00:00Z'
@@ -221,81 +191,32 @@ export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [
     chronicConditions: ['Mild Hypertension'],
     currentMedications: ['Amlodipine 5mg OD'],
     createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'pat-demo-rajesh',
-    userId: 'usr-pat-rajesh',
-    patientId: 'MB-2026-RAJESH',
-    abhaId: '91-8842-1209-7734',
-    abhaAddress: 'rajeshverma.demo@abdm',
-    fullName: 'Rajesh Verma',
-    email: 'rajesh.verma@medibridge.ai',
-    phone: '9876543210',
-    dob: '1985-04-12',
-    age: 41,
-    gender: 'MALE',
-    bloodGroup: 'O+',
-    emergencyContactName: 'Sunita Verma',
-    emergencyContactPhone: '9876543211',
-    emergencyContactRelation: 'Spouse',
-    preferredLanguage: 'en',
-    address: 'B-402, Sea Breeze Apts, Worli',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400018',
-    password: 'Password@123',
-    status: 'ACTIVE',
-    isEmailVerified: true,
-    allergies: ['Peanuts', 'Sulfa Drugs'],
-    chronicConditions: ['Type 2 Diabetes'],
-    currentMedications: ['Metformin 500mg BD'],
-    createdAt: '2025-10-01T08:00:00Z'
   }
 ];
 
 export const DEFAULT_SEED_HOSPITALS: HospitalAccount[] = [
   {
-    id: 'hosp-lilavati',
-    userId: 'usr-hosp-lilavati',
-    hospitalId: 'HOSP-MUM-001',
-    hospitalName: 'Lilavati Hospital & Research Centre',
-    registrationId: 'MAH-MUM-2019-8832',
-    email: 'lilavati.hospital@hospitalcloud.in',
-    phone: '+91 22 2675 1000',
-    emergencyContact: '+91 22 2675 1111',
-    address: 'A-791, Bandra Reclamation, Bandra West',
-    city: 'Mumbai',
+    id: 'hosp-moraya',
+    userId: 'usr-hosp-moraya',
+    hospitalId: 'HOSP-2026-92401',
+    hospitalName: 'Moraya General Hospital',
+    registrationId: 'REG-MORAYA-92401',
+    email: 'sumithatagale93@gmail.com',
+    phone: '9356646910',
+    emergencyContact: '9356646910',
+    address: 'Near Dange Chowk, Thergaon',
+    city: 'Pune',
     state: 'Maharashtra',
-    location: 'Bandra West, Mumbai',
-    pincode: '400050',
+    location: 'Thergaon, Pune',
+    pincode: '411033',
     ambulanceAvailable: true,
-    coordinates: { lat: 19.0522, lng: 72.8295 },
     departments: ['Emergency & Trauma', 'General Medicine', 'Cardiology', 'ICU'],
     status: 'VERIFIED',
-    createdAt: '2025-10-01T08:00:00Z'
+    createdAt: '2026-10-02T11:04:52.401Z'
   }
 ];
 
-export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [
-  {
-    id: 'doc-sharma',
-    userId: 'usr-doc-sharma',
-    doctorName: 'Dr. Anita Sharma',
-    email: 'dr.sharma@medibridge.ai',
-    phone: '+91 98200 12345',
-    registrationNumber: 'MCI-2015-44912',
-    qualification: 'MBBS, MD (General Medicine)',
-    specialization: 'Cardiology & General Medicine',
-    hospitalId: 'HOSP-MUM-001',
-    hospitalName: 'Lilavati Hospital & Research Centre',
-    departmentId: 'dept-cardio',
-    departmentName: 'Cardiology',
-    experienceYears: 14,
-    isAvailable: true,
-    activePatientsCount: 18,
-    createdAt: '2025-10-01T08:00:00Z'
-  }
-];
+export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [];
 
 // Valid standard Base64-encoded PDF for pre-seeded medical documents
 const SAMPLE_VALID_PDF_BASE64 = Buffer.from(
@@ -383,78 +304,17 @@ function sanitizeDatabase(data: any): CentralDatabase {
     }
   }
 
-  const sessions: any[] = Array.isArray(data?.sessions) ? [...data.sessions] : [];
-  if (!sessions.some(s => s.patientId === 'MB-2026-9MNBTN' || s.id === 'sess-manoj-001')) {
-    sessions.unshift({
-      id: 'sess-manoj-001',
-      patientId: 'MB-2026-9MNBTN',
-      userId: 'usr-pat-manoj',
-      patientName: 'Manoj Bhosale',
-      timestamp: '2026-10-02T10:15:00.000Z',
-      chiefComplaint: 'Intermittent chest tightness and mild shortness of breath upon exertion',
-      triageCategory: 'YELLOW',
-      clinicalSummary: 'Patient Manoj Bhosale (34y M) presents with 5-day history of exertional chest heaviness, relieved by resting. Blood pressure 128/82 mmHg, HR 74 bpm. Vitals are hemodynamically stable. No radiation to left jaw or arm. Normal sinus rhythm noted on preliminary ECG. Triage Category Yellow - recommended for OPD cardiologist review and lipid monitoring.',
-      vitalSigns: {
-        bloodPressure: '128/82 mmHg',
-        heartRate: '74 bpm',
-        spO2: '99%',
-        temperature: '98.4 F',
-        respiratoryRate: '16/min'
-      },
-      selectedHospitalId: 'HOSP-MUM-001',
-      selectedHospitalName: 'Lilavati Hospital & Research Centre',
-      recommendedSpecialty: 'Cardiology & General Medicine',
-      status: 'DISPATCHED_TO_HOSPITAL'
-    });
-  }
+  const sessions: any[] = Array.isArray(data?.sessions)
+    ? data.sessions.filter((s: any) => s.id !== 'sess-manoj-001' && !((s.selectedHospitalName || '').toLowerCase().includes('lilavati')))
+    : [];
 
-  const documents: any[] = Array.isArray(data?.documents) ? [...data.documents] : [];
-  if (!documents.some(doc => doc.patientId === 'MB-2026-9MNBTN' || doc.id === 'doc-manoj-pdf-01')) {
-    documents.unshift({
-      id: 'doc-manoj-pdf-01',
-      patientId: 'MB-2026-9MNBTN',
-      fileName: 'Lilavati_Comprehensive_Health_Checkup_2026.pdf',
-      fileType: 'LAB_REPORT',
-      mimeType: 'application/pdf',
-      fileSize: '1.4 KB',
-      fileSizeBytes: 1024,
-      uploadDate: '2026-10-02T10:20:00.000Z',
-      filePath: 'data/uploads/MB-2026-9MNBTN/doc-manoj-pdf-01_Lilavati_Comprehensive_Health_Checkup_2026.pdf',
-      fileUrl: '/api/documents?id=doc-manoj-pdf-01',
-      downloadUrl: '/api/documents?id=doc-manoj-pdf-01&download=true',
-      fileData: SAMPLE_VALID_PDF_BASE64,
-      extractedData: {
-        documentId: 'doc-manoj-pdf-01',
-        documentDate: '2026-10-02',
-        facilityName: 'Lilavati Hospital & Research Centre',
-        physicianName: 'Dr. Anita Sharma, MD',
-        extractedDiagnoses: ['Normal Sinus Rhythm', 'Borderline Lipids (Cholesterol 210 mg/dL)', 'Normotensive'],
-        extractedMedications: ['Amlodipine 5mg OD'],
-        extractedLabResults: [
-          { testName: 'Total Cholesterol', resultValue: '210', unit: 'mg/dL', normalRange: '< 200', interpretation: 'BORDERLINE' },
-          { testName: 'Triglycerides', resultValue: '142', unit: 'mg/dL', normalRange: '< 150', interpretation: 'NORMAL' },
-          { testName: 'Fasting Blood Glucose', resultValue: '94', unit: 'mg/dL', normalRange: '70-99', interpretation: 'NORMAL' }
-        ],
-        procedures: ['12-Lead Electrocardiogram (ECG)', 'Biochemical Automated Assay'],
-        confidenceScore: 0.99,
-        rawTextSnippets: ['Cardiology Assessment Specimen Blood', 'ECG: Normal sinus rhythm, axis normal']
-      },
-      status: 'COMPLETED'
-    });
-  }
+  const documents: any[] = Array.isArray(data?.documents)
+    ? data.documents.filter((d: any) => d.id !== 'doc-manoj-pdf-01' && !((d.fileName || '').toLowerCase().includes('lilavati')))
+    : [];
 
-  const trustedHospitals: any[] = Array.isArray(data?.trustedHospitals) ? [...data.trustedHospitals] : [];
-  if (!trustedHospitals.some(t => t.patientId === 'MB-2026-9MNBTN' && t.hospitalId === 'HOSP-MUM-001')) {
-    trustedHospitals.unshift({
-      id: 'trust-manoj-lilavati',
-      patientId: 'MB-2026-9MNBTN',
-      hospitalId: 'HOSP-MUM-001',
-      hospitalName: 'Lilavati Hospital & Research Centre',
-      grantedAt: '2025-10-01T08:00:00Z',
-      expiresAt: '2027-10-01T08:00:00Z',
-      status: 'ACTIVE'
-    });
-  }
+  const trustedHospitals: any[] = Array.isArray(data?.trustedHospitals)
+    ? data.trustedHospitals.filter((t: any) => t.id !== 'trust-manoj-lilavati' && !((t.hospitalName || '').toLowerCase().includes('lilavati')))
+    : [];
 
   return {
     users,

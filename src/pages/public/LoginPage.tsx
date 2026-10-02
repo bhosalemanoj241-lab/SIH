@@ -578,20 +578,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
                 className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm rounded-xl shadow-md shadow-teal-600/20 transition flex items-center justify-center gap-2 mt-2 cursor-pointer">
                 {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><span>Sign In as Patient</span><ArrowRight className="w-4 h-4" /></>}
               </button>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span>Demo Account: <strong>bhosalemanoj241@gmail.com</strong></span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('bhosalemanoj241@gmail.com');
-                    setLoginPassword('Password@123');
-                  }}
-                  className="px-2.5 py-1 bg-teal-100 hover:bg-teal-200 text-teal-800 font-bold rounded-lg transition cursor-pointer"
-                >
-                  Quick Fill
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 text-center">New patient? <button type="button" onClick={() => setAuthMode('REGISTER')} className="text-teal-700 font-bold hover:underline cursor-pointer">Create account with Patient ID</button></p>
+              <p className="text-xs text-slate-500 text-center pt-2">New patient? <button type="button" onClick={() => setAuthMode('REGISTER')} className="text-teal-700 font-bold hover:underline cursor-pointer">Create account with Patient ID</button></p>
             </form>
           )}
 
@@ -732,21 +719,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
                 </div>
               </div>
 
-              {devHelperCode && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <span>Dev/Local OTP: <code className="font-bold font-mono bg-amber-100 px-1.5 py-0.5 rounded">{devHelperCode}</code></span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setVerifyOtpCode(devHelperCode)}
-                    className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950 cursor-pointer"
-                  >
-                    Auto-Fill
-                  </button>
-                </div>
-              )}
+
 
               <button
                 type="submit"
@@ -831,50 +804,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-600/20 transition flex items-center justify-center gap-2 cursor-pointer">
                 {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><span>Sign In — Hospital Portal</span><ArrowRight className="w-4 h-4" /></>}
               </button>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span>Demo Hospital: <strong>Lilavati Hospital</strong></span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('lilavati.hospital@hospitalcloud.in');
-                    setLoginPassword('Password@123');
-                  }}
-                  className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold rounded-lg transition cursor-pointer"
-                >
-                  Quick Fill
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 text-center">New hospital? <button type="button" onClick={() => setAuthMode('REGISTER')} className="text-blue-700 font-bold hover:underline cursor-pointer">Register your hospital</button></p>
+              <p className="text-xs text-slate-500 text-center pt-2">New hospital? <button type="button" onClick={() => setAuthMode('REGISTER')} className="text-blue-700 font-bold hover:underline cursor-pointer">Register your hospital</button></p>
             </form>
           )}
 
           {/* Hospital Register Form */}
           {authMode === 'REGISTER' && (
             <form onSubmit={handleHospitalRegisterSubmit} className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
-                <span>Want to test registration quickly?</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const rnd = Math.floor(1000 + Math.random() * 9000);
-                    setHospName(`City Care Hospital ${rnd}`);
-                    setHospRegId(`REG-HOSP-${rnd}`);
-                    setHospEmergencyContact('+91 22 2845 7700');
-                    setHospAddress('Plot 42, Health City Highway');
-                    setHospLocation('Andheri East');
-                    setHospCity('Mumbai');
-                    setHospState('Maharashtra');
-                    setHospPincode('400069');
-                    setHospEmail(`hospital.admin.${rnd}@hospitalcloud.in`);
-                    setHospPassword('Password@123');
-                    setHospConfirmPassword('Password@123');
-                    setHospAmbulance(true);
-                  }}
-                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition cursor-pointer shadow-sm"
-                >
-                  ⚡ Auto-Fill Sample Data
-                </button>
-              </div>
 
               {/* Hospital Info */}
               <div className="pb-1">
