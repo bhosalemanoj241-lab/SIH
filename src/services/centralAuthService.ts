@@ -567,6 +567,31 @@ class CentralAuthService {
       return false;
     }
   }
+
+  /**
+   * Wipes all registered patient records, clinical intake data, and uploaded documents,
+   * while keeping registered hospital and doctor accounts fully intact.
+   */
+  public async clearAllPatientRegistrations(): Promise<boolean> {
+    try {
+      cloudDb.clearAllPatients();
+      db.clearAllPatients();
+
+      await fetch(CENTRAL_AUTH_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear_all_patients' }),
+        signal: AbortSignal.timeout(5000)
+      }).catch(err => {
+        console.warn('[CentralAuth clearAllPatients API warning]:', err);
+      });
+
+      return true;
+    } catch (err) {
+      console.error('[CentralAuth clearAllPatients error]:', err);
+      return false;
+    }
+  }
 }
 
 export const centralAuthService = CentralAuthService.getInstance();

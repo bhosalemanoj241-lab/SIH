@@ -4,10 +4,13 @@ import {
   CheckCircle2, FileText, ArrowRight, RefreshCw, ShieldAlert, ShieldCheck, ShieldOff,
   Sparkle, Leaf, Stethoscope, Ban, Square, Pill, ExternalLink, AlertCircle, Clock, Globe
 } from 'lucide-react';
-import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession, MedicalSystem, MedicineRecommendation, ClinicalTriageAssessment, ConditionCategory } from '../../types';
+import { ConversationMessage, LanguageCode, TriagePriority, ClinicalSession, MedicalSystem, MedicineRecommendation, ClinicalTriageAssessment, ConditionCategory, EmergencyAlert } from '../../types';
 import { AIIntakeEngine } from '../../services/aiIntakeEngine';
 import { SpeechService } from '../../services/speechService';
 import { db } from '../../services/mockDatabase';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
+import { syncRelay } from '../../services/firebaseService';
+import { LocationHospitalService } from '../../services/locationHospitalService';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -457,80 +460,198 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         setRedFlags(result.redFlagsDetected);
         triggerEmergencyAlertAudio();
 
-        const pId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : 'pat-001');
-        const existingAlerts = db.getEmergencyAlerts();
-        const activeEmergency = existingAlerts.find(a =>
-          (a.patientId === pId || a.patientName === currentUser?.fullName) &&
-          a.status !== 'RESOLVED' && a.status !== 'HANDOVER_COMPLETED'
+        const pId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || currentUser?.id || 'pat-001';
+        const pName = currentUser?.fullName || patientProfile?.fullName || 'Registered Patient';
+
+        // 1. Strict Verified Trusted Hospital Lookup ONLY
+        let trustedHospitals = db.getTrustedHospitals(pId).filter(
+          t => t.status === 'ACTIVE' && t.hospitalId && t.allowEmergencyAlert !== false
         );
+        if (trustedHospitals.length === 0) {
+          try {
+            const cloudTrusted = await cloudDb.getTrustedHospitals(pId);
+            trustedHospitals = (cloudTrusted || []).filter(
+              (t: any) => t.status === 'ACTIVE' && t.hospitalId && t.allowEmergencyAlert !== false
+            ) as any;
+          } catch {}
+        }
 
-        if (activeEmergency) {
-          const updatedAlert = {
-            ...activeEmergency,
-            redFlags: Array.from(new Set([...(activeEmergency.redFlags || []), ...result.redFlagsDetected])),
-            triggerReason: `${activeEmergency.triggerReason} + ${result.redFlagsDetected.join(' + ')}`,
-            originalMessage: messageContent,
-            detectedLanguage: language,
-            detectedEmergencyConcern: result.translatedConcern || result.redFlagsDetected.join(' + ')
-          };
-          db.saveEmergencyAlert(updatedAlert);
-          onEmergencyTriggered(updatedAlert.id);
+        // CRITICAL PRIVACY & ISOLATION RULE:
+        // Do NOT send the alert or location to any other hospital.
+        if (trustedHospitals.length === 0) {
+          showToast(
+            '🚨 CRITICAL RED FLAG DETECTED',
+            `Severe clinical symptoms detected (${result.redFlagsDetected.join(', ')}). No verified trusted hospital linked. Call 108 / 112 emergency services immediately!`,
+            'EMERGENCY'
+          );
+          db.logAction(
+            currentUser?.id || 'usr-pat',
+            pName,
+            'PATIENT',
+            'RED_FLAG_TRIGGERED',
+            'IntakeSession',
+            activeSessionId,
+            `Red flag triggered (${result.redFlagsDetected.join(', ')}). Alert transmission withheld because patient has no verified trusted hospital.`
+          );
         } else {
-          const pName = currentUser?.fullName || patientProfile?.fullName || 'Registered Patient';
-          const trustedHospitals = db.getTrustedHospitals(pId).filter(t => t.status === 'ACTIVE');
-          const registeredHospitals = db.getHospitals();
-          const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : '');
-          const targetHospitalName = trustedHospitals[0]?.hospitalName || (registeredHospitals.length > 0 ? registeredHospitals[0].name : 'Nearest Emergency Center');
+          // Exactly the patient's verified trusted hospital only
+          const targetHospital = trustedHospitals[0];
+          const targetHospitalId = targetHospital.hospitalId;
+          const targetHospitalName = targetHospital.hospitalName;
 
-          const alertId = `emg-${Date.now()}`;
-          const newEmergencyAlert = {
-            id: alertId,
-            sessionId: activeSessionId,
-            patientId: pId,
-            patientName: pName,
-            patientAge: patientProfile?.age || 35,
-            patientGender: patientProfile?.gender || 'Male',
-            patientPhone: currentUser?.phone || '+91 98000 00000',
-            hospitalId: targetHospitalId,
-            hospitalName: targetHospitalName,
-            priority: 'RED' as const,
-            triggerReason: result.redFlagsDetected.join(' + '),
-            redFlags: result.redFlagsDetected,
-            originalMessage: messageContent,
-            detectedLanguage: language,
-            translatedSummary: result.translatedConcern || result.redFlagsDetected.join(' + '),
-            detectedEmergencyConcern: result.translatedConcern || result.redFlagsDetected.join(' + '),
-            status: 'DISPATCHED' as const,
-            timestamp: new Date().toISOString(),
-            ambulanceAssigned: {
-              vehicleNumber: 'MH-43-AM-2026',
-              driverName: 'Sanjay Jadhav (Paramedic unit)',
-              driverPhone: '+91 98765 43210',
-              etaMinutes: 5,
-              currentVitals: {
-                bp: '162/98 mmHg',
-                pulse: 108,
-                spo2: 93,
-                temp: '98.6°F',
-                respiratoryRate: 26
-              },
-              liveCoordinates: { lat: 18.7303, lng: 73.6766 }
-            }
+          // Resolve live / current location
+          let liveLocation = {
+            lat: 18.7303,
+            lng: 73.6766,
+            address: patientProfile?.address || 'Current Patient Location',
+            city: patientProfile?.city || 'Pune'
           };
 
-          db.saveEmergencyAlert(newEmergencyAlert);
+          try {
+            const gpsPromise = LocationHospitalService.getCurrentGpsPosition();
+            const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 1200));
+            const gpsRes = await Promise.race([gpsPromise, timeoutPromise]);
+            if (gpsRes && gpsRes.coordinates) {
+              liveLocation = {
+                lat: gpsRes.coordinates.lat,
+                lng: gpsRes.coordinates.lng,
+                address: gpsRes.label || patientProfile?.address || 'Live GPS Coordinates',
+                city: gpsRes.city || patientProfile?.city || 'Local'
+              };
+            } else if (patientProfile?.address || patientProfile?.city) {
+              liveLocation = {
+                lat: 18.7303,
+                lng: 73.6766,
+                address: `${patientProfile.address || ''}${patientProfile.city ? ', ' + patientProfile.city : ''}`.trim(),
+                city: patientProfile.city || 'Pune'
+              };
+            }
+          } catch (locErr) {
+            console.warn('[liveLocation resolution warn]:', locErr);
+          }
+
+          const redFlagDetailsStr = result.redFlagsDetected && result.redFlagsDetected.length > 0
+            ? result.redFlagsDetected.join(', ')
+            : 'Critical clinical red flag detected during intake';
+
+          const existingAlerts = db.getEmergencyAlerts(targetHospitalId);
+          const activeEmergency = existingAlerts.find(a =>
+            (a.caseId === activeSessionId || a.sessionId === activeSessionId || a.patientId === pId) &&
+            a.status !== 'RESOLVED' && a.status !== 'HANDOVER_COMPLETED'
+          );
+
+          let alertToSave: EmergencyAlert;
+
+          if (activeEmergency) {
+            alertToSave = {
+              ...activeEmergency,
+              caseId: activeSessionId,
+              patientId: pId,
+              patientName: pName,
+              hospitalId: targetHospitalId,
+              hospitalName: targetHospitalName,
+              priority: 'RED',
+              severity: 'CRITICAL',
+              redFlags: Array.from(new Set([...(activeEmergency.redFlags || []), ...result.redFlagsDetected])),
+              redFlagDetails: Array.from(new Set([...(activeEmergency.redFlags || []), ...result.redFlagsDetected])).join(', '),
+              triggerReason: `${activeEmergency.triggerReason} + ${result.redFlagsDetected.join(' + ')}`,
+              timestamp: new Date().toISOString(),
+              liveLocation,
+              originalMessage: messageContent,
+              detectedLanguage: language,
+              detectedEmergencyConcern: result.translatedConcern || redFlagDetailsStr
+            };
+          } else {
+            const alertId = `emg-${Date.now()}`;
+            alertToSave = {
+              id: alertId,
+              caseId: activeSessionId,
+              sessionId: activeSessionId,
+              patientId: pId,
+              patientName: pName,
+              patientAge: patientProfile?.age || 35,
+              patientGender: patientProfile?.gender || 'Male',
+              patientPhone: currentUser?.phone || '+91 98000 00000',
+              hospitalId: targetHospitalId,
+              hospitalName: targetHospitalName,
+              priority: 'RED',
+              severity: 'CRITICAL',
+              triggerReason: redFlagDetailsStr,
+              redFlags: result.redFlagsDetected,
+              redFlagDetails: redFlagDetailsStr,
+              originalMessage: messageContent,
+              detectedLanguage: language,
+              translatedSummary: result.translatedConcern || redFlagDetailsStr,
+              detectedEmergencyConcern: result.translatedConcern || redFlagDetailsStr,
+              status: 'DISPATCHED',
+              timestamp: new Date().toISOString(),
+              liveLocation,
+              ambulanceAssigned: {
+                vehicleNumber: 'MH-43-AM-2026',
+                driverName: 'Sanjay Jadhav (Paramedic unit)',
+                driverPhone: '+91 98765 43210',
+                etaMinutes: 5,
+                currentVitals: {
+                  bp: '162/98 mmHg',
+                  pulse: 108,
+                  spo2: 93,
+                  temp: '98.6°F',
+                  respiratoryRate: 26
+                },
+                liveCoordinates: { lat: liveLocation.lat, lng: liveLocation.lng }
+              }
+            };
+          }
+
+          // 1. Secure Local Database persistence
+          db.saveEmergencyAlert(alertToSave);
+
+          // 2. Secure Cloud Database persistence
+          await cloudDb.saveEmergencyAlert(alertToSave);
+
+          // 3. Secure Central Backend API persistence
+          try {
+            await fetch('/api/emergencies', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(alertToSave)
+            });
+          } catch (apiErr) {
+            console.warn('[POST /api/emergencies warn]:', apiErr);
+          }
+
+          // 4. Real-time broadcast strictly to verified trusted hospital channel
+          syncRelay.publish(`hospital_emergency_${targetHospitalId}`, alertToSave);
+          syncRelay.publish('emergency_alert_dispatched', alertToSave);
+
           db.addNotification({
             id: `notif-${Date.now()}`,
             recipientRole: 'TRIAGE',
             title: '🚨 AUTOMATIC EMERGENCY RED ALERT',
-            message: `${pName} triggered red flag symptoms (${result.redFlagsDetected.join(', ')}). Language: ${language.toUpperCase()}. Original statement: "${messageContent.substring(0, 60)}"`,
+            message: `${pName} (ID: ${pId}, Case: ${activeSessionId}) triggered red flags (${redFlagDetailsStr}). Dispatched strictly to verified trusted hospital ${targetHospitalName}.`,
             type: 'EMERGENCY',
             timestamp: new Date().toISOString(),
             isRead: false,
             actionUrl: '/triage'
           });
 
-          onEmergencyTriggered(alertId);
+          db.logAction(
+            currentUser?.id || 'usr-pat',
+            pName,
+            'PATIENT',
+            'EMERGENCY_DISPATCHED',
+            'EmergencyAlert',
+            alertToSave.id,
+            `Emergency alert dispatched strictly to verified trusted hospital: ${targetHospitalName} (${targetHospitalId}). Case ID: ${activeSessionId}. Live Location: ${liveLocation.address}`
+          );
+
+          showToast(
+            '🚨 EMERGENCY ALERT DISPATCHED',
+            `Alert sent to verified trusted hospital: ${targetHospitalName}. Paramedic unit alerted.`,
+            'EMERGENCY'
+          );
+
+          onEmergencyTriggered(alertToSave.id);
         }
       }
 

@@ -6,6 +6,7 @@ import {
   getDatabase,
   saveDatabase,
   clearAllRegistrations,
+  clearAllPatients,
   findUserByIdentifier,
   findPatientByIdentifier,
   findHospitalByIdentifier,
@@ -57,6 +58,11 @@ export default async function handler(req: any, res: any) {
         doctorsCount: 0,
         hospitalsCount: 0
       });
+    }
+
+    if (action === 'clear_all_patients' || action === 'clear_patients') {
+      const result = clearAllPatients();
+      return res.status(200).json(result);
     }
 
     if (action === 'lookup' && identifier) {
@@ -143,6 +149,12 @@ export default async function handler(req: any, res: any) {
         doctorsCount: 0,
         hospitalsCount: 0
       });
+    }
+
+    // ── ACTION: CLEAR ALL PATIENTS ONLY ──
+    if (action === 'clear_all_patients' || action === 'clear_patients') {
+      const result = clearAllPatients();
+      return res.status(200).json(result);
     }
 
     // ── ACTION: VERIFY EMAIL OTP ──

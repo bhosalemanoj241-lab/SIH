@@ -395,6 +395,7 @@ export interface ClinicalHistorySummary {
 export interface EmergencyAlert {
   id: string;
   sessionId: string;
+  caseId?: string;
   patientId: string;
   patientName: string;
   patientAge: number;
@@ -403,8 +404,10 @@ export interface EmergencyAlert {
   hospitalId: string;
   hospitalName: string;
   priority: 'RED' | 'ORANGE';
+  severity?: 'CRITICAL' | 'HIGH' | 'MODERATE' | string;
   triggerReason: string;
   redFlags: string[];
+  redFlagDetails?: string;
   originalMessage?: string;
   detectedLanguage?: LanguageCode;
   translatedSummary?: string;
@@ -412,6 +415,12 @@ export interface EmergencyAlert {
   status: 'DISPATCHED' | 'ACKNOWLEDGED' | 'EN_ROUTE' | 'ARRIVED_AT_HOSPITAL' | 'HANDOVER_COMPLETED' | 'RESOLVED';
   timestamp: string;
   resolvedAt?: string;
+  liveLocation?: {
+    lat: number;
+    lng: number;
+    address?: string;
+    city?: string;
+  };
   ambulanceAssigned?: {
     vehicleNumber: string;
     driverName: string;

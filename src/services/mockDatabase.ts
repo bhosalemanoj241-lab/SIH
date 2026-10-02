@@ -639,6 +639,10 @@ export class MockDatabase {
       all.unshift(record);
     }
     this.setItems(STORAGE_KEYS.TRUSTED_HOSPITALS, all);
+    cloudDb.saveTrustedHospital(record as any);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'SAVE_TRUSTED_HOSPITAL', record } }));
+    }
   }
 
   public revokeTrustedHospital(id: string): void {
@@ -867,6 +871,37 @@ export class MockDatabase {
     }
   }
 
+  public clearAllPatients(): void {
+    // 1. Remove users with role 'PATIENT' or having patientId
+    const currentUsers = this.getUsers().filter(u => u.role !== 'PATIENT' && !(u as any).patientId);
+    this.setItems(STORAGE_KEYS.USERS, currentUsers);
+
+    // 2. Clear Patients
+    this.setItems(STORAGE_KEYS.PATIENTS, []);
+    try {
+      setStorageItem('medibridge_cloud_patients_cache', '[]');
+      setStorageItem('medibridge_patients', '[]');
+    } catch {}
+
+    // 3. Clear patient clinical sessions, emergencies, appointments, documents, trusted hospitals
+    this.clearClinicalSessions();
+    this.clearEmergencyAlerts();
+    this.clearAppointments();
+    this.setItems(STORAGE_KEYS.DOCUMENTS, []);
+    this.setItems(STORAGE_KEYS.TRUSTED_HOSPITALS, []);
+
+    try {
+      setStorageItem('medibridge_cloud_requests_cache', '[]');
+      setStorageItem('medibridge_cloud_trusted_cache', '[]');
+      setStorageItem('medibridge_cloud_documents_cache', '[]');
+      setStorageItem('medibridge_cloud_timeline_cache', '[]');
+    } catch {}
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'CLEAR_ALL_PATIENTS' } }));
+    }
+  }
+
   // Documents
   public getDocuments(patientIdOrCode?: string): MedicalDocument[] {
     const local = this.getItems<MedicalDocument>(STORAGE_KEYS.DOCUMENTS);
@@ -959,7 +994,7 @@ export class MockDatabase {
   }
 
   // Emergencies
-  public getEmergencyAlerts(): EmergencyAlert[] {
+  public getEmergencyAlerts(hospitalId?: string): EmergencyAlert[] {
     const local = this.getItems<EmergencyAlert>(STORAGE_KEYS.EMERGENCIES);
     let cloudAlerts: EmergencyAlert[] = [];
     try {
@@ -969,7 +1004,12 @@ export class MockDatabase {
     const map = new Map<string, EmergencyAlert>();
     cloudAlerts.forEach(a => map.set(a.id, a));
     local.forEach(a => map.set(a.id, a));
-    return Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    let list = Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    if (hospitalId) {
+      const clean = hospitalId.trim().toUpperCase();
+      list = list.filter(a => (a.hospitalId || '').toUpperCase() === clean);
+    }
+    return list;
   }
 
   public saveEmergencyAlert(alert: EmergencyAlert): void {

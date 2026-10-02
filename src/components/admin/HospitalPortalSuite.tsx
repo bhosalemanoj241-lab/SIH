@@ -5,7 +5,7 @@ import {
   Siren, Clock, Sparkles, HeartPulse, Stethoscope, ChevronRight,
   Plus, RefreshCw, Send, Check, Eye, Filter, ArrowUpRight,
   SlidersHorizontal, Download, FileSpreadsheet, Zap, Radio,
-  Shield, CheckCheck, Trash2, Edit3, XCircle, Lock, ShieldAlert, QrCode
+  Shield, CheckCheck, Trash2, Edit3, XCircle, Lock, ShieldAlert, QrCode, MapPin
 } from 'lucide-react';
 
 import { db } from '../../services/mockDatabase';
@@ -13,7 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { cloudDb } from '../../services/cloudDatabaseEngine';
-import { PatientProfile, ClinicalSession, MedicalDocument, Hospital, AccessRequest } from '../../types';
+import { PatientProfile, ClinicalSession, MedicalDocument, Hospital, AccessRequest, EmergencyAlert } from '../../types';
 import { PatientQrScanner } from '../doctor/PatientQrScanner';
 import { Modal } from '../common/Modal';
 import { DocumentViewerModal } from '../common/DocumentViewerModal';
@@ -82,8 +82,89 @@ export const HospitalPortalSuite: React.FC = () => {
   const [viewingDoc, setViewingDoc] = useState<MedicalDocument | null>(null);
   const [viewingSession, setViewingSession] = useState<ClinicalSession | null>(null);
 
-  const currentHospitalId = hospitalAccount?.id || currentUser?.id || '';
+  const currentHospitalId = hospitalAccount?.id || (hospitalAccount as any)?.hospitalId || currentUser?.id || 'HOSP-2026-92401';
   const currentHospitalName = hospitalAccount?.hospitalName || currentUser?.fullName || 'Hospital Facility';
+
+  // Active Verified Hospital Red Flag Emergency Alerts
+  const [activeHospitalEmergencies, setActiveHospitalEmergencies] = useState<EmergencyAlert[]>([]);
+
+  const fetchActiveHospitalEmergencies = React.useCallback(async () => {
+    const cleanHospId = (currentHospitalId || '').trim();
+    if (!cleanHospId) return;
+
+    const localAlerts = db.getEmergencyAlerts(cleanHospId).filter(e => e.status !== 'RESOLVED');
+
+    try {
+      const res = await fetch(`/api/emergencies?hospitalId=${encodeURIComponent(cleanHospId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.emergencies && Array.isArray(json.emergencies)) {
+          const apiAlerts: EmergencyAlert[] = json.emergencies.filter(
+            (e: EmergencyAlert) => e.status !== 'RESOLVED' &&
+            ((e.hospitalId || '').toUpperCase() === cleanHospId.toUpperCase() ||
+             (e.hospitalName && currentHospitalName && e.hospitalName.toLowerCase() === currentHospitalName.toLowerCase()))
+          );
+          const map = new Map<string, EmergencyAlert>();
+          localAlerts.forEach(a => map.set(a.id, a));
+          apiAlerts.forEach(a => map.set(a.id, a));
+          const merged = Array.from(map.values()).sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setActiveHospitalEmergencies(merged);
+          return;
+        }
+      }
+    } catch {}
+
+    setActiveHospitalEmergencies(localAlerts);
+  }, [currentHospitalId, currentHospitalName]);
+
+  useEffect(() => {
+    fetchActiveHospitalEmergencies();
+
+    const cleanHospId = (currentHospitalId || '').trim();
+    if (!cleanHospId) return;
+
+    const handleUpdate = () => {
+      fetchActiveHospitalEmergencies();
+    };
+
+    window.addEventListener('medibridge_db_update', handleUpdate);
+    window.addEventListener('medibridge_cloud_sync', handleUpdate);
+
+    // Dedicated verified hospital emergency channel
+    const unsubHospChannel = syncRelay.subscribe(`hospital_emergency_${cleanHospId}`, (incomingAlert: any) => {
+      if (incomingAlert && ((incomingAlert.hospitalId || '').toUpperCase() === cleanHospId.toUpperCase())) {
+        setActiveHospitalEmergencies(prev => {
+          if (prev.some(a => a.id === incomingAlert.id)) {
+            return prev.map(a => a.id === incomingAlert.id ? incomingAlert : a);
+          }
+          return [incomingAlert, ...prev];
+        });
+        showToast('🚨 INCOMING RED FLAG EMERGENCY', `Live emergency alert received for Patient ${incomingAlert.patientId || incomingAlert.patientName}!`, 'TRIAGE');
+      }
+    });
+
+    // Dispatched alert (filtered strictly to this hospital only)
+    const unsubGlobalDispatched = syncRelay.subscribe('emergency_alert_dispatched', (incomingAlert: any) => {
+      if (incomingAlert && ((incomingAlert.hospitalId || '').toUpperCase() === cleanHospId.toUpperCase() ||
+          (incomingAlert.hospitalName && currentHospitalName && incomingAlert.hospitalName.toLowerCase() === currentHospitalName.toLowerCase()))) {
+        setActiveHospitalEmergencies(prev => {
+          if (prev.some(a => a.id === incomingAlert.id)) {
+            return prev.map(a => a.id === incomingAlert.id ? incomingAlert : a);
+          }
+          return [incomingAlert, ...prev];
+        });
+      }
+    });
+
+    return () => {
+      window.removeEventListener('medibridge_db_update', handleUpdate);
+      window.removeEventListener('medibridge_cloud_sync', handleUpdate);
+      unsubHospChannel();
+      unsubGlobalDispatched();
+    };
+  }, [currentHospitalId, currentHospitalName, fetchActiveHospitalEmergencies]);
 
   // Real-time listener for permission approval/denial from patient device
   useEffect(() => {
@@ -598,6 +679,142 @@ export const HospitalPortalSuite: React.FC = () => {
           >
             Acknowledge &amp; Silence
           </button>
+        </div>
+      )}
+
+      {/* ── Live Verified Red Flag Emergency Alert Banner ─────────────────── */}
+      {activeHospitalEmergencies.length > 0 && (
+        <div className="space-y-4">
+          {activeHospitalEmergencies.map((alert) => (
+            <div
+              key={alert.id}
+              className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white rounded-3xl p-5 sm:p-6 shadow-xl border-2 border-red-300 relative overflow-hidden"
+            >
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <div className="space-y-2 flex-1">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="px-3 py-1 bg-white text-red-700 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                      <Siren className="w-4 h-4 text-red-600 animate-pulse" />
+                      <span>🚨 Incoming Red Flag Emergency Alert</span>
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-black/40 text-yellow-300 border border-yellow-300/40 rounded-md text-xs font-mono font-black uppercase tracking-wider">
+                      Severity: {alert.severity || 'CRITICAL'}
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-black/25 text-white/90 rounded-md text-xs font-mono">
+                      Status: {alert.status}
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-black/25 text-white/90 rounded-md text-xs font-mono">
+                      Hospital: {alert.hospitalName || currentHospitalName}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 text-xs">
+                    <div className="bg-black/25 p-3 rounded-2xl border border-white/10">
+                      <span className="text-white/70 block text-[10px] uppercase font-bold tracking-wider">Patient ID:</span>
+                      <span className="font-mono font-black text-sm text-yellow-300 block">{alert.patientId}</span>
+                      <span className="block text-white/85 text-[11px] truncate font-medium">{alert.patientName}</span>
+                    </div>
+
+                    <div className="bg-black/25 p-3 rounded-2xl border border-white/10">
+                      <span className="text-white/70 block text-[10px] uppercase font-bold tracking-wider">Case ID:</span>
+                      <span className="font-mono font-black text-sm text-white block truncate">{alert.caseId || alert.sessionId || 'N/A'}</span>
+                      <span className="block text-white/85 text-[11px]">Intake Session Reference</span>
+                    </div>
+
+                    <div className="bg-black/25 p-3 rounded-2xl border border-white/10">
+                      <span className="text-white/70 block text-[10px] uppercase font-bold tracking-wider">Timestamp:</span>
+                      <span className="font-mono text-white text-xs block font-bold">
+                        {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                      <span className="text-white/75 text-[10px]">
+                        {new Date(alert.timestamp).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div className="bg-black/25 p-3 rounded-2xl border border-white/10">
+                      <span className="text-white/70 block text-[10px] uppercase font-bold tracking-wider">Live / Current Location:</span>
+                      <div className="flex items-center gap-1.5 text-white font-semibold">
+                        <MapPin className="w-3.5 h-3.5 text-yellow-300 flex-shrink-0" />
+                        <span className="truncate text-xs">
+                          {alert.liveLocation?.address || alert.liveLocation?.city || 'Live GPS Telemetry'}
+                        </span>
+                      </div>
+                      {alert.liveLocation?.lat && alert.liveLocation?.lng && (
+                        <span className="font-mono text-[10px] text-yellow-200 block mt-0.5">
+                          📍 {alert.liveLocation.lat.toFixed(4)}°, {alert.liveLocation.lng.toFixed(4)}°
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Red Flag Details */}
+                  <div className="bg-black/35 p-3 rounded-2xl border border-white/15 mt-2 text-xs">
+                    <span className="text-yellow-300 font-bold block mb-1 flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-yellow-300" />
+                      <span>Triggered Red-Flag Symptoms &amp; Details:</span>
+                    </span>
+                    <p className="text-white font-medium leading-relaxed">
+                      {alert.redFlagDetails || (alert.redFlags && alert.redFlags.length > 0 ? alert.redFlags.join(', ') : alert.triggerReason) || 'Acute clinical red flag criteria triggered during AI intake.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Emergency Action Buttons */}
+                <div className="flex lg:flex-col items-center gap-2 self-stretch lg:self-center justify-end">
+                  <button
+                    onClick={() => {
+                      const cleanPatId = alert.patientId;
+                      setPatientIdInput(cleanPatId);
+                      setActivePortalTab('RECEPTION');
+                      handleVerifyPatient(cleanPatId, true);
+                    }}
+                    className="px-4 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 flex-1 lg:flex-initial justify-center cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Verify Patient File</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const updated = { ...alert, status: 'ACKNOWLEDGED' as const };
+                      db.saveEmergencyAlert(updated);
+                      await cloudDb.saveEmergencyAlert(updated);
+                      try {
+                        await fetch('/api/emergencies', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: alert.id, status: 'ACKNOWLEDGED' })
+                        });
+                      } catch {}
+                      fetchActiveHospitalEmergencies();
+                      showToast('Acknowledged', `Emergency alert for patient ${alert.patientId} acknowledged by ER team.`, 'TRIAGE');
+                    }}
+                    className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 flex-1 lg:flex-initial justify-center cursor-pointer"
+                  >
+                    <span>Acknowledge</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const updated = { ...alert, status: 'RESOLVED' as const, resolvedAt: new Date().toISOString() };
+                      db.saveEmergencyAlert(updated);
+                      await cloudDb.saveEmergencyAlert(updated);
+                      try {
+                        await fetch('/api/emergencies', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: alert.id, status: 'RESOLVED', resolvedAt: updated.resolvedAt })
+                        });
+                      } catch {}
+                      fetchActiveHospitalEmergencies();
+                      showToast('Resolved', `Emergency alert marked as resolved.`, 'INFO');
+                    }}
+                    className="px-3 py-2 bg-black/40 hover:bg-black/60 text-white/80 hover:text-white text-xs rounded-xl transition flex items-center gap-1 justify-center cursor-pointer"
+                  >
+                    <span>Dismiss</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

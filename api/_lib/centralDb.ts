@@ -465,6 +465,10 @@ function sanitizeDatabase(data: any): CentralDatabase {
     }
   }
 
+  // Explicitly filter out any fake or test Rajesh Verma patient registrations
+  const usersClean = users.filter(u => !(u.fullName || '').toLowerCase().includes('rajesh') && !(u.email || '').toLowerCase().includes('rajesh'));
+  const patientsClean = patients.filter(p => !(p.fullName || '').toLowerCase().includes('rajesh') && !(p.email || '').toLowerCase().includes('rajesh') && (p.patientId || '').toUpperCase() !== 'MB-2026-RAJESH');
+
   const hospitals: HospitalAccount[] = Array.isArray(data?.hospitals) ? [...data.hospitals] : [];
   for (const h of DEFAULT_SEED_HOSPITALS) {
     const hHospId = (h.hospitalId || '').toUpperCase();
@@ -482,9 +486,8 @@ function sanitizeDatabase(data: any): CentralDatabase {
     }
   }
 
-  const sessions: any[] = Array.isArray(data?.sessions)
-    ? data.sessions.filter((s: any) => s.id !== 'sess-manoj-001' && !((s.selectedHospitalName || '').toLowerCase().includes('lilavati')))
-    : [];
+  const sessions: any[] = (Array.isArray(data?.sessions) ? data.sessions : [])
+    .filter((s: any) => s.id !== 'sess-manoj-001' && !((s.selectedHospitalName || '').toLowerCase().includes('lilavati')) && !(s.patientName || '').toLowerCase().includes('rajesh') && (s.patientId || '').toUpperCase() !== 'MB-2026-RAJESH');
 
   const documents: any[] = Array.isArray(data?.documents)
     ? data.documents.filter((d: any) => d.id !== 'doc-manoj-pdf-01' && !((d.fileName || '').toLowerCase().includes('lilavati')))
@@ -494,7 +497,8 @@ function sanitizeDatabase(data: any): CentralDatabase {
     ? data.trustedHospitals.filter((t: any) => t.id !== 'trust-manoj-lilavati' && !((t.hospitalName || '').toLowerCase().includes('lilavati')))
     : [];
 
-  const cases: CaseRecord[] = Array.isArray(data?.cases) ? [...data.cases] : [];
+  const cases: CaseRecord[] = (Array.isArray(data?.cases) ? data.cases : [])
+    .filter((c: CaseRecord) => (c.patientId || '').toUpperCase() !== 'MB-2026-RAJESH' && !((c.chiefComplaint || '').toLowerCase().includes('rajesh')));
   const symptoms: SymptomRecord[] = Array.isArray(data?.symptoms) ? [...data.symptoms] : [];
   const medicalHistory: MedicalHistoryRecord[] = Array.isArray(data?.medicalHistory) ? [...data.medicalHistory] : [];
   const medications: MedicationRecord[] = Array.isArray(data?.medications) ? [...data.medications] : [];
@@ -506,13 +510,22 @@ function sanitizeDatabase(data: any): CentralDatabase {
   const notifications: NotificationRecord[] = Array.isArray(data?.notifications) ? [...data.notifications] : [];
   const auditLogs: AuditLogRecord[] = Array.isArray(data?.auditLogs) ? [...data.auditLogs] : [];
 
+  // Filter verificationCodes to remove any test rajesh codes
+  const rawVerificationCodes = (data?.verificationCodes && typeof data.verificationCodes === 'object') ? data.verificationCodes : {};
+  const verificationCodes: Record<string, EmailVerificationRecord> = {};
+  for (const [k, v] of Object.entries(rawVerificationCodes)) {
+    if (!k.toLowerCase().includes('rajesh')) {
+      verificationCodes[k] = v as EmailVerificationRecord;
+    }
+  }
+
   // Bidirectional synchronization between sessions and cases for backward compatibility
   for (const s of sessions) {
     if (s && s.id && !cases.some(c => c.id === s.id || (s.caseId && c.id === s.caseId))) {
       cases.push({
         id: s.caseId || s.id,
         caseNumber: s.caseNumber || s.id,
-        patientId: s.patientId || 'MB-2026-9MNBTN',
+        patientId: s.patientId || '',
         hospitalId: s.selectedHospitalId || 'HOSP-2026-92401',
         assignedDoctorId: s.targetDoctorId || undefined,
         status: (s.status === 'COMPLETED' ? 'VERIFIED' : s.status) || 'TRIAGED',
@@ -531,8 +544,8 @@ function sanitizeDatabase(data: any): CentralDatabase {
   }
 
   return {
-    users,
-    patients,
+    users: usersClean,
+    patients: patientsClean,
     hospitals,
     doctors,
     cases,
@@ -552,13 +565,14 @@ function sanitizeDatabase(data: any): CentralDatabase {
     sessions,
     emergencies: Array.isArray(data?.emergencies) ? data.emergencies : [],
     appointments: Array.isArray(data?.appointments) ? data.appointments : [],
-    verificationCodes: (data?.verificationCodes && typeof data.verificationCodes === 'object') ? data.verificationCodes : {},
+    verificationCodes,
     patientQrs: Array.isArray(data?.patientQrs) ? data.patientQrs : [],
     version: typeof data?.version === 'number' ? data.version : 1,
     lastUpdated: data?.lastUpdated || new Date().toISOString(),
     clearedAt: data?.clearedAt
   };
 }
+
 
 let lastMtimeMs = 0;
 
@@ -673,6 +687,86 @@ export function clearAllRegistrations(): { success: boolean; clearedAt: string; 
     success: true,
     clearedAt: now,
     message: 'All registered patient and hospital data has been cleared. Database is in clean registration state.'
+  };
+}
+
+/**
+ * Completely clears all registered patients, patient user accounts, and patient medical data,
+ * while preserving all registered hospitals, doctors, and platform administrators.
+ */
+export function clearAllPatients(): { success: boolean; clearedAt: string; message: string; patientsRemovedCount: number } {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+
+  const patientsRemovedCount = db.patients.length;
+
+  // Filter out all users with role 'PATIENT' or having a patientId
+  db.users = db.users.filter(u => u.role !== 'PATIENT' && !u.patientId);
+
+  // Clear patients array
+  db.patients = [];
+
+  // Clear patient-specific relational collections
+  db.cases = [];
+  db.symptoms = [];
+  db.medicalHistory = [];
+  db.medications = [];
+  db.allergies = [];
+  db.documents = [];
+  db.aiReports = [];
+  db.clinicalNotes = [];
+  db.assignments = [];
+  db.messages = [];
+  db.notifications = db.notifications.filter(n => !n.patientId && !((n.userId || '').startsWith('usr-pat-')));
+  db.accessRequests = [];
+  db.trustedHospitals = [];
+  db.sessions = [];
+  db.emergencies = [];
+  db.appointments = [];
+  db.patientQrs = [];
+
+  // Reset activePatientsCount on doctors
+  for (const d of db.doctors) {
+    d.activePatientsCount = 0;
+  }
+
+  // Filter verification codes to remove any patient emails
+  const filteredCodes: Record<string, EmailVerificationRecord> = {};
+  for (const [k, v] of Object.entries(db.verificationCodes || {})) {
+    const isHospitalOrDoc = db.users.some(u => (u.email || '').toLowerCase() === k.toLowerCase());
+    if (isHospitalOrDoc) {
+      filteredCodes[k] = v;
+    }
+  }
+  db.verificationCodes = filteredCodes;
+
+  db.version = Date.now();
+  db.lastUpdated = now;
+
+  inMemoryDb = db;
+  saveDatabase(db);
+
+  // Also clean patient uploads directory if exists
+  try {
+    const cwd = process.cwd();
+    const uploadsDir = path.join(cwd, 'data', 'uploads');
+    if (fs.existsSync(uploadsDir)) {
+      const dirs = fs.readdirSync(uploadsDir);
+      for (const d of dirs) {
+        if (d.startsWith('MB-')) {
+          fs.rmSync(path.join(uploadsDir, d), { recursive: true, force: true });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[CentralDb] Error cleaning uploads:', err);
+  }
+
+  return {
+    success: true,
+    clearedAt: now,
+    message: `All registered patient records (${patientsRemovedCount} patients) and associated clinical data have been cleared. Hospital and Doctor accounts remain active.`,
+    patientsRemovedCount
   };
 }
 
@@ -965,7 +1059,7 @@ export function saveEmergencyAlert(alert: any): boolean {
   return saveDatabase(db);
 }
 
-export function getEmergencyAlerts(patientId?: string): any[] {
+export function getEmergencyAlerts(patientId?: string, hospitalId?: string): any[] {
   const db = getDatabase();
   let list = db.emergencies || [];
   if (patientId) {
@@ -975,6 +1069,15 @@ export function getEmergencyAlerts(patientId?: string): any[] {
       const eId = (e.patientId || '').trim().toLowerCase();
       const eAlpha = eId.replace(/[^a-z0-9]/g, '');
       return eId === clean || eAlpha === cleanAlpha;
+    });
+  }
+  if (hospitalId) {
+    const cleanHosp = hospitalId.trim().toLowerCase();
+    const cleanHospAlpha = cleanHosp.replace(/[^a-z0-9]/g, '');
+    list = list.filter(e => {
+      const hId = (e.hospitalId || '').trim().toLowerCase();
+      const hAlpha = hId.replace(/[^a-z0-9]/g, '');
+      return hId === cleanHosp || hAlpha === cleanHospAlpha;
     });
   }
   return list;
