@@ -76,6 +76,7 @@ export const HospitalPortalSuite: React.FC = () => {
     accessRequest?: AccessRequest;
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isRequestingAccess, setIsRequestingAccess] = useState(false);
   const [admissionType, setAdmissionType] = useState<'OPD' | 'EMERGENCY' | 'ICU' | 'DAYCARE'>('EMERGENCY');
   const [admissionDept, setAdmissionDept] = useState('Emergency Medicine / Trauma');
   const [viewingDoc, setViewingDoc] = useState<MedicalDocument | null>(null);
@@ -87,12 +88,17 @@ export const HospitalPortalSuite: React.FC = () => {
   // Real-time listener for permission approval/denial from patient device
   useEffect(() => {
     if (!verifiedPatient?.profile?.patientId) return;
-    const targetPatientId = verifiedPatient.profile.patientId;
+    const targetPatientId = (verifiedPatient.profile.patientId || '').trim().toUpperCase();
+    const cleanHospitalId = (currentHospitalId || '').trim().toUpperCase();
 
-    const unsub = syncRelay.subscribe(`hospital_patient_auth_${currentHospitalId}_${targetPatientId}`, (payload: any) => {
+    const handleApproved = () => {
+      handleVerifyPatient(targetPatientId, false);
+      showToast('🎉 Access Approved', `Patient ${targetPatientId} approved your medical record access request!`, 'VERIFICATION');
+    };
+
+    const unsub1 = syncRelay.subscribe(`hospital_patient_auth_${currentHospitalId}_${targetPatientId}`, (payload: any) => {
       if (payload?.status === 'APPROVED') {
-        handleVerifyPatient(targetPatientId, false);
-        showToast('🎉 Access Approved', `Patient ${targetPatientId} approved your medical record access request!`, 'VERIFICATION');
+        handleApproved();
       } else if (payload?.status === 'DENIED') {
         setVerifiedPatient(prev => prev ? { ...prev, status: 'DENIED' } : null);
         showToast('❌ Access Denied', `Patient ${targetPatientId} denied the access request.`, 'INFO');
@@ -102,8 +108,54 @@ export const HospitalPortalSuite: React.FC = () => {
       }
     });
 
-    return () => unsub();
-  }, [verifiedPatient?.profile?.patientId, currentHospitalId]);
+    const unsub2 = syncRelay.subscribe(`hospital_patient_auth_${cleanHospitalId}_${targetPatientId}`, (payload: any) => {
+      if (payload?.status === 'APPROVED') {
+        handleApproved();
+      }
+    });
+
+    const reqId = verifiedPatient.accessRequest?.id;
+    let unsub3: (() => void) | undefined;
+    if (reqId) {
+      unsub3 = syncRelay.subscribe(`hospital_request_update_${reqId}`, (payload: any) => {
+        if (payload?.status === 'APPROVED') {
+          handleApproved();
+        } else if (payload?.status === 'DENIED') {
+          setVerifiedPatient(prev => prev ? { ...prev, status: 'DENIED' } : null);
+        }
+      });
+    }
+
+    const unsub4 = syncRelay.subscribe('access_requests_changed', (payload: any) => {
+      if (payload && (payload.patientId || '').toUpperCase() === targetPatientId && payload.status === 'APPROVED') {
+        handleApproved();
+      }
+    });
+
+    // Real-time document listener
+    const unsub5 = syncRelay.subscribe('document_saved', (newDoc: any) => {
+      if (newDoc && (newDoc.patientId || '').toUpperCase() === targetPatientId) {
+        setVerifiedPatient(prev => {
+          if (!prev || prev.status !== 'AUTHORIZED') return prev;
+          const currentDocs = prev.documents || [];
+          if (currentDocs.some(d => d.id === newDoc.id)) return prev;
+          return {
+            ...prev,
+            documents: [newDoc, ...currentDocs]
+          };
+        });
+        showToast('📄 New Medical Document', `Patient uploaded ${newDoc.fileName}.`, 'INFO');
+      }
+    });
+
+    return () => {
+      unsub1();
+      unsub2();
+      if (unsub3) unsub3();
+      unsub4();
+      unsub5();
+    };
+  }, [verifiedPatient?.profile?.patientId, verifiedPatient?.accessRequest?.id, currentHospitalId]);
 
   const handleVerifyPatient = async (targetId: string, forceBreakGlass: boolean = false) => {
     const idToSearch = (targetId || patientIdInput).trim().toUpperCase();
@@ -113,7 +165,7 @@ export const HospitalPortalSuite: React.FC = () => {
     }
 
     setIsVerifying(true);
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 200));
 
     // Exact backend database lookup for Patient ID
     const patient = await cloudDataService.findPatientByPatientId(idToSearch);
@@ -150,6 +202,25 @@ export const HospitalPortalSuite: React.FC = () => {
       }
     } catch (apiErr) {
       console.warn('Central API fetch fallback in handleVerifyPatient:', apiErr);
+    }
+
+    // Also fetch dedicated documents list with hospital authorization
+    try {
+      const docRes = await fetch(`/api/documents?patientId=${encodeURIComponent(patient.patientId)}&hospitalId=${encodeURIComponent(currentHospitalId)}`);
+      if (docRes.ok) {
+        const docJson = await docRes.json();
+        const fetchedDocs = docJson.documents || docJson.data || [];
+        if (Array.isArray(fetchedDocs)) {
+          fetchedDocs.forEach((d: MedicalDocument) => {
+            if (d && d.id) {
+              centralDocs.push(d);
+              db.addDocument(d);
+            }
+          });
+        }
+      }
+    } catch (docErr) {
+      console.warn('Central Documents fetch fallback in handleVerifyPatient:', docErr);
     }
 
     const localSessions = db.getClinicalSessionsForPatient(patient.patientId);
@@ -198,13 +269,13 @@ export const HospitalPortalSuite: React.FC = () => {
       // Check if there is an access request pending
       const requests = cloudDataService.getAccessRequests();
       const existingReq = authCheck.activeRequest || requests.find(
-        r => r.patientId === patient.patientId &&
-        (r.hospitalId === currentHospitalId || r.hospitalName === currentHospitalName) &&
-        r.status === 'PENDING'
+        r => (r.patientId || '').toUpperCase() === patient.patientId.toUpperCase() &&
+        ((r.hospitalId || '').toUpperCase() === currentHospitalId.toUpperCase() || (r.hospitalName && currentHospitalName.includes(r.hospitalName))) &&
+        (r.status === 'PENDING' || r.status === 'APPROVED')
       );
 
       setVerifiedPatient({
-        status: existingReq ? 'REQUEST_PENDING' : 'UNAUTHORIZED',
+        status: existingReq?.status === 'PENDING' ? 'REQUEST_PENDING' : 'UNAUTHORIZED',
         profile: patient,
         sessions: [],
         documents: [],
@@ -219,20 +290,27 @@ export const HospitalPortalSuite: React.FC = () => {
   };
 
   const handleRequestAccess = async (patient: PatientProfile) => {
-    const staffName = currentUser?.fullName || 'Hospital Reception Desk';
-    const req = await cloudDataService.createAccessRequest({
-      patientId: patient.patientId,
-      patientName: patient.fullName,
-      hospitalId: currentHospitalId,
-      hospitalName: currentHospitalName,
-      doctorId: currentUser?.id,
-      doctorName: staffName,
-      requestedBy: staffName,
-      accessScope: 'Full Medical History & AI Clinical Intake Summaries'
-    });
+    if (isRequestingAccess) return;
+    setIsRequestingAccess(true);
 
-    setVerifiedPatient(prev => prev ? { ...prev, status: 'REQUEST_PENDING', accessRequest: req } : null);
-    showToast('📩 Access Request Sent', `Real-time access request dispatched to Patient ${patient.patientId}. Waiting for approval on patient device.`, 'INFO');
+    try {
+      const staffName = currentUser?.fullName || hospitalAccount?.hospitalName || 'Hospital Reception Desk';
+      const req = await cloudDataService.createAccessRequest({
+        patientId: patient.patientId,
+        patientName: patient.fullName,
+        hospitalId: currentHospitalId,
+        hospitalName: currentHospitalName,
+        doctorId: currentUser?.id,
+        doctorName: staffName,
+        requestedBy: staffName,
+        accessScope: 'Full Medical History & AI Clinical Intake Summaries'
+      });
+
+      setVerifiedPatient(prev => prev ? { ...prev, status: 'REQUEST_PENDING', accessRequest: req } : null);
+      showToast('📩 Access Request Sent', `Real-time access request dispatched to Patient ${patient.patientId}. Waiting for approval on patient device.`, 'INFO');
+    } finally {
+      setIsRequestingAccess(false);
+    }
   };
 
   const handleEmergencyBreakGlass = async (patient: PatientProfile) => {
@@ -737,11 +815,21 @@ export const HospitalPortalSuite: React.FC = () => {
 
                 <button
                   type="button"
+                  disabled={isRequestingAccess}
                   onClick={() => handleRequestAccess(verifiedPatient.profile!)}
-                  className="px-5 py-3 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-teal-600/20 transition flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-extrabold text-xs rounded-xl shadow-md shadow-teal-600/20 transition flex items-center gap-2 cursor-pointer"
                 >
-                  <Send className="w-4 h-4" />
-                  <span>REQUEST ACCESS FROM PATIENT</span>
+                  {isRequestingAccess ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>DISPATCHING REQUEST...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>REQUEST ACCESS FROM PATIENT</span>
+                    </>
+                  )}
                 </button>
 
                 <button
@@ -1136,8 +1224,21 @@ export const HospitalPortalSuite: React.FC = () => {
                           </button>
 
                           <a
-                            href={d.downloadUrl || `/api/documents?id=${d.id}&download=true`}
+                            href={d.downloadUrl?.includes('hospitalId=') ? d.downloadUrl : `${d.downloadUrl || `/api/documents?id=${d.id}&download=true`}&hospitalId=${encodeURIComponent(currentHospitalId)}`}
                             download={d.fileName}
+                            onClick={(e) => {
+                              if (d.fileData && typeof d.fileData === 'string' && d.fileData.startsWith('data:')) {
+                                e.preventDefault();
+                                try {
+                                  const link = window.document.createElement('a');
+                                  link.href = d.fileData;
+                                  link.download = d.fileName;
+                                  window.document.body.appendChild(link);
+                                  link.click();
+                                  window.document.body.removeChild(link);
+                                } catch {}
+                              }
+                            }}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg bg-white hover:bg-slate-100 text-slate-700 transition border border-slate-300 cursor-pointer"
@@ -1465,6 +1566,7 @@ export const HospitalPortalSuite: React.FC = () => {
         isOpen={!!viewingDoc}
         document={viewingDoc}
         onClose={() => setViewingDoc(null)}
+        hospitalId={currentHospitalId}
       />
 
       {/* Complete Clinical Report History Dossier Modal */}

@@ -8,6 +8,7 @@
       "fullName": "Moraya General Hospital",
       "role": "HOSPITAL_ADMIN",
       "hospitalId": "HOSP-2026-92401",
+      "isEmailVerified": true,
       "createdAt": "2026-10-02T11:04:52.401Z"
     },
     {
@@ -98,22 +99,33 @@
   "doctors": [],
   "accessRequests": [
     {
-      "id": "req-1790939100485-275",
       "patientId": "MB-2026-9MNBTN",
-      "patientName": "manoj Bhosale",
       "hospitalId": "HOSP-2026-92401",
       "hospitalName": "Moraya General Hospital",
-      "doctorId": "usr-hosp-1790939092401",
-      "doctorName": "Moraya General Hospital",
-      "requestedBy": "Moraya General Hospital",
-      "requestedAt": "2026-10-02T11:05:00.485Z",
-      "status": "DENIED",
+      "requestedBy": "Dr. Deshmukh",
       "accessScope": "Full Medical History & AI Clinical Intake Summaries",
-      "reason": "Patient registration and clinical evaluation",
-      "respondedAt": "2026-10-02T11:11:09.294Z"
+      "id": "req-1790947303105",
+      "requestedAt": "2026-10-02T13:21:43.105Z",
+      "status": "APPROVED",
+      "respondedAt": "2026-10-02T13:21:43.112Z"
     }
   ],
-  "trustedHospitals": [],
+  "trustedHospitals": [
+    {
+      "id": "trust-1790947267399",
+      "patientId": "MB-2026-9MNBTN",
+      "patientProfileId": "MB-2026-9MNBTN",
+      "hospitalId": "HOSP-2026-92401",
+      "hospitalName": "Moraya General Hospital",
+      "hospitalAddress": "Moraya General Hospital, Main Campus",
+      "hospitalCity": "Maharashtra",
+      "grantedAt": "2026-10-02T13:21:07.399Z",
+      "status": "ACTIVE",
+      "allowEmergencyAlert": true,
+      "allowMedicalHistory": true,
+      "distanceKm": 0.5
+    }
+  ],
   "sessions": [
     {
       "id": "ses-1790938354611",
@@ -341,7 +353,76 @@
       }
     }
   ],
-  "documents": [],
+  "documents": [
+    {
+      "id": "doc-img-1790947303143",
+      "patientId": "MB-2026-9MNBTN",
+      "fileName": "Chest_XRay_PA.png",
+      "fileType": "XRAY",
+      "mimeType": "image/png",
+      "fileSize": "68 B",
+      "fileSizeBytes": 68,
+      "uploadDate": "2026-10-02T13:21:43.144Z",
+      "filePath": "data/uploads/MB-2026-9MNBTN/doc-img-1790947303143_Chest_XRay_PA.png",
+      "fileUrl": "/api/documents?id=doc-img-1790947303143",
+      "downloadUrl": "/api/documents?id=doc-img-1790947303143&download=true",
+      "fileData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+      "extractedData": {
+        "facilityName": "City Imaging Center",
+        "physicianName": "Dr. Priya Rao",
+        "extractedDiagnoses": [
+          "Normal Cardiopulmonary Shadow"
+        ]
+      },
+      "status": "COMPLETED"
+    },
+    {
+      "id": "doc-test-1790947303118",
+      "patientId": "MB-2026-9MNBTN",
+      "fileName": "Comprehensive_Blood_Panel.pdf",
+      "fileType": "LAB_REPORT",
+      "mimeType": "application/pdf",
+      "fileSize": "477 B",
+      "fileSizeBytes": 477,
+      "uploadDate": "2026-10-02T13:21:43.133Z",
+      "filePath": "data/uploads/MB-2026-9MNBTN/doc-test-1790947303118_Comprehensive_Blood_Panel.pdf",
+      "fileUrl": "/api/documents?id=doc-test-1790947303118",
+      "downloadUrl": "/api/documents?id=doc-test-1790947303118&download=true",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCA1NSA+PiBzdHJlYW0KQlQgL0YxIDE0IFRmIDUwIDcwMCBUZCAoTUVESUJSSURHRSBDTElOSUNBTCBSRVBPUlQgLSBWRVJJRklFRCkgVGogRVQKZW5kc3RyZWFtIGVuZG9iagp4cmVmCjAgNQowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDIxNCAwMDAwMCBuCnRyYWlsZXIgPDwgL1NpemUgNSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzE4CiUlRU9G",
+      "extractedData": {
+        "facilityName": "Metro Diagnostic Lab",
+        "physicianName": "Dr. Sunil Kulkarni",
+        "extractedDiagnoses": [
+          "Mild Dyslipidemia",
+          "Normal Fasting Glucose"
+        ]
+      },
+      "status": "COMPLETED"
+    },
+    {
+      "id": "doc-test-1790947267406",
+      "patientId": "MB-2026-9MNBTN",
+      "fileName": "Comprehensive_Blood_Panel.pdf",
+      "fileType": "LAB_REPORT",
+      "mimeType": "application/pdf",
+      "fileSize": "477 B",
+      "fileSizeBytes": 477,
+      "uploadDate": "2026-10-02T13:21:07.409Z",
+      "filePath": "data/uploads/MB-2026-9MNBTN/doc-test-1790947267406_Comprehensive_Blood_Panel.pdf",
+      "fileUrl": "/api/documents?id=doc-test-1790947267406",
+      "downloadUrl": "/api/documents?id=doc-test-1790947267406&download=true",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCA1NSA+PiBzdHJlYW0KQlQgL0YxIDE0IFRmIDUwIDcwMCBUZCAoTUVESUJSSURHRSBDTElOSUNBTCBSRVBPUlQgLSBWRVJJRklFRCkgVGogRVQKZW5kc3RyZWFtIGVuZG9iagp4cmVmCjAgNQowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDIxNCAwMDAwMCBuCnRyYWlsZXIgPDwgL1NpemUgNSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzE4CiUlRU9G",
+      "extractedData": {
+        "facilityName": "Metro Diagnostic Lab",
+        "physicianName": "Dr. Sunil Kulkarni",
+        "extractedDiagnoses": [
+          "Mild Dyslipidemia",
+          "Normal Fasting Glucose"
+        ]
+      },
+      "status": "COMPLETED"
+    }
+  ],
   "emergencies": [],
   "appointments": [],
   "auditLogs": [
@@ -429,5 +510,5 @@
     }
   ],
   "version": 2,
-  "lastUpdated": "2026-10-02T12:24:25.518Z"
+  "lastUpdated": "2026-10-02T13:21:43.145Z"
 }

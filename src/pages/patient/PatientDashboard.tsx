@@ -37,10 +37,17 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
   const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([]);
   const [processedRequestIds, setProcessedRequestIds] = useState<Set<string>>(new Set());
 
+  const resolvedPatientId = (
+    patientProfile?.patientId ||
+    currentUser?.patientId ||
+    (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') ||
+    patientProfile?.id ||
+    ''
+  ).trim().toUpperCase();
+
   const loadPendingRequests = async () => {
-    const pId = patientProfile?.patientId || patientProfile?.id;
-    if (pId) {
-      const reqs = await cloudDataService.getPendingRequestsForPatient(pId);
+    if (resolvedPatientId) {
+      const reqs = await cloudDataService.getPendingRequestsForPatient(resolvedPatientId);
       setPendingRequests(reqs.filter(r => !processedRequestIds.has(r.id) && r.status === 'PENDING'));
     }
   };
@@ -61,7 +68,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
 
   const checkEmergencyAlerts = () => {
     const alerts = db.getEmergencyAlerts();
-    const pId = patientProfile?.patientId || patientProfile?.id || (currentUser ? `pat-${currentUser.id}` : '');
+    const pId = resolvedPatientId || (currentUser ? `pat-${currentUser.id}` : '');
     const active = alerts.find(a =>
       (a.patientId === pId || a.patientName === currentUser?.fullName) &&
       a.status !== 'RESOLVED' && a.status !== 'HANDOVER_COMPLETED'
@@ -89,14 +96,14 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
     checkEmergencyAlerts();
     loadPendingRequests();
 
-    const pId = patientProfile?.patientId || patientProfile?.id;
     let unsub1: (() => void) | undefined;
     let unsub2: (() => void) | undefined;
 
-    if (pId) {
-      unsub1 = syncRelay.subscribe(`patient_access_request_${pId}`, (req: AccessRequest) => {
+    if (resolvedPatientId) {
+      unsub1 = syncRelay.subscribe(`patient_access_request_${resolvedPatientId}`, (req: AccessRequest) => {
+        cloudDataService.saveIncomingAccessRequest(req);
         setPendingRequests(prev => {
-          const exists = prev.some(r => r.id === req.id);
+          const exists = prev.some(r => r.id === req.id || ((r.hospitalId === req.hospitalId || (r.hospitalName && req.hospitalName && r.hospitalName === req.hospitalName)) && r.status === 'PENDING'));
           return exists ? prev : [req, ...prev];
         });
       });

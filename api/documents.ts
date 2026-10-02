@@ -8,7 +8,8 @@ import {
   saveDatabase,
   saveMedicalDocument,
   getMedicalDocumentsForPatient,
-  findPatientByIdentifier
+  findPatientByIdentifier,
+  isHospitalAuthorizedForPatient
 } from './_lib/centralDb.js';
 
 function getUploadsDir(patientId?: string): string {
@@ -130,6 +131,7 @@ export default async function handler(req: any, res: any) {
     const patientId = req.query?.patientId || req.query?.patient;
     const isDownload = req.query?.download === 'true' || req.query?.action === 'download';
     const infoOnly = req.query?.info === 'true' || req.query?.meta === 'true';
+    const hospitalId = req.query?.hospitalId || req.headers?.['x-hospital-id'];
 
     // 1.1 Single Document Streaming / Download
     if (docId) {
@@ -138,6 +140,18 @@ export default async function handler(req: any, res: any) {
 
       if (!doc) {
         return res.status(404).json({ success: false, error: `Document ${cleanDocId} not found` });
+      }
+
+      // Security check: Respect Patient ID + Trusted Hospital + authorization/RLS system
+      // Do NOT make medical files publicly accessible
+      if (hospitalId) {
+        const authorized = isHospitalAuthorizedForPatient(String(hospitalId), doc.patientId);
+        if (!authorized) {
+          return res.status(403).json({
+            success: false,
+            error: 'Forbidden: Hospital does not have approved clinical access to this patient document.'
+          });
+        }
       }
 
       if (infoOnly) {
@@ -199,19 +213,35 @@ export default async function handler(req: any, res: any) {
         `${isDownload ? 'attachment' : 'inline'}; filename="${safeFileName}"`
       );
       res.setHeader('Content-Length', fileBuffer.length.toString());
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
       return res.end(fileBuffer);
     }
 
     // 1.2 Fetch all documents for a patient
     if (patientId) {
       const cleanPatId = String(patientId).trim().toUpperCase();
+      if (hospitalId) {
+        const authorized = isHospitalAuthorizedForPatient(String(hospitalId), cleanPatId);
+        if (!authorized) {
+          return res.status(403).json({
+            success: false,
+            error: 'Forbidden: Hospital is not authorized to access documents for this patient.'
+          });
+        }
+      }
+
       const docs = getMedicalDocumentsForPatient(cleanPatId);
+      const safeDocs = docs.map((d: any) => ({
+        ...d,
+        fileUrl: `/api/documents?id=${d.id}${hospitalId ? `&hospitalId=${encodeURIComponent(String(hospitalId))}` : ''}`,
+        downloadUrl: `/api/documents?id=${d.id}&download=true${hospitalId ? `&hospitalId=${encodeURIComponent(String(hospitalId))}` : ''}`
+      }));
+
       return res.status(200).json({
         success: true,
-        count: docs.length,
-        documents: docs,
-        data: docs
+        count: safeDocs.length,
+        documents: safeDocs,
+        data: safeDocs
       });
     }
 
