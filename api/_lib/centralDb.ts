@@ -359,28 +359,6 @@ export interface CentralDatabase {
 
 export const DEFAULT_ADMIN_USERS: User[] = [
   {
-    id: 'usr-pat-manoj',
-    email: 'bhosalemanoj241@gmail.com',
-    password: 'Password@123',
-    phone: '8208083342',
-    fullName: 'Manoj Bhosale',
-    role: 'PATIENT',
-    patientId: 'MB-2026-9MNBTN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-hosp-moraya',
-    email: 'sumithatagale93@gmail.com',
-    password: 'Password@123',
-    phone: '9356646910',
-    fullName: 'Moraya General Hospital',
-    role: 'HOSPITAL_ADMIN',
-    hospitalId: 'HOSP-2026-92401',
-    isEmailVerified: true,
-    createdAt: '2026-10-02T11:04:52.401Z'
-  },
-  {
     id: 'usr-admin-root',
     email: 'admin@medibridge.ai',
     password: 'Admin@123',
@@ -392,37 +370,7 @@ export const DEFAULT_ADMIN_USERS: User[] = [
   }
 ];
 
-export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [
-  {
-    id: 'pat-manoj',
-    userId: 'usr-pat-manoj',
-    patientId: 'MB-2026-9MNBTN',
-    abhaId: '63-1902-6843-2409',
-    abhaAddress: 'manojbhosale.nbtn@abdm',
-    fullName: 'Manoj Bhosale',
-    email: 'bhosalemanoj241@gmail.com',
-    phone: '8208083342',
-    dob: '1992-06-15',
-    age: 34,
-    gender: 'MALE',
-    bloodGroup: 'B+',
-    emergencyContactName: 'Prathmesh Mavkar',
-    emergencyContactPhone: '9248659762',
-    emergencyContactRelation: 'Spouse',
-    preferredLanguage: 'en',
-    address: 'Pimple Gurav',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '411061',
-    password: 'Password@123',
-    status: 'ACTIVE',
-    isEmailVerified: true,
-    allergies: ['Penicillin (Mild Rash)'],
-    chronicConditions: ['Mild Hypertension'],
-    currentMedications: ['Amlodipine 5mg OD'],
-    createdAt: '2025-10-01T08:00:00Z'
-  }
-];
+export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [];
 
 export const DEFAULT_SEED_HOSPITALS: HospitalAccount[] = [
   {
