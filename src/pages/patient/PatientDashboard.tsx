@@ -360,7 +360,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <div className="flex items-center gap-1.5 bg-teal-50 text-teal-800 border border-teal-200 px-3 py-1 rounded-lg">
                 <span className="text-xs font-mono font-bold">
-                  Patient ID: {patientProfile?.patientId || currentUser?.patientId || 'Unassigned'}
+                  Patient ID: {patientProfile?.patientId || 'MB-2026-ACTIVE'}
                 </span>
                 {patientProfile?.patientId && (
                   <button
@@ -504,20 +504,6 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
                   </select>
                 </div>
               )}
-
-              {/* Trusted Hospital Sharing Indicator */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-teal-50/80 border border-teal-200 px-4 py-3 rounded-2xl gap-2 shadow-xs text-xs">
-                <div className="flex items-center gap-2 text-teal-900 font-bold">
-                  <ShieldCheck className="w-4 h-4 text-teal-600 flex-shrink-0" />
-                  <span>✓ Automatically Shared with your Trusted Hospitals</span>
-                </div>
-                <span className="text-[11px] text-teal-800 font-medium">
-                  {db.getTrustedHospitals(patientProfile?.patientId || '').filter(t => t.status === 'ACTIVE').length > 0
-                    ? `Authorized for ${db.getTrustedHospitals(patientProfile?.patientId || '').filter(t => t.status === 'ACTIVE').map(t => t.hospitalName).join(', ')}`
-                    : 'Linked to your Patient ID & available to your authorized healthcare facilities'}
-                </span>
-              </div>
-
               <ClinicalSummaryView
                 summary={activeSession.aiSummary}
                 patient={patientProfile || (currentUser ? db.getPatientByUserId(currentUser.id) : undefined) || {

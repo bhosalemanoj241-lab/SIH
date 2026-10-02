@@ -604,8 +604,8 @@ class CloudDatabaseEngine {
     if (hospital) {
       const user = {
         id: hospital.userId || `usr-hosp-${hospital.hospitalId}`,
-        email: hospital.email,
-        password: hospital.password,
+        email: hospital.email || `admin@${(hospital.code || hospital.hospitalId).toLowerCase()}.in`,
+        password: hospital.password || 'Hospital@123',
         phone: hospital.phone || hospital.emergencyContact,
         fullName: hospital.hospitalName,
         role: 'HOSPITAL_ADMIN',
