@@ -82,11 +82,20 @@ export default async function handler(req: any, res: any) {
         patientsCount: db.patients.length,
         doctorsCount: db.doctors.length,
         hospitalsCount: db.hospitals.length,
+        sessionsCount: db.sessions?.length || 0,
+        appointmentsCount: db.appointments?.length || 0,
+        emergenciesCount: db.emergencies?.length || 0,
         data: {
           users: db.users.map(({ password, ...rest }) => rest),
           patients: db.patients.map(({ password, ...rest }) => rest),
           doctors: db.doctors,
-          hospitals: db.hospitals.map(({ password, ...rest }) => rest)
+          hospitals: db.hospitals.map(({ password, ...rest }) => rest),
+          sessions: db.sessions || [],
+          accessRequests: db.accessRequests || [],
+          trustedHospitals: db.trustedHospitals || [],
+          documents: db.documents || [],
+          emergencies: db.emergencies || [],
+          appointments: db.appointments || []
         }
       });
     }
@@ -382,7 +391,8 @@ export default async function handler(req: any, res: any) {
     // ── ACTION B: CENTRAL REGISTRATION ──
     if (action === 'register') {
       const rawUser = body.user || body.data || body;
-      const accountType = (body.accountType || rawUser.role || 'patient').toLowerCase();
+      const rawType = String(body.accountType || rawUser.role || 'patient').toLowerCase();
+      const accountType = rawType.includes('hosp') ? 'hospital' : (rawType.includes('doc') ? 'doctor' : (rawType.includes('staff') ? 'staff' : 'patient'));
       const rawPatient = body.patientProfile || (accountType === 'patient' ? (body.data || body) : undefined);
       const rawHospital = body.hospitalAccount || (accountType === 'hospital' ? (body.data || body) : undefined);
       const rawDoctor = body.doctorProfile;
@@ -514,6 +524,14 @@ export default async function handler(req: any, res: any) {
           requiresVerification: true,
           email: cleanEmail,
           patientId: generatedPatientId,
+          patient: {
+            id: patientRecordId,
+            userId,
+            patientId: generatedPatientId,
+            fullName,
+            email: cleanEmail,
+            phone
+          },
           fullName,
           message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Please enter the code to verify your email.`,
           devCode: process.env.NODE_ENV !== 'production' ? otpCode : undefined
@@ -522,14 +540,11 @@ export default async function handler(req: any, res: any) {
 
       // ── REGISTRATION: HOSPITAL ──
       if (accountType === 'hospital') {
-        const hospitalName = String(rawHospital?.hospitalName || rawUser.fullName || '').trim();
-        const registrationId = String(rawHospital?.registrationId || '').trim();
+        const hospitalName = String(rawHospital?.hospitalName || rawHospital?.name || rawUser.fullName || rawUser.name || '').trim();
+        const registrationId = String(rawHospital?.registrationId || `REG-HOSP-${Date.now().toString().slice(-6)}`).trim();
 
         if (!hospitalName) {
           return res.status(400).json({ success: false, error: 'Hospital Name is required for registration.' });
-        }
-        if (!registrationId) {
-          return res.status(400).json({ success: false, error: 'Registration / License ID is required for registration.' });
         }
 
         // Prevent duplicate registration ID
@@ -593,6 +608,7 @@ export default async function handler(req: any, res: any) {
           success: true,
           token,
           user: safeUser,
+          hospital: safeHospital,
           hospitalAccount: safeHospital
         });
       }

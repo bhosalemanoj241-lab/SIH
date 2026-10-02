@@ -4,18 +4,21 @@ import {
   CheckCircle2, Activity, Filter, Search, Siren, KeyRound,
   FileText, ArrowRight, Lock, AlertCircle, ShieldAlert,
   Phone, User, Calendar, FileSpreadsheet, Eye, Pill, Tag,
-  Check, XCircle, Sparkles, MapPin, HeartPulse, Building2
+  Check, XCircle, Sparkles, MapPin, HeartPulse, Building2, QrCode, Download
 } from 'lucide-react';
+
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PreArrivalQueue } from '../../components/doctor/PreArrivalQueue';
 import { ClinicalReviewPanel } from '../../components/doctor/ClinicalReviewPanel';
 import { SharedPatientsPanel } from '../../components/doctor/SharedPatientsPanel';
+import { PatientQrScanner } from '../../components/doctor/PatientQrScanner';
 import { db } from '../../services/mockDatabase';
 import { cloudDataService } from '../../services/firebaseService';
 import { cloudDb } from '../../services/cloudDatabaseEngine';
 import { ClinicalSession, PatientProfile, MedicalDocument, TimelineEvent, Appointment } from '../../types';
 import { Modal } from '../../components/common/Modal';
+import { DocumentViewerModal } from '../../components/common/DocumentViewerModal';
 
 export const DoctorDashboard: React.FC = () => {
   const { currentUser, doctorProfile, hospitalAccount } = useAuth();
@@ -25,7 +28,7 @@ export const DoctorDashboard: React.FC = () => {
   const [aptStatusFilter, setAptStatusFilter] = useState<string>('ALL');
   const [aptDateFilter, setAptDateFilter] = useState<string>('ALL');
 
-  const [activeTab, setActiveTab] = useState<'QUEUE' | 'SEARCH' | 'SHARED_PATIENTS' | 'APPOINTMENTS'>(() => {
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'SEARCH' | 'QR_SCAN' | 'SHARED_PATIENTS' | 'APPOINTMENTS'>(() => {
     // Default to SHARED_PATIENTS tab if user is a hospital portal admin with no doctor profile
     return hospitalAccount && !doctorProfile ? 'SHARED_PATIENTS' : 'QUEUE';
   });
@@ -45,14 +48,21 @@ export const DoctorDashboard: React.FC = () => {
 
   // Selected document for OCR preview modal
   const [inspectDoc, setInspectDoc] = useState<MedicalDocument | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<MedicalDocument | null>(null);
 
   // Break-glass modal state
   const [showBreakGlassModal, setShowBreakGlassModal] = useState(false);
   const [breakGlassReason, setBreakGlassReason] = useState('Acute Trauma / Severe Respiratory Distress');
   const [breakGlassPatient, setBreakGlassPatient] = useState<PatientProfile | null>(null);
 
-  // Listen for real-time updates across the app
+  // Listen for real-time updates across the app & sync from cloud
   useEffect(() => {
+    // Initial cloud hydration for cross-device sessions & appointments
+    cloudDb.syncAll().then(() => {
+      setSessions(db.getClinicalSessions());
+      setAppointments(db.getAppointments());
+    }).catch(() => {});
+
     const handleDbUpdate = () => {
       setSessions(db.getClinicalSessions());
       setAppointments(db.getAppointments());
@@ -72,9 +82,11 @@ export const DoctorDashboard: React.FC = () => {
     };
 
     window.addEventListener('medibridge_db_update', handleDbUpdate);
+    window.addEventListener('medibridge_cloud_sync', handleDbUpdate);
     window.addEventListener('medibridge_db_reset', handleDbUpdate);
     return () => {
       window.removeEventListener('medibridge_db_update', handleDbUpdate);
+      window.removeEventListener('medibridge_cloud_sync', handleDbUpdate);
       window.removeEventListener('medibridge_db_reset', handleDbUpdate);
     };
   }, [searchResult?.patient]);
@@ -107,6 +119,78 @@ export const DoctorDashboard: React.FC = () => {
     showToast('Appointment Updated', `Status updated to ${newStatus}.`, 'VERIFICATION');
   };
 
+  const loadPatientDossier = async (patient: PatientProfile, forceConsent: boolean = false) => {
+    // 1. Fetch fresh sessions & documents directly from central backend API
+    let centralSessions: ClinicalSession[] = [];
+    let centralDocs: MedicalDocument[] = [];
+    try {
+      const res = await fetch(`/api/patients?patientId=${encodeURIComponent(patient.patientId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.sessions && Array.isArray(json.sessions)) {
+          centralSessions = json.sessions;
+          json.sessions.forEach((s: ClinicalSession) => db.saveClinicalSession(s));
+        }
+        if (json?.documents && Array.isArray(json.documents)) {
+          centralDocs = json.documents;
+          json.documents.forEach((d: MedicalDocument) => db.addDocument(d));
+        }
+      }
+    } catch (e) {
+      console.warn('Central API fetch fallback in DoctorDashboard:', e);
+    }
+
+    const localSessions = db.getClinicalSessionsForPatient(patient.patientId);
+    const combinedSessionsMap = new Map<string, ClinicalSession>();
+    [...centralSessions, ...localSessions].forEach(s => {
+      if (s && s.id) combinedSessionsMap.set(s.id, s);
+    });
+    const sessions = Array.from(combinedSessionsMap.values()).sort(
+      (a, b) => new Date(b.startedAt || b.completedAt || 0).getTime() - new Date(a.startedAt || a.completedAt || 0).getTime()
+    );
+
+    const localDocs = db.getDocuments(patient.patientId);
+    const combinedDocsMap = new Map<string, MedicalDocument>();
+    [...centralDocs, ...localDocs].forEach(d => {
+      if (d && d.id) combinedDocsMap.set(d.id, d);
+    });
+    const documents = Array.from(combinedDocsMap.values()).sort(
+      (a, b) => new Date(b.uploadDate || 0).getTime() - new Date(a.uploadDate || 0).getTime()
+    );
+    const timeline = db.getTimeline(patient.patientId);
+
+    const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
+    const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);
+    const isAuthorized = forceConsent || authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
+
+    setSearchResult({
+      found: true,
+      patient,
+      hasConsent: isAuthorized,
+      sessions,
+      documents,
+      timeline
+    });
+
+    if (sessions[0]) {
+      setSelectedSession(sessions[0]);
+    }
+
+    if (isAuthorized) {
+      showToast(
+        'Patient Records Authorized',
+        `Retrieved complete clinical history and documents for ${patient.fullName || patient.patientId}.`,
+        'VERIFICATION'
+      );
+    } else {
+      showToast(
+        '🔒 Consent Required',
+        `Patient verified (${patient.patientId}). Click "Request Patient Consent" to request record access.`,
+        'INFO'
+      );
+    }
+  };
+
   const handleOpenPatientFromAppointment = async (patientId: string) => {
     setSearchPatientId(patientId);
     setActiveTab('SEARCH');
@@ -116,22 +200,7 @@ export const DoctorDashboard: React.FC = () => {
       patient = db.getPatientByPatientId(trimmed) || db.getPatientById(trimmed);
     }
     if (patient) {
-      const patientSessions = db.getClinicalSessionsForPatient(patient.patientId);
-      const patientDocs = db.getDocuments(patient.patientId);
-      const patientTimeline = db.getTimeline(patient.patientId);
-      const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
-      const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);
-      const isAuthorized = authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
-
-      setSearchResult({
-        found: true,
-        patient,
-        hasConsent: isAuthorized,
-        sessions: patientSessions,
-        documents: patientDocs,
-        timeline: patientTimeline
-      });
-      showToast('Patient Record Opened', `Loaded clinical dossier for ${patient.fullName || patient.patientId}.`, 'INFO');
+      await loadPatientDossier(patient);
     }
   };
 
@@ -156,51 +225,7 @@ export const DoctorDashboard: React.FC = () => {
       return;
     }
 
-    // Lookup all associated patient records (hydrating cross-device from cloud if needed)
-    let patientSessions = db.getClinicalSessionsForPatient(patient.patientId);
-    if (patientSessions.length === 0) {
-      patientSessions = await cloudDb.getClinicalSessions(patient.patientId);
-      patientSessions.forEach(s => db.saveClinicalSession(s));
-    }
-    let patientDocs = db.getDocuments(patient.patientId);
-    if (patientDocs.length === 0) {
-      patientDocs = await cloudDb.getDocuments(patient.patientId);
-      patientDocs.forEach(d => db.addDocument(d));
-    }
-    const patientTimeline = db.getTimeline(patient.patientId);
-
-    // Check ABDM Consent / Trusted Hospital Authorization from live Cloud and DB
-    const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
-    const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);
-    const isAuthorized = authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
-
-    setSearchResult({
-      found: true,
-      patient,
-      hasConsent: isAuthorized,
-      sessions: patientSessions,
-      documents: patientDocs,
-      timeline: patientTimeline
-    });
-
-    const latestSession = patientSessions[0];
-    if (latestSession) {
-      setSelectedSession(latestSession);
-    }
-
-    if (isAuthorized) {
-      showToast(
-        'Patient Records Authorized',
-        `Retrieved complete clinical history for ${patient.fullName || patient.patientId}.`,
-        'VERIFICATION'
-      );
-    } else {
-      showToast(
-        '🔒 Consent Required',
-        `Patient verified (${patient.patientId}). Click "Request Patient Consent" to request record access.`,
-        'INFO'
-      );
-    }
+    await loadPatientDossier(patient);
   };
 
   const [requestPending, setRequestPending] = useState(false);
@@ -316,6 +341,16 @@ export const DoctorDashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('QR_SCAN')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'QR_SCAN' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <QrCode className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Scan Patient QR</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('SHARED_PATIENTS')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
               activeTab === 'SHARED_PATIENTS' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
@@ -381,30 +416,7 @@ export const DoctorDashboard: React.FC = () => {
                       setSearchPatientId(regPat.patientId);
                       const patient = await cloudDataService.findPatientByPatientId(regPat.patientId) || db.getPatientByPatientId(regPat.patientId) || regPat;
                       if (patient) {
-                        let pSessions = db.getClinicalSessionsForPatient(patient.patientId);
-                        if (pSessions.length === 0) {
-                          pSessions = await cloudDb.getClinicalSessions(patient.patientId);
-                          pSessions.forEach(s => db.saveClinicalSession(s));
-                        }
-                        let pDocs = db.getDocuments(patient.patientId);
-                        if (pDocs.length === 0) {
-                          pDocs = await cloudDb.getDocuments(patient.patientId);
-                          pDocs.forEach(d => db.addDocument(d));
-                        }
-                        const pTimeline = db.getTimeline(patient.patientId);
-                        const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
-                        const authCheck = await cloudDataService.checkHospitalAccess(doctorHospitalId, patient.patientId);
-                        const isAuthorized = authCheck.isAuthorized || db.isHospitalAuthorizedForPatient(doctorHospitalId, patient.patientId);
-                        setSearchResult({
-                          found: true,
-                          patient,
-                          hasConsent: isAuthorized,
-                          sessions: pSessions,
-                          documents: pDocs,
-                          timeline: pTimeline
-                        });
-                        if (pSessions[0]) setSelectedSession(pSessions[0]);
-                        showToast('✅ Patient Verified', `Retrieved full profile for ${patient.fullName || patient.patientId}`, 'VERIFICATION');
+                        await loadPatientDossier(patient);
                       }
                     }}
                     className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-300 border border-slate-200 text-slate-700 rounded-lg font-mono text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer"
@@ -471,6 +483,79 @@ export const DoctorDashboard: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Access Restricted Consent Gate */}
+                  {!searchResult.hasConsent ? (
+                    <div className="p-8 bg-amber-50 border-2 border-amber-300 rounded-3xl space-y-4 animate-fadeIn">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0">
+                          <Lock className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          <h4 className="text-base font-black text-slate-900">
+                            ABDM Medical Records Access Restricted
+                          </h4>
+                          <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                            Under ABDM healthcare data governance regulations, doctors and hospital clinical staff may only view patient clinical reports and uploaded documents when actively authorized by patient consent.
+                          </p>
+                          <p className="text-[11px] text-slate-600">
+                            Send a real-time consent request to the patient's device, or use Emergency Break-Glass override if clinically justified.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-amber-200 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={requestPending}
+                          onClick={() => handleRequestPatientAccess(searchResult.patient!)}
+                          className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>{requestPending ? 'Dispatching...' : '📩 Request Patient Consent'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBreakGlassPatient(searchResult.patient!);
+                            setShowBreakGlassModal(true);
+                          }}
+                          className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
+                        >
+                          <ShieldAlert className="w-4 h-4" />
+                          <span>🚨 Emergency Break-Glass Access</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const doctorHospitalId = doctorProfile?.hospitalId || hospitalAccount?.id || '';
+                            const doctorHospitalName = doctorProfile?.hospitalName || hospitalAccount?.hospitalName || 'Clinical Facility';
+                            db.saveTrustedHospital({
+                              id: `trust-${Date.now()}`,
+                              patientId: searchResult.patient!.patientId,
+                              patientProfileId: searchResult.patient!.id,
+                              hospitalId: doctorHospitalId,
+                              hospitalName: doctorHospitalName,
+                              hospitalAddress: 'Main Healthcare Campus, Sector 14',
+                              hospitalCity: 'Mumbai',
+                              grantedAt: new Date().toISOString(),
+                              status: 'ACTIVE',
+                              allowEmergencyAlert: true,
+                              allowMedicalHistory: true,
+                              ambulanceAvailable: true
+                            });
+                            await loadPatientDossier(searchResult.patient!, true);
+                          }}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer ml-auto"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>⚡ 1-Click Authorize &amp; View</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
                   {/* Clinical Safety & Medical Conditions Card */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Allergies */}
@@ -584,17 +669,42 @@ export const DoctorDashboard: React.FC = () => {
                               </div>
                             )}
 
-                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-xs">
                               <span className="text-[10px] text-emerald-700 font-semibold">
-                                OCR Score: {Math.round((doc.extractedData?.confidenceScore || 0.98) * 100)}%
+                                OCR {Math.round((doc.extractedData?.confidenceScore || 0.98) * 100)}%
                               </span>
-                              <button
-                                onClick={() => setInspectDoc(doc)}
-                                className="text-teal-700 hover:text-teal-800 font-bold flex items-center gap-1 text-[11px]"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Inspect Document</span>
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingDoc(doc)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition border border-teal-200 cursor-pointer"
+                                  title="View & Preview Actual Document"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View</span>
+                                </button>
+
+                                <a
+                                  href={doc.downloadUrl || `/api/documents?id=${doc.id}&download=true`}
+                                  download={doc.fileName}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition border border-slate-200 cursor-pointer"
+                                  title="Download Actual File"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Download</span>
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setInspectDoc(doc)}
+                                  className="text-slate-500 hover:text-slate-800 text-[11px] font-medium px-1"
+                                  title="Inspect Extracted Entities"
+                                >
+                                  OCR
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -695,6 +805,8 @@ export const DoctorDashboard: React.FC = () => {
                       </div>
                     </div>
                   )}
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 flex items-center gap-3">
@@ -705,6 +817,20 @@ export const DoctorDashboard: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Patient QR Scanner Section */}
+      {activeTab === 'QR_SCAN' && (
+        <PatientQrScanner
+          onPatientLoaded={async (patient, isAuthorized) => {
+            await loadPatientDossier(patient, isAuthorized);
+            setActiveTab('SEARCH');
+          }}
+          onRequestEmergencyAccess={(patient) => {
+            setBreakGlassPatient(patient);
+            setShowBreakGlassModal(true);
+          }}
+        />
       )}
 
       {/* Shared Patients View */}
@@ -1001,11 +1127,33 @@ export const DoctorDashboard: React.FC = () => {
               </div>
             )}
 
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setViewingDoc(inspectDoc)}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View / Preview Document</span>
+              </button>
+
+              <a
+                href={inspectDoc.downloadUrl || `/api/documents?id=${inspectDoc.id}&download=true`}
+                download={inspectDoc.fileName}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-slate-300 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Actual File</span>
+              </a>
+            </div>
+
             <button
               onClick={() => setInspectDoc(null)}
-              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition mt-2 border border-slate-200 shadow-sm"
+              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition border border-slate-200"
             >
-              Close Inspector
+              Close
             </button>
           </div>
         </Modal>
@@ -1061,6 +1209,13 @@ export const DoctorDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Actual Document Preview & Download Modal */}
+      <DocumentViewerModal
+        isOpen={!!viewingDoc}
+        document={viewingDoc}
+        onClose={() => setViewingDoc(null)}
+      />
     </div>
   );
 };

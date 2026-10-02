@@ -358,6 +358,48 @@ class CloudDatabaseEngine {
             }
           });
         }
+        if (Array.isArray(centralData.sessions)) {
+          centralData.sessions.forEach((s: any) => {
+            if (s && s.id) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_CLINICAL_SESSION', session: s, id: s.id });
+            }
+          });
+        }
+        if (Array.isArray(centralData.accessRequests)) {
+          centralData.accessRequests.forEach((r: any) => {
+            if (r && r.id) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_ACCESS_REQUEST', request: r, id: r.id });
+            }
+          });
+        }
+        if (Array.isArray(centralData.trustedHospitals)) {
+          centralData.trustedHospitals.forEach((t: any) => {
+            if (t && t.id) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_TRUSTED_HOSPITAL', data: t, id: t.id });
+            }
+          });
+        }
+        if (Array.isArray(centralData.documents)) {
+          centralData.documents.forEach((d: any) => {
+            if (d && d.id) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_DOCUMENT', document: d, id: d.id });
+            }
+          });
+        }
+        if (Array.isArray(centralData.emergencies)) {
+          centralData.emergencies.forEach((e: any) => {
+            if (e && e.id) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_EMERGENCY_ALERT', alert: e, id: e.id });
+            }
+          });
+        }
+        if (Array.isArray(centralData.appointments)) {
+          centralData.appointments.forEach((a: any) => {
+            if (a && a.id) {
+              this.handleIncomingCloudEvent({ type: 'SAVE_APPOINTMENT', appointment: a, id: a.id });
+            }
+          });
+        }
       }
     } catch (centralErr) {
       console.warn('[CloudDB central sync]:', centralErr);
@@ -728,6 +770,16 @@ class CloudDatabaseEngine {
     this.accessRequestsCache = filtered;
     setPersistedCache(LOCAL_PERSIST_KEYS.REQUESTS, filtered);
 
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/access-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req)
+        }).catch(() => {});
+      }
+    } catch {}
+
     return await this.postCloudEvent('SAVE_ACCESS_REQUEST', req);
   }
 
@@ -754,6 +806,16 @@ class CloudDatabaseEngine {
     this.trustedHospitalsCache = filtered;
     setPersistedCache(LOCAL_PERSIST_KEYS.TRUSTED, filtered);
 
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/trusted-hospitals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record)
+        }).catch(() => {});
+      }
+    } catch {}
+
     return await this.postCloudEvent('SAVE_TRUSTED_HOSPITAL', record);
   }
 
@@ -774,6 +836,25 @@ class CloudDatabaseEngine {
   // CLINICAL SESSIONS (Pre-Arrival Triage)
   // ==========================================
   public async getClinicalSessions(patientId?: string): Promise<ClinicalSession[]> {
+    if (patientId && typeof window !== 'undefined' && window.location) {
+      try {
+        const res = await fetch(`/api/patients?patientId=${encodeURIComponent(patientId.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.sessions && Array.isArray(data.sessions)) {
+            data.sessions.forEach((s: ClinicalSession) => {
+              if (!this.sessionsCache.some(existing => existing.id === s.id)) {
+                this.sessionsCache.unshift(s);
+              }
+            });
+            return data.sessions;
+          }
+        }
+      } catch (e) {
+        console.warn('Error fetching clinical sessions from central API:', e);
+      }
+    }
+
     await this.syncAll();
     if (!patientId) return this.sessionsCache;
     const clean = patientId.trim().toUpperCase();
@@ -808,6 +889,25 @@ class CloudDatabaseEngine {
   // MEDICAL DOCUMENTS (Cloud Vault Sync)
   // ==========================================
   public async getDocuments(patientId?: string): Promise<MedicalDocument[]> {
+    if (patientId && typeof window !== 'undefined' && window.location) {
+      try {
+        const res = await fetch(`/api/patients?patientId=${encodeURIComponent(patientId.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.documents && Array.isArray(data.documents)) {
+            data.documents.forEach((d: MedicalDocument) => {
+              if (!this.documentsCache.some(existing => existing.id === d.id)) {
+                this.documentsCache.unshift(d);
+              }
+            });
+            return data.documents;
+          }
+        }
+      } catch (e) {
+        console.warn('Error fetching documents from central API:', e);
+      }
+    }
+
     await this.syncAll();
     if (!patientId) return this.documentsCache;
     const clean = patientId.trim().toUpperCase();
@@ -859,6 +959,16 @@ class CloudDatabaseEngine {
     this.emergenciesCache = filtered;
     setPersistedCache(LOCAL_PERSIST_KEYS.EMERGENCIES, filtered);
 
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/emergencies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(alert)
+        }).catch(() => {});
+      }
+    } catch {}
+
     return await this.postCloudEvent('SAVE_EMERGENCY_ALERT', alert);
   }
 
@@ -906,6 +1016,16 @@ class CloudDatabaseEngine {
     filtered.unshift(apt);
     this.appointmentsCache = filtered;
     setPersistedCache(LOCAL_PERSIST_KEYS.APPOINTMENTS, filtered);
+
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        fetch('/api/appointments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(apt)
+        }).catch(() => {});
+      }
+    } catch {}
 
     return await this.postCloudEvent('SAVE_APPOINTMENT', apt);
   }

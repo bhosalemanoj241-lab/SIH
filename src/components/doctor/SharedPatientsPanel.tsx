@@ -3,11 +3,12 @@ import {
   Users, Search, ChevronDown, ChevronUp, ShieldCheck,
   User, Activity, Clock, AlertTriangle, FileText,
   Heart, Phone, MapPin, RefreshCw, Eye, Lock,
-  CheckCircle2, Siren, Building2, Info, Calendar
+  CheckCircle2, Siren, Building2, Info, Calendar, Download
 } from 'lucide-react';
 import { db } from '../../services/mockDatabase';
 import { useAuth } from '../../context/AuthContext';
-import { PatientProfile, User as UserType, TrustedHospital, ClinicalSession } from '../../types';
+import { PatientProfile, User as UserType, TrustedHospital, ClinicalSession, MedicalDocument } from '../../types';
+import { DocumentViewerModal } from '../common/DocumentViewerModal';
 
 interface AuthorizedPatient {
   profile: PatientProfile;
@@ -24,6 +25,7 @@ const PatientCard: React.FC<PatientCardProps> = ({ data, hospitalAccountId }) =>
   const { profile, user, trustedRecord } = data;
   const [expanded, setExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState<MedicalDocument | null>(null);
 
   // Fetch patient sessions, docs, timeline
   const sessions = db.getClinicalSessionsForPatient(profile.patientId || profile.id);
@@ -164,11 +166,33 @@ const PatientCard: React.FC<PatientCardProps> = ({ data, hospitalAccountId }) =>
               </h5>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {docs.slice(0, 4).map(doc => (
-                  <div key={doc.id} className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-slate-800 truncate">{doc.fileName}</p>
-                      <p className="text-[10px] text-slate-500">{doc.fileType.replace(/_/g, ' ')} • {doc.fileSize}</p>
+                  <div key={doc.id} className="flex items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold text-slate-800 truncate">{doc.fileName}</p>
+                        <p className="text-[10px] text-slate-500">{doc.fileType.replace(/_/g, ' ')}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setViewingDoc(doc)}
+                        className="p-1.5 text-xs text-teal-700 hover:bg-teal-50 rounded-lg transition border border-teal-200"
+                        title="View Document"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <a
+                        href={doc.downloadUrl || `/api/documents?id=${doc.id}&download=true`}
+                        download={doc.fileName}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition border border-slate-200"
+                        title="Download Document"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </a>
                     </div>
                   </div>
                 ))}
@@ -183,6 +207,13 @@ const PatientCard: React.FC<PatientCardProps> = ({ data, hospitalAccountId }) =>
           </div>
         </div>
       )}
+
+      {/* Actual Document Preview & Download Modal */}
+      <DocumentViewerModal
+        isOpen={!!viewingDoc}
+        document={viewingDoc}
+        onClose={() => setViewingDoc(null)}
+      />
     </div>
   );
 };

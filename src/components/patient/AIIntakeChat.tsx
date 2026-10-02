@@ -257,8 +257,14 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
     const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || 'MB-2026-ACTIVE';
     const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE') : [];
     const registeredHospitals = db.getHospitals();
-    const targetHospitalId = trustedHospitals[0]?.hospitalId || (registeredHospitals.length > 0 ? registeredHospitals[0].id : '');
-    const targetHospitalName = trustedHospitals[0]?.hospitalName || (registeredHospitals.length > 0 ? registeredHospitals[0].name : 'Nearest Medical Center');
+    const hospAccounts = db.getHospitalAccounts();
+    const allHospIds = [
+      ...trustedHospitals.map(t => ({ id: t.hospitalId, name: t.hospitalName })),
+      ...registeredHospitals.map(h => ({ id: h.id, name: h.name })),
+      ...hospAccounts.map(h => ({ id: h.id || (h as any).hospitalId || '', name: h.hospitalName }))
+    ].filter(h => h.id);
+    const targetHospitalId = allHospIds[0]?.id || '';
+    const targetHospitalName = allHospIds[0]?.name || 'Nearest Medical Center';
 
     // Retrieve active appointment for linking
     const pAppts = db.getAppointments(pRealId);
@@ -317,6 +323,35 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
 
       db.saveClinicalSession(newSession);
       await AIIntakeEngine.saveSessionToCloud(newSession);
+
+      // Persist directly to central database /api/patients
+      try {
+        await fetch('/api/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_session', session: newSession })
+        });
+      } catch (err) {
+        console.warn('Central session sync error:', err);
+      }
+
+      // If target hospital exists, ensure trusted permission is granted
+      if (targetHospitalId && pRealId) {
+        db.saveTrustedHospital({
+          id: `trust-${Date.now()}`,
+          patientId: pRealId,
+          patientProfileId: patientProfile?.id || pRealId,
+          hospitalId: targetHospitalId,
+          hospitalName: targetHospitalName,
+          hospitalAddress: 'Verified Healthcare Campus',
+          hospitalCity: patientProfile?.city || 'Pune',
+          grantedAt: new Date().toISOString(),
+          status: 'ACTIVE',
+          allowEmergencyAlert: true,
+          allowMedicalHistory: true,
+          ambulanceAvailable: true
+        });
+      }
 
       db.logAction(
         currentUser?.id || 'usr-pat',

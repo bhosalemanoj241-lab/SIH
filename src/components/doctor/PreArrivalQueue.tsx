@@ -7,6 +7,7 @@ import {
 import { ClinicalSession, TriagePriority } from '../../types';
 import { db } from '../../services/mockDatabase';
 import { useNotification } from '../../context/NotificationContext';
+import { cloudDb } from '../../services/cloudDatabaseEngine';
 
 interface PreArrivalQueueProps {
   onSelectSession: (session: ClinicalSession) => void;
@@ -25,9 +26,20 @@ export const PreArrivalQueue: React.FC<PreArrivalQueueProps> = ({
   React.useEffect(() => {
     const handleUpdate = () => setSessions(db.getClinicalSessions());
     window.addEventListener('medibridge_db_update', handleUpdate);
+    window.addEventListener('medibridge_cloud_sync', handleUpdate);
     window.addEventListener('medibridge_db_reset', handleUpdate);
+
+    // Hydrate pre-arrival queue from cloud/central records on mount
+    cloudDb.getClinicalSessions().then((list: ClinicalSession[]) => {
+      if (list && list.length > 0) {
+        list.forEach((s: ClinicalSession) => db.saveClinicalSession(s));
+        setSessions(db.getClinicalSessions());
+      }
+    }).catch(() => {});
+
     return () => {
       window.removeEventListener('medibridge_db_update', handleUpdate);
+      window.removeEventListener('medibridge_cloud_sync', handleUpdate);
       window.removeEventListener('medibridge_db_reset', handleUpdate);
     };
   }, []);

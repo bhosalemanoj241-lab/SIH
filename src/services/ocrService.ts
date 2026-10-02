@@ -84,7 +84,8 @@ export class OCRService {
       fileName: file.name || 'Medical_Record_Upload.pdf',
       fileType,
       uploadDate: new Date().toISOString(),
-      fileUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80',
+      fileUrl: `/api/documents?id=${docId}`,
+      downloadUrl: `/api/documents?id=${docId}&download=true`,
       fileSize: `${((file.size || 1024 * 1024) / (1024 * 1024)).toFixed(1)} MB`,
       status: 'COMPLETED',
       extractedData: extraction
