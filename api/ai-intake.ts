@@ -14,7 +14,7 @@ import {
   ClinicalTriageAssessment
 } from '../src/types';
 import { MedicineRecommendationService } from '../src/services/medicineRecommendationService';
-import { saveClinicalSession, getClinicalSessionsForPatient } from './centralDb';
+import { saveClinicalSession, getClinicalSessionsForPatient } from './_lib/centralDb.js';
 
 const CENTRAL_AUTH_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508';
 const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4';

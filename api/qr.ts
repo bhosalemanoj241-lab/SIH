@@ -10,7 +10,7 @@ import {
   getMedicalDocumentsForPatient,
   recordCentralAuditLog,
   findPatientByIdentifier
-} from './centralDb';
+} from './_lib/centralDb.js';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');

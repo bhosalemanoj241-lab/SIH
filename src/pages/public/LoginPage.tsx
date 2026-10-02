@@ -573,6 +573,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
                 className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm rounded-xl shadow-md shadow-teal-600/20 transition flex items-center justify-center gap-2 mt-2 cursor-pointer">
                 {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><span>Sign In as Patient</span><ArrowRight className="w-4 h-4" /></>}
               </button>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span>Demo Account: <strong>bhosalemanoj241@gmail.com</strong></span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail('bhosalemanoj241@gmail.com');
+                    setLoginPassword('Password@123');
+                  }}
+                  className="px-2.5 py-1 bg-teal-100 hover:bg-teal-200 text-teal-800 font-bold rounded-lg transition cursor-pointer"
+                >
+                  Quick Fill
+                </button>
+              </div>
               <p className="text-xs text-slate-500 text-center">New patient? <button type="button" onClick={() => setAuthMode('REGISTER')} className="text-teal-700 font-bold hover:underline cursor-pointer">Create account with Patient ID</button></p>
             </form>
           )}
@@ -813,6 +826,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-600/20 transition flex items-center justify-center gap-2 cursor-pointer">
                 {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><span>Sign In — Hospital Portal</span><ArrowRight className="w-4 h-4" /></>}
               </button>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span>Demo Hospital: <strong>Lilavati Hospital</strong></span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail('lilavati.hospital@hospitalcloud.in');
+                    setLoginPassword('Password@123');
+                  }}
+                  className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold rounded-lg transition cursor-pointer"
+                >
+                  Quick Fill
+                </button>
+              </div>
               <p className="text-xs text-slate-500 text-center">New hospital? <button type="button" onClick={() => setAuthMode('REGISTER')} className="text-blue-700 font-bold hover:underline cursor-pointer">Register your hospital</button></p>
             </form>
           )}

@@ -9,7 +9,7 @@ import {
   saveMedicalDocument,
   getMedicalDocumentsForPatient,
   findPatientByIdentifier
-} from './centralDb';
+} from './_lib/centralDb.js';
 
 function getUploadsDir(patientId?: string): string {
   const cwd = process.cwd();
