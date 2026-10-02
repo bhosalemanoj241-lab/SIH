@@ -1,0 +1,433 @@
+{
+  "users": [
+    {
+      "id": "usr-hosp-1790939092401",
+      "email": "sumithatagale93@gmail.com",
+      "password": "Manoj@12",
+      "phone": "9356646910",
+      "fullName": "Moraya General Hospital",
+      "role": "HOSPITAL_ADMIN",
+      "hospitalId": "HOSP-2026-92401",
+      "createdAt": "2026-10-02T11:04:52.401Z"
+    },
+    {
+      "id": "usr-pat-1790925981995",
+      "email": "bhosalemanoj241@gmail.com",
+      "password": "Password@123",
+      "phone": "8208083342",
+      "fullName": "manoj Bhosale",
+      "role": "PATIENT",
+      "patientId": "MB-2026-9MNBTN",
+      "isEmailVerified": true,
+      "createdAt": "2026-10-02T07:26:21.995Z"
+    },
+    {
+      "id": "usr-admin-root",
+      "email": "admin@medibridge.ai",
+      "password": "Admin@123",
+      "phone": "+91 99300 88777",
+      "fullName": "System Administrator",
+      "role": "SYSTEM_ADMIN",
+      "isEmailVerified": true,
+      "createdAt": "2025-10-01T08:00:00Z"
+    }
+  ],
+  "patients": [
+    {
+      "id": "pat-1790925981995",
+      "userId": "usr-pat-1790925981995",
+      "patientId": "MB-2026-9MNBTN",
+      "abhaId": "63-1902-6843-2409",
+      "abhaAddress": "manojbhosale.nbtn@abdm",
+      "fullName": "manoj Bhosale",
+      "email": "bhosalemanoj241@gmail.com",
+      "phone": "8208083342",
+      "dob": "1992-06-15",
+      "age": 34,
+      "gender": "MALE",
+      "bloodGroup": "B+",
+      "emergencyContactName": "prathmesh mavkar",
+      "emergencyContactPhone": "9248659762",
+      "emergencyContactRelation": "Spouse",
+      "preferredLanguage": "en",
+      "address": "pimple gurav",
+      "city": "pune",
+      "state": "Maharashtra",
+      "pincode": "411061",
+      "password": "Password@123",
+      "status": "ACTIVE",
+      "isEmailVerified": true,
+      "allergies": [],
+      "chronicConditions": [],
+      "currentMedications": [],
+      "createdAt": "2026-10-02T07:26:21.995Z"
+    }
+  ],
+  "hospitals": [
+    {
+      "id": "HOSP-2026-92401",
+      "userId": "usr-hosp-1790939092401",
+      "hospitalId": "HOSP-2026-92401",
+      "hospitalName": "Moraya General Hospital",
+      "registrationId": "DH-MH-2026-00935",
+      "address": "Facility Location (18.5941°, 73.8171°)",
+      "city": "Pimpri-Chinchwad, Maharashtra",
+      "location": "Pimpri-Chinchwad, Maharashtra",
+      "state": "Maharashtra",
+      "pincode": "410507",
+      "emergencyContact": "9356646910",
+      "phone": "9356646910",
+      "email": "sumithatagale93@gmail.com",
+      "password": "Manoj@12",
+      "ambulanceAvailable": true,
+      "coordinates": {
+        "lat": 18.5941,
+        "lng": 73.8171
+      },
+      "departments": [
+        "Emergency & Trauma",
+        "General Medicine",
+        "Cardiology",
+        "ICU",
+        "Orthopedics"
+      ],
+      "status": "VERIFIED",
+      "createdAt": "2026-10-02T11:04:52.401Z"
+    }
+  ],
+  "doctors": [],
+  "accessRequests": [
+    {
+      "id": "req-1790939100485-275",
+      "patientId": "MB-2026-9MNBTN",
+      "patientName": "manoj Bhosale",
+      "hospitalId": "HOSP-2026-92401",
+      "hospitalName": "Moraya General Hospital",
+      "doctorId": "usr-hosp-1790939092401",
+      "doctorName": "Moraya General Hospital",
+      "requestedBy": "Moraya General Hospital",
+      "requestedAt": "2026-10-02T11:05:00.485Z",
+      "status": "DENIED",
+      "accessScope": "Full Medical History & AI Clinical Intake Summaries",
+      "reason": "Patient registration and clinical evaluation",
+      "respondedAt": "2026-10-02T11:11:09.294Z"
+    }
+  ],
+  "trustedHospitals": [],
+  "sessions": [
+    {
+      "id": "ses-1790938354611",
+      "patientId": "MB-2026-9MNBTN",
+      "encounterId": "enc-1790938433512",
+      "conversationMessages": [
+        {
+          "id": "msg-1790938354614",
+          "sessionId": "ses-1790938354611",
+          "sender": "AI_CLINICAL_INTAKE",
+          "text": "Hello manoj Bhosale, I'm your MediBridge AI Clinical Intake Assistant. Tell me in your own words: **What main symptoms or health concerns are you experiencing today?**",
+          "language": "en",
+          "timestamp": "2026-10-02T10:52:34.614Z",
+          "suggestedQuickReplies": [
+            "I have a bad cough and fever for 3 days",
+            "Acute chest pain with sweating and breathlessness",
+            "Severe abdominal pain with nausea",
+            "Persistent headache and fever spikes"
+          ]
+        },
+        {
+          "id": "msg-1790938370801",
+          "sessionId": "ses-1790938354611",
+          "sender": "PATIENT",
+          "text": "Acute chest pain with sweating and breathlessness",
+          "language": "en",
+          "timestamp": "2026-10-02T10:52:50.801Z"
+        }
+      ],
+      "shortReport": {
+        "patientId": "MB-2026-9MNBTN",
+        "age": 34,
+        "gender": "MALE",
+        "encounterDate": "2026-10-02",
+        "encounterId": "enc-1790938433512",
+        "chiefComplaint": {
+          "mainReason": "Acute chest pain with sweating and breathlessness",
+          "source": "PATIENT REPORTED"
+        },
+        "symptoms": {
+          "importantSymptoms": [
+            "Acute chest pain with sweating and breathlessness"
+          ],
+          "duration": "today",
+          "severity": "Severe (8/10)",
+          "location": "Reported during conversational intake",
+          "onset": "Gradual",
+          "associatedSymptoms": [],
+          "source": "PATIENT REPORTED"
+        },
+        "medicalHistory": {
+          "existingConditions": [
+            "No prior chronic conditions reported"
+          ],
+          "previousHistory": [
+            "No major surgeries reported"
+          ],
+          "source": "PATIENT REPORTED"
+        },
+        "medicationsAndAllergies": {
+          "currentMedications": [
+            "No regular medications reported"
+          ],
+          "knownAllergies": [
+            "No known drug allergies (NKDA)"
+          ],
+          "source": "PATIENT REPORTED"
+        },
+        "relevantFindings": [
+          {
+            "text": "Intake conducted in EN through conversational interview.",
+            "source": "PATIENT REPORTED"
+          }
+        ],
+        "redFlags": {
+          "detected": false,
+          "flags": [],
+          "source": "PATIENT REPORTED"
+        },
+        "summary": {
+          "text": "Patient (MB-2026-9MNBTN, 34y MALE) presented via MediBridge pre-arrival intake with chief complaint of: Acute chest pain with sweating and breathlessness. Symptom onset is reported as gradual with a duration of today, self-assessed as Severe (8/10). Patient reports no major prior chronic medical conditions. No regular prescription medications reported. No known drug or environmental allergies reported (NKDA). Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.",
+          "source": "AI SUMMARIZED"
+        },
+        "missingOrUncertainInfo": {
+          "items": [
+            "Objective vitals (Blood pressure, Pulse, Temperature, SpO2) require in-person physician verification",
+            "Exact prescription dosages to be validated against active records"
+          ],
+          "source": "AI SUMMARIZED"
+        },
+        "doctorNotes": {
+          "notes": "",
+          "source": "DOCTOR ENTERED"
+        }
+      },
+      "patientName": "manoj Bhosale",
+      "patientAge": 34,
+      "patientGender": "MALE",
+      "patientPhone": "8208083342",
+      "startedAt": "2026-10-02T10:50:23.180Z",
+      "completedAt": "2026-10-02T10:55:23.180Z",
+      "status": "COMPLETED",
+      "triagePriority": "GREEN",
+      "triageRationale": "Pre-arrival intake completed with physician-ready short clinical report.",
+      "chiefComplaint": "Acute chest pain with sweating and breathlessness",
+      "originalLanguage": "en",
+      "originalPatientStatement": "Acute chest pain with sweating and breathlessness",
+      "translatedSummary": "Patient (MB-2026-9MNBTN, 34y MALE) presented via MediBridge pre-arrival intake with chief complaint of: Acute chest pain with sweating and breathlessness. Symptom onset is reported as gradual with a duration of today, self-assessed as Severe (8/10). Patient reports no major prior chronic medical conditions. No regular prescription medications reported. No known drug or environmental allergies reported (NKDA). Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.",
+      "selectedHospitalId": "HOSP-2026-56474",
+      "selectedDepartmentId": "dept-001",
+      "targetDoctorId": "doc-001",
+      "redFlagsDetected": [],
+      "isRedFlagTriggered": false,
+      "aiSummary": {
+        "id": "sum-1790938523179",
+        "sessionId": "ses-1790938354611",
+        "patientId": "MB-2026-9MNBTN",
+        "encounterId": "enc-1790938433512",
+        "generatedAt": "2026-10-02T10:55:23.179Z",
+        "originalLanguage": "en",
+        "originalPatientStatement": "Acute chest pain with sweating and breathlessness",
+        "translatedSummary": "Patient (MB-2026-9MNBTN, 34y MALE) presented via MediBridge pre-arrival intake with chief complaint of: Acute chest pain with sweating and breathlessness. Symptom onset is reported as gradual with a duration of today, self-assessed as Severe (8/10). Patient reports no major prior chronic medical conditions. No regular prescription medications reported. No known drug or environmental allergies reported (NKDA). Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.",
+        "disclaimer": "AI-Generated Clinical Intake Summary — Requires Physician Verification. Not a final diagnosis.",
+        "chiefComplaints": "Acute chest pain with sweating and breathlessness",
+        "historyOfPresentIllness": "Patient (MB-2026-9MNBTN, 34y MALE) presented via MediBridge pre-arrival intake with chief complaint of: Acute chest pain with sweating and breathlessness. Symptom onset is reported as gradual with a duration of today, self-assessed as Severe (8/10). Patient reports no major prior chronic medical conditions. No regular prescription medications reported. No known drug or environmental allergies reported (NKDA). Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.",
+        "shortReport": {
+          "patientId": "MB-2026-9MNBTN",
+          "age": 34,
+          "gender": "MALE",
+          "encounterDate": "2026-10-02",
+          "encounterId": "enc-1790938433512",
+          "chiefComplaint": {
+            "mainReason": "Acute chest pain with sweating and breathlessness",
+            "source": "PATIENT REPORTED"
+          },
+          "symptoms": {
+            "importantSymptoms": [
+              "Acute chest pain with sweating and breathlessness"
+            ],
+            "duration": "today",
+            "severity": "Severe (8/10)",
+            "location": "Reported during conversational intake",
+            "onset": "Gradual",
+            "associatedSymptoms": [],
+            "source": "PATIENT REPORTED"
+          },
+          "medicalHistory": {
+            "existingConditions": [
+              "No prior chronic conditions reported"
+            ],
+            "previousHistory": [
+              "No major surgeries reported"
+            ],
+            "source": "PATIENT REPORTED"
+          },
+          "medicationsAndAllergies": {
+            "currentMedications": [
+              "No regular medications reported"
+            ],
+            "knownAllergies": [
+              "No known drug allergies (NKDA)"
+            ],
+            "source": "PATIENT REPORTED"
+          },
+          "relevantFindings": [
+            {
+              "text": "Intake conducted in EN through conversational interview.",
+              "source": "PATIENT REPORTED"
+            }
+          ],
+          "redFlags": {
+            "detected": false,
+            "flags": [],
+            "source": "PATIENT REPORTED"
+          },
+          "summary": {
+            "text": "Patient (MB-2026-9MNBTN, 34y MALE) presented via MediBridge pre-arrival intake with chief complaint of: Acute chest pain with sweating and breathlessness. Symptom onset is reported as gradual with a duration of today, self-assessed as Severe (8/10). Patient reports no major prior chronic medical conditions. No regular prescription medications reported. No known drug or environmental allergies reported (NKDA). Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.",
+            "source": "AI SUMMARIZED"
+          },
+          "missingOrUncertainInfo": {
+            "items": [
+              "Objective vitals (Blood pressure, Pulse, Temperature, SpO2) require in-person physician verification",
+              "Exact prescription dosages to be validated against active records"
+            ],
+            "source": "AI SUMMARIZED"
+          },
+          "doctorNotes": {
+            "notes": "",
+            "source": "DOCTOR ENTERED"
+          }
+        },
+        "painScore": 8,
+        "medicalSystem": "ALLOPATHY",
+        "symptomsList": [
+          {
+            "name": "Acute chest pain with sweating and breat",
+            "severity": 8,
+            "duration": "today",
+            "onset": "GRADUAL"
+          }
+        ],
+        "pastMedicalHistory": [],
+        "currentMedications": [],
+        "allergies": [],
+        "surgicalHistory": [],
+        "familyHistory": [],
+        "relevantLabFindings": [],
+        "suspectedSystemicInvolvement": [
+          "General Clinical Evaluation"
+        ],
+        "differentialConsiderations": [
+          "Awaiting physician in-person examination and clinical orders."
+        ],
+        "redFlagChecklist": [
+          {
+            "item": "Acute Cardiac / Severe Respiratory Distress",
+            "detected": false,
+            "note": "Denied by patient"
+          }
+        ],
+        "safetyWarnings": [
+          "⚠️ Verify clinical history against active electronic health records."
+        ],
+        "verificationStatus": "PENDING_PHYSICIAN_REVIEW"
+      }
+    }
+  ],
+  "documents": [],
+  "emergencies": [],
+  "appointments": [],
+  "auditLogs": [
+    {
+      "id": "aud-1790925748540-366",
+      "timestamp": "2026-10-02T07:22:28.540Z",
+      "actorId": "doc-stranger",
+      "actorName": "Dr. Stranger",
+      "actorRole": "DOCTOR",
+      "action": "QR_ACCESS",
+      "targetEntity": "PatientProfile",
+      "targetId": "MB-2026-JGZM2A",
+      "ipAddress": "127.0.0.1 (Authenticated Server)",
+      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-UNKNOWN-999\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.540Z\",\"accessResult\":\"PENDING_CONSENT\",\"consentStatus\":\"UNAUTHORIZED\",\"breakGlass\":false}"
+    },
+    {
+      "id": "aud-1790925748535-164",
+      "timestamp": "2026-10-02T07:22:28.535Z",
+      "actorId": "doc-stranger",
+      "actorName": "Dr. Stranger",
+      "actorRole": "DOCTOR",
+      "action": "QR_ACCESS",
+      "targetEntity": "PatientProfile",
+      "targetId": "MB-2026-JGZM2A",
+      "ipAddress": "127.0.0.1 (Authenticated Server)",
+      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-UNKNOWN-999\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.535Z\",\"accessResult\":\"SUCCESS\",\"consentStatus\":\"AUTHORIZED\",\"breakGlass\":false}"
+    },
+    {
+      "id": "aud-1790925748530-541",
+      "timestamp": "2026-10-02T07:22:28.530Z",
+      "actorId": "doc-stranger",
+      "actorName": "Dr. Stranger",
+      "actorRole": "DOCTOR",
+      "action": "QR_ACCESS",
+      "targetEntity": "PatientProfile",
+      "targetId": "MB-2026-JGZM2A",
+      "ipAddress": "127.0.0.1 (Authenticated Server)",
+      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-UNKNOWN-999\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.530Z\",\"accessResult\":\"PENDING_CONSENT\",\"consentStatus\":\"UNAUTHORIZED\",\"breakGlass\":false}"
+    },
+    {
+      "id": "aud-1790925748527-644",
+      "timestamp": "2026-10-02T07:22:28.527Z",
+      "actorId": "doc-101",
+      "actorName": "Dr. Vivek Joshi",
+      "actorRole": "DOCTOR",
+      "action": "QR_ACCESS",
+      "targetEntity": "PatientProfile",
+      "targetId": "MB-2026-JGZM2A",
+      "ipAddress": "127.0.0.1 (Authenticated Server)",
+      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-PUNE-3088\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.527Z\",\"accessResult\":\"SUCCESS\",\"consentStatus\":\"AUTHORIZED\",\"breakGlass\":false}"
+    }
+  ],
+  "verificationCodes": {
+    "patient.qr.1790925623039@medibridge.ai": {
+      "email": "patient.qr.1790925623039@medibridge.ai",
+      "code": "972086",
+      "expiresAt": 1790926223043,
+      "attempts": 0,
+      "createdAt": "2026-10-02T07:20:23.043Z"
+    },
+    "rajesh.verma.1790935783806@medibridge.ai": {
+      "email": "rajesh.verma.1790935783806@medibridge.ai",
+      "code": "680613",
+      "expiresAt": 1790936383854,
+      "attempts": 0,
+      "createdAt": "2026-10-02T10:09:43.854Z"
+    },
+    "rajesh.verma.1790940401847@medibridge.ai": {
+      "email": "rajesh.verma.1790940401847@medibridge.ai",
+      "code": "288244",
+      "expiresAt": 1790941001897,
+      "attempts": 0,
+      "createdAt": "2026-10-02T11:26:41.897Z"
+    }
+  },
+  "patientQrs": [
+    {
+      "id": "qr-MB-2026-9MNBTN",
+      "patientUserId": "usr-pat-1790925981995",
+      "patientId": "MB-2026-9MNBTN",
+      "secureToken": "mbqr_1efd02eaa2c521a10cfa028bd90d8739164d6eefa8f881da",
+      "createdAt": "2026-10-02T07:26:43.560Z",
+      "updatedAt": "2026-10-02T07:26:43.560Z",
+      "status": "ACTIVE"
+    }
+  ],
+  "version": 2,
+  "lastUpdated": "2026-10-02T12:24:25.518Z"
+}
