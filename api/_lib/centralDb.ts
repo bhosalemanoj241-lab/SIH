@@ -108,18 +108,248 @@ export interface EmailVerificationRecord {
   createdAt: string;
 }
 
+// -------------------------------------------------------------------------
+// 16 PRIMARY RELATIONAL DATABASE ENTITY INTERFACES
+// -------------------------------------------------------------------------
+
+/** 5. Cases Collection */
+export interface CaseRecord {
+  id: string; // Primary Key (e.g. MB-CASE-XXXXXX or case-...)
+  caseNumber?: string;
+  patientId: string; // Foreign Key -> patients.patientId
+  hospitalId: string; // Foreign Key -> hospitals.hospitalId
+  assignedDoctorId?: string; // Foreign Key -> doctors.id
+  status: 'TRIAGED' | 'ASSIGNED' | 'IN_REVIEW' | 'VERIFIED' | 'DISCHARGED' | 'COMPLETED';
+  triagePriority: 'RED' | 'ORANGE' | 'YELLOW' | 'GREEN';
+  triageRationale?: string;
+  chiefComplaint: string;
+  isRedFlagTriggered: boolean;
+  redFlags: string[];
+  workflowStatus?: string;
+  startedAt: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 6. Symptoms Collection */
+export interface SymptomRecord {
+  id: string; // Primary Key
+  caseId: string; // Foreign Key -> cases.id
+  patientId: string; // Foreign Key -> patients.patientId
+  symptomName: string;
+  severity: 'MILD' | 'MODERATE' | 'SEVERE' | 'CRITICAL';
+  severityScore?: number;
+  duration: string;
+  onset: 'SUDDEN' | 'GRADUAL';
+  bodySite?: string;
+  notes?: string;
+  source: 'PATIENT_REPORTED' | 'CLINICAL_OBSERVATION' | 'AI_EXTRACTED';
+  createdAt: string;
+}
+
+/** 7. MedicalHistory Collection */
+export interface MedicalHistoryRecord {
+  id: string; // Primary Key
+  patientId: string; // Foreign Key -> patients.patientId
+  conditionName: string;
+  diagnosisDate?: string;
+  status: 'ACTIVE' | 'RESOLVED' | 'CHRONIC' | 'CONTROLLED';
+  icdCode?: string;
+  notes?: string;
+  source: 'PATIENT_REPORTED' | 'EHR_SYNC' | 'DOCTOR_VERIFIED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 8. Medications Collection */
+export interface MedicationRecord {
+  id: string; // Primary Key
+  patientId: string; // Foreign Key -> patients.patientId
+  caseId?: string; // Foreign Key -> cases.id (optional)
+  prescribedByDoctorId?: string; // Foreign Key -> doctors.id (optional)
+  medicationName: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  startDate?: string;
+  endDate?: string;
+  status: 'ACTIVE' | 'DISCONTINUED' | 'COMPLETED';
+  source?: 'PATIENT_REPORTED' | 'DOCTOR_PRESCRIBED' | 'DOCUMENT_OCR';
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 9. Allergies Collection */
+export interface AllergyRecord {
+  id: string; // Primary Key
+  patientId: string; // Foreign Key -> patients.patientId
+  allergen: string;
+  allergyType: 'DRUG' | 'FOOD' | 'ENVIRONMENTAL' | 'OTHER';
+  severity: 'MILD' | 'MODERATE' | 'SEVERE' | 'LIFE_THREATENING';
+  reaction: string;
+  identifiedDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 10. Documents Collection */
+export interface MedicalDocumentRecord {
+  id: string; // Primary Key
+  patientId: string; // Foreign Key -> patients.patientId
+  caseId?: string; // Foreign Key -> cases.id (optional)
+  userId?: string;
+  fileName: string;
+  fileType: string;
+  fileUrl: string;
+  downloadUrl?: string;
+  fileSize: string;
+  fileSizeBytes?: number;
+  mimeType?: string;
+  filePath?: string;
+  fileData?: string;
+  extractedData?: any;
+  ocrText?: string;
+  status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  uploadDate: string;
+  createdAt: string;
+}
+
+/** 11. AIReports Collection */
+export interface AIReportRecord {
+  id: string; // Primary Key
+  caseId: string; // Foreign Key -> cases.id
+  patientId: string; // Foreign Key -> patients.patientId
+  summaryText: string;
+  chiefComplaint: string;
+  triagePriority: 'RED' | 'ORANGE' | 'YELLOW' | 'GREEN';
+  redFlagsDetected: string[];
+  clinicalAnalysis?: string;
+  snomedCodes?: string[];
+  confidenceScore?: number;
+  missingOrUncertainInfo?: string[];
+  generatedAt: string;
+  createdAt: string;
+}
+
+/** 12. ClinicalNotes Collection */
+export interface ClinicalNoteRecord {
+  id: string; // Primary Key
+  caseId: string; // Foreign Key -> cases.id
+  patientId: string; // Foreign Key -> patients.patientId
+  doctorId: string; // Foreign Key -> doctors.id
+  hospitalId: string; // Foreign Key -> hospitals.hospitalId
+  noteType: 'ASSESSMENT' | 'SOAP' | 'RECOMMENDATION' | 'DISCHARGE';
+  content: string;
+  prescriptionOrders?: string[];
+  signedAt?: string;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 13. Assignments Collection */
+export interface AssignmentRecord {
+  id: string; // Primary Key
+  caseId: string; // Foreign Key -> cases.id
+  patientId: string; // Foreign Key -> patients.patientId
+  hospitalId: string; // Foreign Key -> hospitals.hospitalId
+  doctorId: string; // Foreign Key -> doctors.id
+  assignedByUserId: string; // Foreign Key -> users.id
+  assignedAt: string;
+  status: 'ACTIVE' | 'REASSIGNED' | 'COMPLETED';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 14. Messages Collection */
+export interface MessageRecord {
+  id: string; // Primary Key
+  caseId?: string; // Foreign Key -> cases.id (optional)
+  senderUserId: string; // Foreign Key -> users.id
+  receiverUserId: string; // Foreign Key -> users.id
+  senderRole: string;
+  receiverRole: string;
+  subject?: string;
+  messageText: string;
+  isRead: boolean;
+  sentAt: string;
+  createdAt: string;
+}
+
+/** 15. Notifications Collection */
+export interface NotificationRecord {
+  id: string; // Primary Key
+  userId: string; // Foreign Key -> users.id
+  patientId?: string; // Foreign Key -> patients.patientId (optional)
+  hospitalId?: string; // Foreign Key -> hospitals.hospitalId (optional)
+  type: 'CASE_ASSIGNED' | 'TRIAGE_ALERT' | 'ACCESS_REQUEST' | 'DOCTOR_RESPONSE' | 'EMERGENCY' | 'SYSTEM';
+  title: string;
+  message: string;
+  link?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+/** 16. AuditLogs Collection */
+export interface AuditLogRecord {
+  id: string; // Primary Key
+  actorId: string; // Foreign Key -> users.id
+  actorName: string;
+  actorRole: string;
+  action: string;
+  targetEntity: string;
+  targetId: string;
+  details: string;
+  ipAddress?: string;
+  timestamp: string;
+  createdAt: string;
+}
+
+// -------------------------------------------------------------------------
+// CENTRAL DATABASE SCHEMA CONTAINER (16 Normalized Collections)
+// -------------------------------------------------------------------------
 export interface CentralDatabase {
+  // 1. Users
   users: User[];
+  // 2. Patients
   patients: PatientProfile[];
-  hospitals: HospitalAccount[];
+  // 3. Doctors
   doctors: DoctorProfile[];
+  // 4. Hospitals
+  hospitals: HospitalAccount[];
+  // 5. Cases
+  cases: CaseRecord[];
+  // 6. Symptoms
+  symptoms: SymptomRecord[];
+  // 7. MedicalHistory
+  medicalHistory: MedicalHistoryRecord[];
+  // 8. Medications
+  medications: MedicationRecord[];
+  // 9. Allergies
+  allergies: AllergyRecord[];
+  // 10. Documents
+  documents: MedicalDocumentRecord[];
+  // 11. AIReports
+  aiReports: AIReportRecord[];
+  // 12. ClinicalNotes
+  clinicalNotes: ClinicalNoteRecord[];
+  // 13. Assignments
+  assignments: AssignmentRecord[];
+  // 14. Messages
+  messages: MessageRecord[];
+  // 15. Notifications
+  notifications: NotificationRecord[];
+  // 16. AuditLogs
+  auditLogs: AuditLogRecord[];
+
+  // Compatibility & Session Stores
   accessRequests: any[];
   trustedHospitals: any[];
   sessions: any[];
-  documents: any[];
   emergencies: any[];
   appointments: any[];
-  auditLogs: any[];
   verificationCodes: Record<string, EmailVerificationRecord>;
   patientQrs: PatientQrRecord[];
   version: number;
@@ -316,18 +546,64 @@ function sanitizeDatabase(data: any): CentralDatabase {
     ? data.trustedHospitals.filter((t: any) => t.id !== 'trust-manoj-lilavati' && !((t.hospitalName || '').toLowerCase().includes('lilavati')))
     : [];
 
+  const cases: CaseRecord[] = Array.isArray(data?.cases) ? [...data.cases] : [];
+  const symptoms: SymptomRecord[] = Array.isArray(data?.symptoms) ? [...data.symptoms] : [];
+  const medicalHistory: MedicalHistoryRecord[] = Array.isArray(data?.medicalHistory) ? [...data.medicalHistory] : [];
+  const medications: MedicationRecord[] = Array.isArray(data?.medications) ? [...data.medications] : [];
+  const allergies: AllergyRecord[] = Array.isArray(data?.allergies) ? [...data.allergies] : [];
+  const aiReports: AIReportRecord[] = Array.isArray(data?.aiReports) ? [...data.aiReports] : [];
+  const clinicalNotes: ClinicalNoteRecord[] = Array.isArray(data?.clinicalNotes) ? [...data.clinicalNotes] : [];
+  const assignments: AssignmentRecord[] = Array.isArray(data?.assignments) ? [...data.assignments] : [];
+  const messages: MessageRecord[] = Array.isArray(data?.messages) ? [...data.messages] : [];
+  const notifications: NotificationRecord[] = Array.isArray(data?.notifications) ? [...data.notifications] : [];
+  const auditLogs: AuditLogRecord[] = Array.isArray(data?.auditLogs) ? [...data.auditLogs] : [];
+
+  // Bidirectional synchronization between sessions and cases for backward compatibility
+  for (const s of sessions) {
+    if (s && s.id && !cases.some(c => c.id === s.id || (s.caseId && c.id === s.caseId))) {
+      cases.push({
+        id: s.caseId || s.id,
+        caseNumber: s.caseNumber || s.id,
+        patientId: s.patientId || 'MB-2026-9MNBTN',
+        hospitalId: s.selectedHospitalId || 'HOSP-2026-92401',
+        assignedDoctorId: s.targetDoctorId || undefined,
+        status: (s.status === 'COMPLETED' ? 'VERIFIED' : s.status) || 'TRIAGED',
+        triagePriority: s.triagePriority || 'GREEN',
+        triageRationale: s.triageRationale || '',
+        chiefComplaint: s.chiefComplaint || 'Clinical intake evaluation',
+        isRedFlagTriggered: Boolean(s.isRedFlagTriggered),
+        redFlags: Array.isArray(s.redFlagsDetected) ? s.redFlagsDetected : [],
+        workflowStatus: s.workflowStatus || 'INBOUND_EMERGENCY',
+        startedAt: s.startedAt || new Date().toISOString(),
+        completedAt: s.completedAt,
+        createdAt: s.startedAt || new Date().toISOString(),
+        updatedAt: s.completedAt || new Date().toISOString()
+      });
+    }
+  }
+
   return {
     users,
     patients,
     hospitals,
     doctors,
+    cases,
+    symptoms,
+    medicalHistory,
+    medications,
+    allergies,
+    documents,
+    aiReports,
+    clinicalNotes,
+    assignments,
+    messages,
+    notifications,
+    auditLogs,
     accessRequests: Array.isArray(data?.accessRequests) ? data.accessRequests : [],
     trustedHospitals,
     sessions,
-    documents,
     emergencies: Array.isArray(data?.emergencies) ? data.emergencies : [],
     appointments: Array.isArray(data?.appointments) ? data.appointments : [],
-    auditLogs: Array.isArray(data?.auditLogs) ? data.auditLogs : [],
     verificationCodes: (data?.verificationCodes && typeof data.verificationCodes === 'object') ? data.verificationCodes : {},
     patientQrs: Array.isArray(data?.patientQrs) ? data.patientQrs : [],
     version: typeof data?.version === 'number' ? data.version : 1,
@@ -409,13 +685,23 @@ export function clearAllRegistrations(): { success: boolean; clearedAt: string; 
     patients: [],
     hospitals: [],
     doctors: [],
+    cases: [],
+    symptoms: [],
+    medicalHistory: [],
+    medications: [],
+    allergies: [],
+    documents: [],
+    aiReports: [],
+    clinicalNotes: [],
+    assignments: [],
+    messages: [],
+    notifications: [],
+    auditLogs: [],
     accessRequests: [],
     trustedHospitals: [],
     sessions: [],
-    documents: [],
     emergencies: [],
     appointments: [],
-    auditLogs: [],
     verificationCodes: {},
     patientQrs: [],
     version: Date.now(),
@@ -1046,11 +1332,713 @@ export function recordCentralAuditLog(log: {
     targetEntity: log.targetEntity || 'PatientProfile',
     targetId: log.targetId,
     ipAddress: '127.0.0.1 (Authenticated Server)',
-    details: log.details
+    details: log.details,
+    createdAt: new Date().toISOString()
   };
 
   db.auditLogs.unshift(newLog);
   saveDatabase(db);
+}
+
+// =========================================================================
+// 16 RELATIONAL COLLECTIONS: FOREIGN-KEY VALIDATION & RELATIONAL CRUD
+// =========================================================================
+
+/**
+ * Validates referential integrity (foreign-key constraints) across all 16 collections.
+ */
+export function validateForeignKeyConstraints(database?: CentralDatabase): {
+  isValid: boolean;
+  errors: string[];
+  counts: Record<string, number>;
+} {
+  const db = database || getDatabase();
+  const errors: string[] = [];
+
+  const userIds = new Set((db.users || []).map(u => (u.id || '').trim().toLowerCase()));
+  const patientIds = new Set((db.patients || []).map(p => (p.patientId || '').trim().toUpperCase()));
+  const hospitalIds = new Set((db.hospitals || []).map(h => (h.hospitalId || h.id || '').trim().toUpperCase()));
+  const doctorIds = new Set((db.doctors || []).map(d => (d.id || '').trim().toLowerCase()));
+  const caseIds = new Set((db.cases || []).map(c => (c.id || '').trim().toUpperCase()));
+
+  // 1. Validate Patients -> Users
+  for (const p of db.patients || []) {
+    if (p.userId && !userIds.has(p.userId.trim().toLowerCase())) {
+      errors.push(`Patient ${p.patientId}: Foreign key userId "${p.userId}" does not exist in users.`);
+    }
+  }
+
+  // 2. Validate Doctors -> Users & Hospitals
+  for (const d of db.doctors || []) {
+    if (d.userId && !userIds.has(d.userId.trim().toLowerCase())) {
+      errors.push(`Doctor ${d.id}: Foreign key userId "${d.userId}" does not exist in users.`);
+    }
+    if (d.hospitalId && !hospitalIds.has(d.hospitalId.trim().toUpperCase())) {
+      errors.push(`Doctor ${d.id}: Foreign key hospitalId "${d.hospitalId}" does not exist in hospitals.`);
+    }
+  }
+
+  // 3. Validate Hospitals -> Users
+  for (const h of db.hospitals || []) {
+    if (h.userId && !userIds.has(h.userId.trim().toLowerCase())) {
+      errors.push(`Hospital ${h.hospitalId}: Foreign key userId "${h.userId}" does not exist in users.`);
+    }
+  }
+
+  // 4. Validate Cases -> Patients, Hospitals, Doctors
+  for (const c of db.cases || []) {
+    if (c.patientId && !patientIds.has(c.patientId.trim().toUpperCase())) {
+      errors.push(`Case ${c.id}: Foreign key patientId "${c.patientId}" does not exist in patients.`);
+    }
+    if (c.hospitalId && !hospitalIds.has(c.hospitalId.trim().toUpperCase())) {
+      errors.push(`Case ${c.id}: Foreign key hospitalId "${c.hospitalId}" does not exist in hospitals.`);
+    }
+    if (c.assignedDoctorId && !doctorIds.has(c.assignedDoctorId.trim().toLowerCase())) {
+      errors.push(`Case ${c.id}: Foreign key assignedDoctorId "${c.assignedDoctorId}" does not exist in doctors.`);
+    }
+  }
+
+  // 5. Validate Symptoms -> Cases & Patients
+  for (const s of db.symptoms || []) {
+    if (s.caseId && !caseIds.has(s.caseId.trim().toUpperCase())) {
+      errors.push(`Symptom ${s.id}: Foreign key caseId "${s.caseId}" does not exist in cases.`);
+    }
+    if (s.patientId && !patientIds.has(s.patientId.trim().toUpperCase())) {
+      errors.push(`Symptom ${s.id}: Foreign key patientId "${s.patientId}" does not exist in patients.`);
+    }
+  }
+
+  // 6. Validate MedicalHistory -> Patients
+  for (const m of db.medicalHistory || []) {
+    if (m.patientId && !patientIds.has(m.patientId.trim().toUpperCase())) {
+      errors.push(`MedicalHistory ${m.id}: Foreign key patientId "${m.patientId}" does not exist in patients.`);
+    }
+  }
+
+  // 7. Validate Medications -> Patients, Cases, Doctors
+  for (const med of db.medications || []) {
+    if (med.patientId && !patientIds.has(med.patientId.trim().toUpperCase())) {
+      errors.push(`Medication ${med.id}: Foreign key patientId "${med.patientId}" does not exist in patients.`);
+    }
+    if (med.caseId && !caseIds.has(med.caseId.trim().toUpperCase())) {
+      errors.push(`Medication ${med.id}: Foreign key caseId "${med.caseId}" does not exist in cases.`);
+    }
+    if (med.prescribedByDoctorId && !doctorIds.has(med.prescribedByDoctorId.trim().toLowerCase())) {
+      errors.push(`Medication ${med.id}: Foreign key prescribedByDoctorId "${med.prescribedByDoctorId}" does not exist in doctors.`);
+    }
+  }
+
+  // 8. Validate Allergies -> Patients
+  for (const a of db.allergies || []) {
+    if (a.patientId && !patientIds.has(a.patientId.trim().toUpperCase())) {
+      errors.push(`Allergy ${a.id}: Foreign key patientId "${a.patientId}" does not exist in patients.`);
+    }
+  }
+
+  // 9. Validate Documents -> Patients & Cases
+  for (const d of db.documents || []) {
+    if (d.patientId && !patientIds.has(d.patientId.trim().toUpperCase())) {
+      errors.push(`Document ${d.id}: Foreign key patientId "${d.patientId}" does not exist in patients.`);
+    }
+    if (d.caseId && !caseIds.has(d.caseId.trim().toUpperCase())) {
+      errors.push(`Document ${d.id}: Foreign key caseId "${d.caseId}" does not exist in cases.`);
+    }
+  }
+
+  // 10. Validate AIReports -> Cases & Patients
+  for (const r of db.aiReports || []) {
+    if (r.caseId && !caseIds.has(r.caseId.trim().toUpperCase())) {
+      errors.push(`AIReport ${r.id}: Foreign key caseId "${r.caseId}" does not exist in cases.`);
+    }
+    if (r.patientId && !patientIds.has(r.patientId.trim().toUpperCase())) {
+      errors.push(`AIReport ${r.id}: Foreign key patientId "${r.patientId}" does not exist in patients.`);
+    }
+  }
+
+  // 11. Validate ClinicalNotes -> Cases, Patients, Doctors, Hospitals
+  for (const n of db.clinicalNotes || []) {
+    if (n.caseId && !caseIds.has(n.caseId.trim().toUpperCase())) {
+      errors.push(`ClinicalNote ${n.id}: Foreign key caseId "${n.caseId}" does not exist in cases.`);
+    }
+    if (n.patientId && !patientIds.has(n.patientId.trim().toUpperCase())) {
+      errors.push(`ClinicalNote ${n.id}: Foreign key patientId "${n.patientId}" does not exist in patients.`);
+    }
+    if (n.doctorId && !doctorIds.has(n.doctorId.trim().toLowerCase())) {
+      errors.push(`ClinicalNote ${n.id}: Foreign key doctorId "${n.doctorId}" does not exist in doctors.`);
+    }
+    if (n.hospitalId && !hospitalIds.has(n.hospitalId.trim().toUpperCase())) {
+      errors.push(`ClinicalNote ${n.id}: Foreign key hospitalId "${n.hospitalId}" does not exist in hospitals.`);
+    }
+  }
+
+  // 12. Validate Assignments -> Cases, Patients, Hospitals, Doctors, Users
+  for (const a of db.assignments || []) {
+    if (a.caseId && !caseIds.has(a.caseId.trim().toUpperCase())) {
+      errors.push(`Assignment ${a.id}: Foreign key caseId "${a.caseId}" does not exist in cases.`);
+    }
+    if (a.patientId && !patientIds.has(a.patientId.trim().toUpperCase())) {
+      errors.push(`Assignment ${a.id}: Foreign key patientId "${a.patientId}" does not exist in patients.`);
+    }
+    if (a.hospitalId && !hospitalIds.has(a.hospitalId.trim().toUpperCase())) {
+      errors.push(`Assignment ${a.id}: Foreign key hospitalId "${a.hospitalId}" does not exist in hospitals.`);
+    }
+    if (a.doctorId && !doctorIds.has(a.doctorId.trim().toLowerCase())) {
+      errors.push(`Assignment ${a.id}: Foreign key doctorId "${a.doctorId}" does not exist in doctors.`);
+    }
+    if (a.assignedByUserId && !userIds.has(a.assignedByUserId.trim().toLowerCase())) {
+      errors.push(`Assignment ${a.id}: Foreign key assignedByUserId "${a.assignedByUserId}" does not exist in users.`);
+    }
+  }
+
+  // 13. Validate Messages -> Users
+  for (const m of db.messages || []) {
+    if (m.senderUserId && !userIds.has(m.senderUserId.trim().toLowerCase())) {
+      errors.push(`Message ${m.id}: Foreign key senderUserId "${m.senderUserId}" does not exist in users.`);
+    }
+    if (m.receiverUserId && !userIds.has(m.receiverUserId.trim().toLowerCase())) {
+      errors.push(`Message ${m.id}: Foreign key receiverUserId "${m.receiverUserId}" does not exist in users.`);
+    }
+  }
+
+  // 14. Validate Notifications -> Users
+  for (const notif of db.notifications || []) {
+    if (notif.userId && !userIds.has(notif.userId.trim().toLowerCase())) {
+      errors.push(`Notification ${notif.id}: Foreign key userId "${notif.userId}" does not exist in users.`);
+    }
+  }
+
+  // 15. Validate AuditLogs -> Users
+  for (const aud of db.auditLogs || []) {
+    if (aud.actorId && aud.actorId !== 'system' && !userIds.has(aud.actorId.trim().toLowerCase())) {
+      errors.push(`AuditLog ${aud.id}: Foreign key actorId "${aud.actorId}" does not exist in users.`);
+    }
+  }
+
+  const counts: Record<string, number> = {
+    users: (db.users || []).length,
+    patients: (db.patients || []).length,
+    doctors: (db.doctors || []).length,
+    hospitals: (db.hospitals || []).length,
+    cases: (db.cases || []).length,
+    symptoms: (db.symptoms || []).length,
+    medicalHistory: (db.medicalHistory || []).length,
+    medications: (db.medications || []).length,
+    allergies: (db.allergies || []).length,
+    documents: (db.documents || []).length,
+    aiReports: (db.aiReports || []).length,
+    clinicalNotes: (db.clinicalNotes || []).length,
+    assignments: (db.assignments || []).length,
+    messages: (db.messages || []).length,
+    notifications: (db.notifications || []).length,
+    auditLogs: (db.auditLogs || []).length
+  };
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    counts
+  };
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: CASES
+// -------------------------------------------------------------------------
+export function saveCaseRecord(caseData: Partial<CaseRecord>): CaseRecord {
+  const db = getDatabase();
+  if (!db.cases) db.cases = [];
+
+  const now = new Date().toISOString();
+  const caseId = caseData.id || `MB-CASE-${Date.now().toString(36).toUpperCase()}`;
+
+  const existingIdx = db.cases.findIndex(c => c.id.toUpperCase() === caseId.toUpperCase());
+  const newRecord: CaseRecord = {
+    id: caseId,
+    caseNumber: caseData.caseNumber || caseId,
+    patientId: (caseData.patientId || 'MB-2026-9MNBTN').trim().toUpperCase(),
+    hospitalId: (caseData.hospitalId || 'HOSP-2026-92401').trim().toUpperCase(),
+    assignedDoctorId: caseData.assignedDoctorId,
+    status: caseData.status || 'TRIAGED',
+    triagePriority: caseData.triagePriority || 'GREEN',
+    triageRationale: caseData.triageRationale || '',
+    chiefComplaint: caseData.chiefComplaint || 'Clinical intake evaluation',
+    isRedFlagTriggered: Boolean(caseData.isRedFlagTriggered),
+    redFlags: Array.isArray(caseData.redFlags) ? caseData.redFlags : [],
+    workflowStatus: caseData.workflowStatus || 'INBOUND_EMERGENCY',
+    startedAt: caseData.startedAt || now,
+    completedAt: caseData.completedAt,
+    createdAt: caseData.createdAt || now,
+    updatedAt: now
+  };
+
+  if (existingIdx >= 0) {
+    db.cases[existingIdx] = { ...db.cases[existingIdx], ...newRecord };
+  } else {
+    db.cases.unshift(newRecord);
+  }
+
+  saveDatabase(db);
+  return newRecord;
+}
+
+export function findCaseById(caseId: string): CaseRecord | undefined {
+  if (!caseId) return undefined;
+  const clean = caseId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.cases || []).find(c => c.id.toUpperCase() === clean || (c.caseNumber && c.caseNumber.toUpperCase() === clean));
+}
+
+export function getCasesForPatient(patientId: string): CaseRecord[] {
+  if (!patientId) return [];
+  const clean = patientId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.cases || []).filter(c => c.patientId.toUpperCase() === clean);
+}
+
+export function getCasesForHospital(hospitalId: string): CaseRecord[] {
+  if (!hospitalId) return [];
+  const clean = hospitalId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.cases || []).filter(c => c.hospitalId.toUpperCase() === clean);
+}
+
+export function getCasesForDoctor(doctorId: string): CaseRecord[] {
+  if (!doctorId) return [];
+  const clean = doctorId.trim().toLowerCase();
+  const db = getDatabase();
+  return (db.cases || []).filter(c => c.assignedDoctorId && c.assignedDoctorId.trim().toLowerCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: SYMPTOMS
+// -------------------------------------------------------------------------
+export function saveSymptomRecord(symptom: Partial<SymptomRecord>): SymptomRecord {
+  const db = getDatabase();
+  if (!db.symptoms) db.symptoms = [];
+
+  const now = new Date().toISOString();
+  const id = symptom.id || `sym-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const record: SymptomRecord = {
+    id,
+    caseId: (symptom.caseId || '').trim().toUpperCase(),
+    patientId: (symptom.patientId || '').trim().toUpperCase(),
+    symptomName: symptom.symptomName || 'Unspecified symptom',
+    severity: symptom.severity || 'MODERATE',
+    severityScore: symptom.severityScore || 5,
+    duration: symptom.duration || '1 day',
+    onset: symptom.onset || 'GRADUAL',
+    bodySite: symptom.bodySite || '',
+    notes: symptom.notes || '',
+    source: symptom.source || 'PATIENT_REPORTED',
+    createdAt: symptom.createdAt || now
+  };
+
+  const idx = db.symptoms.findIndex(s => s.id === id);
+  if (idx >= 0) {
+    db.symptoms[idx] = { ...db.symptoms[idx], ...record };
+  } else {
+    db.symptoms.push(record);
+  }
+
+  saveDatabase(db);
+  return record;
+}
+
+export function getSymptomsForCase(caseId: string): SymptomRecord[] {
+  if (!caseId) return [];
+  const clean = caseId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.symptoms || []).filter(s => s.caseId.toUpperCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: MEDICAL HISTORY
+// -------------------------------------------------------------------------
+export function saveMedicalHistoryRecord(record: Partial<MedicalHistoryRecord>): MedicalHistoryRecord {
+  const db = getDatabase();
+  if (!db.medicalHistory) db.medicalHistory = [];
+
+  const now = new Date().toISOString();
+  const id = record.id || `medhist-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newHist: MedicalHistoryRecord = {
+    id,
+    patientId: (record.patientId || '').trim().toUpperCase(),
+    conditionName: record.conditionName || 'Unspecified condition',
+    diagnosisDate: record.diagnosisDate,
+    status: record.status || 'ACTIVE',
+    icdCode: record.icdCode,
+    notes: record.notes,
+    source: record.source || 'PATIENT_REPORTED',
+    createdAt: record.createdAt || now,
+    updatedAt: now
+  };
+
+  const idx = db.medicalHistory.findIndex(m => m.id === id);
+  if (idx >= 0) {
+    db.medicalHistory[idx] = { ...db.medicalHistory[idx], ...newHist };
+  } else {
+    db.medicalHistory.push(newHist);
+  }
+
+  saveDatabase(db);
+  return newHist;
+}
+
+export function getMedicalHistoryForPatient(patientId: string): MedicalHistoryRecord[] {
+  if (!patientId) return [];
+  const clean = patientId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.medicalHistory || []).filter(m => m.patientId.toUpperCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: MEDICATIONS
+// -------------------------------------------------------------------------
+export function saveMedicationRecord(record: Partial<MedicationRecord>): MedicationRecord {
+  const db = getDatabase();
+  if (!db.medications) db.medications = [];
+
+  const now = new Date().toISOString();
+  const id = record.id || `med-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newMed: MedicationRecord = {
+    id,
+    patientId: (record.patientId || '').trim().toUpperCase(),
+    caseId: record.caseId ? record.caseId.trim().toUpperCase() : undefined,
+    prescribedByDoctorId: record.prescribedByDoctorId,
+    medicationName: record.medicationName || 'Unspecified Medication',
+    dosage: record.dosage || 'Standard dose',
+    frequency: record.frequency || 'Once daily',
+    route: record.route || 'Oral',
+    startDate: record.startDate,
+    endDate: record.endDate,
+    status: record.status || 'ACTIVE',
+    source: record.source || 'PATIENT_REPORTED',
+    createdAt: record.createdAt || now,
+    updatedAt: now
+  };
+
+  const idx = db.medications.findIndex(m => m.id === id);
+  if (idx >= 0) {
+    db.medications[idx] = { ...db.medications[idx], ...newMed };
+  } else {
+    db.medications.push(newMed);
+  }
+
+  saveDatabase(db);
+  return newMed;
+}
+
+export function getMedicationsForPatient(patientId: string): MedicationRecord[] {
+  if (!patientId) return [];
+  const clean = patientId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.medications || []).filter(m => m.patientId.toUpperCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: ALLERGIES
+// -------------------------------------------------------------------------
+export function saveAllergyRecord(record: Partial<AllergyRecord>): AllergyRecord {
+  const db = getDatabase();
+  if (!db.allergies) db.allergies = [];
+
+  const now = new Date().toISOString();
+  const id = record.id || `alg-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newAllergy: AllergyRecord = {
+    id,
+    patientId: (record.patientId || '').trim().toUpperCase(),
+    allergen: record.allergen || 'Unknown Allergen',
+    allergyType: record.allergyType || 'DRUG',
+    severity: record.severity || 'MODERATE',
+    reaction: record.reaction || 'Mild reaction',
+    identifiedDate: record.identifiedDate,
+    createdAt: record.createdAt || now,
+    updatedAt: now
+  };
+
+  const idx = db.allergies.findIndex(a => a.id === id);
+  if (idx >= 0) {
+    db.allergies[idx] = { ...db.allergies[idx], ...newAllergy };
+  } else {
+    db.allergies.push(newAllergy);
+  }
+
+  saveDatabase(db);
+  return newAllergy;
+}
+
+export function getAllergiesForPatient(patientId: string): AllergyRecord[] {
+  if (!patientId) return [];
+  const clean = patientId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.allergies || []).filter(a => a.patientId.toUpperCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: AI REPORTS
+// -------------------------------------------------------------------------
+export function saveAIReportRecord(report: Partial<AIReportRecord>): AIReportRecord {
+  const db = getDatabase();
+  if (!db.aiReports) db.aiReports = [];
+
+  const now = new Date().toISOString();
+  const id = report.id || `air-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newReport: AIReportRecord = {
+    id,
+    caseId: (report.caseId || '').trim().toUpperCase(),
+    patientId: (report.patientId || '').trim().toUpperCase(),
+    summaryText: report.summaryText || 'Clinical intake summary generated by AI assistant.',
+    chiefComplaint: report.chiefComplaint || 'Clinical evaluation',
+    triagePriority: report.triagePriority || 'GREEN',
+    redFlagsDetected: Array.isArray(report.redFlagsDetected) ? report.redFlagsDetected : [],
+    clinicalAnalysis: report.clinicalAnalysis,
+    snomedCodes: report.snomedCodes,
+    confidenceScore: report.confidenceScore || 0.95,
+    missingOrUncertainInfo: report.missingOrUncertainInfo,
+    generatedAt: report.generatedAt || now,
+    createdAt: report.createdAt || now
+  };
+
+  const idx = db.aiReports.findIndex(r => r.id === id);
+  if (idx >= 0) {
+    db.aiReports[idx] = { ...db.aiReports[idx], ...newReport };
+  } else {
+    db.aiReports.push(newReport);
+  }
+
+  saveDatabase(db);
+  return newReport;
+}
+
+export function getAIReportsForCase(caseId: string): AIReportRecord[] {
+  if (!caseId) return [];
+  const clean = caseId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.aiReports || []).filter(r => r.caseId.toUpperCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: CLINICAL NOTES
+// -------------------------------------------------------------------------
+export function saveClinicalNoteRecord(note: Partial<ClinicalNoteRecord>): ClinicalNoteRecord {
+  const db = getDatabase();
+  if (!db.clinicalNotes) db.clinicalNotes = [];
+
+  const now = new Date().toISOString();
+  const id = note.id || `note-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newNote: ClinicalNoteRecord = {
+    id,
+    caseId: (note.caseId || '').trim().toUpperCase(),
+    patientId: (note.patientId || '').trim().toUpperCase(),
+    doctorId: (note.doctorId || '').trim().toLowerCase(),
+    hospitalId: (note.hospitalId || '').trim().toUpperCase(),
+    noteType: note.noteType || 'ASSESSMENT',
+    content: note.content || '',
+    prescriptionOrders: Array.isArray(note.prescriptionOrders) ? note.prescriptionOrders : [],
+    signedAt: note.signedAt,
+    isVerified: Boolean(note.isVerified),
+    createdAt: note.createdAt || now,
+    updatedAt: now
+  };
+
+  const idx = db.clinicalNotes.findIndex(n => n.id === id);
+  if (idx >= 0) {
+    db.clinicalNotes[idx] = { ...db.clinicalNotes[idx], ...newNote };
+  } else {
+    db.clinicalNotes.push(newNote);
+  }
+
+  saveDatabase(db);
+  return newNote;
+}
+
+export function getClinicalNotesForCase(caseId: string): ClinicalNoteRecord[] {
+  if (!caseId) return [];
+  const clean = caseId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.clinicalNotes || []).filter(n => n.caseId.toUpperCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: ASSIGNMENTS
+// -------------------------------------------------------------------------
+export function saveAssignmentRecord(assignment: Partial<AssignmentRecord>): AssignmentRecord {
+  const db = getDatabase();
+  if (!db.assignments) db.assignments = [];
+
+  const now = new Date().toISOString();
+  const id = assignment.id || `asn-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newAssignment: AssignmentRecord = {
+    id,
+    caseId: (assignment.caseId || '').trim().toUpperCase(),
+    patientId: (assignment.patientId || '').trim().toUpperCase(),
+    hospitalId: (assignment.hospitalId || '').trim().toUpperCase(),
+    doctorId: (assignment.doctorId || '').trim().toLowerCase(),
+    assignedByUserId: (assignment.assignedByUserId || '').trim().toLowerCase(),
+    assignedAt: assignment.assignedAt || now,
+    status: assignment.status || 'ACTIVE',
+    notes: assignment.notes,
+    createdAt: assignment.createdAt || now,
+    updatedAt: now
+  };
+
+  const idx = db.assignments.findIndex(a => a.id === id);
+  if (idx >= 0) {
+    db.assignments[idx] = { ...db.assignments[idx], ...newAssignment };
+  } else {
+    db.assignments.push(newAssignment);
+  }
+
+  saveDatabase(db);
+  return newAssignment;
+}
+
+export function getAssignmentsForCase(caseId: string): AssignmentRecord[] {
+  if (!caseId) return [];
+  const clean = caseId.trim().toUpperCase();
+  const db = getDatabase();
+  return (db.assignments || []).filter(a => a.caseId.toUpperCase() === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: MESSAGES
+// -------------------------------------------------------------------------
+export function saveMessageRecord(msg: Partial<MessageRecord>): MessageRecord {
+  const db = getDatabase();
+  if (!db.messages) db.messages = [];
+
+  const now = new Date().toISOString();
+  const id = msg.id || `msg-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newMsg: MessageRecord = {
+    id,
+    caseId: msg.caseId ? msg.caseId.trim().toUpperCase() : undefined,
+    senderUserId: (msg.senderUserId || '').trim().toLowerCase(),
+    receiverUserId: (msg.receiverUserId || '').trim().toLowerCase(),
+    senderRole: msg.senderRole || 'PATIENT',
+    receiverRole: msg.receiverRole || 'HOSPITAL_ADMIN',
+    subject: msg.subject,
+    messageText: msg.messageText || '',
+    isRead: Boolean(msg.isRead),
+    sentAt: msg.sentAt || now,
+    createdAt: msg.createdAt || now
+  };
+
+  const idx = db.messages.findIndex(m => m.id === id);
+  if (idx >= 0) {
+    db.messages[idx] = { ...db.messages[idx], ...newMsg };
+  } else {
+    db.messages.push(newMsg);
+  }
+
+  saveDatabase(db);
+  return newMsg;
+}
+
+export function getMessagesForUser(userId: string): MessageRecord[] {
+  if (!userId) return [];
+  const clean = userId.trim().toLowerCase();
+  const db = getDatabase();
+  return (db.messages || []).filter(m => m.senderUserId === clean || m.receiverUserId === clean);
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: NOTIFICATIONS
+// -------------------------------------------------------------------------
+export function saveNotificationRecord(notif: Partial<NotificationRecord>): NotificationRecord {
+  const db = getDatabase();
+  if (!db.notifications) db.notifications = [];
+
+  const now = new Date().toISOString();
+  const id = notif.id || `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newNotif: NotificationRecord = {
+    id,
+    userId: (notif.userId || '').trim().toLowerCase(),
+    patientId: notif.patientId ? notif.patientId.trim().toUpperCase() : undefined,
+    hospitalId: notif.hospitalId ? notif.hospitalId.trim().toUpperCase() : undefined,
+    type: notif.type || 'SYSTEM',
+    title: notif.title || 'Notification',
+    message: notif.message || '',
+    link: notif.link,
+    isRead: Boolean(notif.isRead),
+    createdAt: notif.createdAt || now
+  };
+
+  const idx = db.notifications.findIndex(n => n.id === id);
+  if (idx >= 0) {
+    db.notifications[idx] = { ...db.notifications[idx], ...newNotif };
+  } else {
+    db.notifications.push(newNotif);
+  }
+
+  saveDatabase(db);
+  return newNotif;
+}
+
+export function getNotificationsForUser(userId: string): NotificationRecord[] {
+  if (!userId) return [];
+  const clean = userId.trim().toLowerCase();
+  const db = getDatabase();
+  return (db.notifications || []).filter(n => n.userId === clean);
+}
+
+export function markNotificationAsRead(id: string): boolean {
+  if (!id) return false;
+  const db = getDatabase();
+  const item = (db.notifications || []).find(n => n.id === id);
+  if (item) {
+    item.isRead = true;
+    return saveDatabase(db);
+  }
+  return false;
+}
+
+// -------------------------------------------------------------------------
+// RELATIONAL CRUD: AUDIT LOGS
+// -------------------------------------------------------------------------
+export function saveAuditLogRecord(log: Partial<AuditLogRecord>): AuditLogRecord {
+  const db = getDatabase();
+  if (!db.auditLogs) db.auditLogs = [];
+
+  const now = new Date().toISOString();
+  const id = log.id || `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newLog: AuditLogRecord = {
+    id,
+    actorId: (log.actorId || 'system').trim().toLowerCase(),
+    actorName: log.actorName || 'System Service',
+    actorRole: log.actorRole || 'SYSTEM_ADMIN',
+    action: log.action || 'ACCESS',
+    targetEntity: log.targetEntity || 'CASES',
+    targetId: log.targetId || 'UNKNOWN',
+    details: log.details || '',
+    ipAddress: log.ipAddress || '127.0.0.1',
+    timestamp: log.timestamp || now,
+    createdAt: log.createdAt || now
+  };
+
+  db.auditLogs.unshift(newLog);
+  saveDatabase(db);
+  return newLog;
+}
+
+export function getAuditLogsForEntity(targetEntity?: string, targetId?: string): AuditLogRecord[] {
+  const db = getDatabase();
+  let list = db.auditLogs || [];
+  if (targetEntity) {
+    list = list.filter(l => l.targetEntity.toUpperCase() === targetEntity.toUpperCase());
+  }
+  if (targetId) {
+    list = list.filter(l => l.targetId.toUpperCase() === targetId.toUpperCase());
+  }
+  return list;
 }
 
 export default async function handler(req: any, res: any) {
@@ -1062,4 +2050,5 @@ export default async function handler(req: any, res: any) {
     timestamp: new Date().toISOString()
   });
 }
+
 

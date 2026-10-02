@@ -37,7 +37,7 @@ export const PatientQrCard: React.FC<PatientQrCardProps> = ({ patient, user }) =
 
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const realPatientId = patient?.patientId || user?.patientId || 'MB-2026-ACTIVE';
+  const realPatientId = patient?.patientId || user?.patientId || '';
   const realFullName = patient?.fullName || user?.fullName || 'Registered Patient';
   const realUserId = patient?.userId || user?.id || '';
 

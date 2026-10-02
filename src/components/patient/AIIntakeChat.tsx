@@ -254,7 +254,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
     setIsSpeaking(false);
 
     const history = historyToUse || messages;
-    const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || 'MB-2026-ACTIVE';
+    const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || '';
     const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE') : [];
     const registeredHospitals = db.getHospitals();
     const hospAccounts = db.getHospitalAccounts();

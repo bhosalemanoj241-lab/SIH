@@ -31,6 +31,17 @@
       "role": "SYSTEM_ADMIN",
       "isEmailVerified": true,
       "createdAt": "2025-10-01T08:00:00Z"
+    },
+    {
+      "id": "usr-doc-anita-001",
+      "email": "dr.anita.sharma@morayahospital.in",
+      "password": "Password@123",
+      "phone": "9820011223",
+      "fullName": "Dr. Anita Sharma",
+      "role": "DOCTOR",
+      "hospitalId": "HOSP-2026-92401",
+      "isEmailVerified": true,
+      "createdAt": "2026-10-02T08:00:00Z"
     }
   ],
   "patients": [
@@ -96,7 +107,296 @@
       "createdAt": "2026-10-02T11:04:52.401Z"
     }
   ],
-  "doctors": [],
+  "doctors": [
+    {
+      "id": "doc-moraya-001",
+      "userId": "usr-doc-anita-001",
+      "doctorName": "Dr. Anita Sharma",
+      "email": "dr.anita.sharma@morayahospital.in",
+      "phone": "9820011223",
+      "registrationNumber": "NMC-MH-2018-93821",
+      "qualification": "MBBS, MD (Cardiology)",
+      "specialization": "Cardiology & Emergency Medicine",
+      "hospitalId": "HOSP-2026-92401",
+      "hospitalName": "Moraya General Hospital",
+      "departmentId": "dept-001",
+      "departmentName": "Cardiology",
+      "experienceYears": 12,
+      "isAvailable": true,
+      "activePatientsCount": 1,
+      "createdAt": "2026-10-02T08:00:00Z"
+    }
+  ],
+  "cases": [
+    {
+      "id": "MB-CASE-9MNBTN-001",
+      "caseNumber": "MB-CASE-9MNBTN-001",
+      "patientId": "MB-2026-9MNBTN",
+      "hospitalId": "HOSP-2026-92401",
+      "assignedDoctorId": "doc-moraya-001",
+      "status": "VERIFIED",
+      "triagePriority": "GREEN",
+      "triageRationale": "Pre-arrival clinical intake completed with physician verification and normal sinus rhythm.",
+      "chiefComplaint": "Acute chest pain with sweating and breathlessness",
+      "isRedFlagTriggered": false,
+      "redFlags": [],
+      "workflowStatus": "VERIFIED",
+      "startedAt": "2026-10-02T10:50:23.180Z",
+      "completedAt": "2026-10-02T10:55:23.180Z",
+      "createdAt": "2026-10-02T10:50:23.180Z",
+      "updatedAt": "2026-10-02T10:55:23.180Z"
+    },
+    {
+      "id": "ses-1790938354611",
+      "caseNumber": "ses-1790938354611",
+      "patientId": "MB-2026-9MNBTN",
+      "hospitalId": "HOSP-2026-92401",
+      "assignedDoctorId": "doc-moraya-001",
+      "status": "VERIFIED",
+      "triagePriority": "GREEN",
+      "triageRationale": "Pre-arrival intake completed with physician-ready short clinical report.",
+      "chiefComplaint": "Acute chest pain with sweating and breathlessness",
+      "isRedFlagTriggered": false,
+      "redFlags": [],
+      "workflowStatus": "INBOUND_EMERGENCY",
+      "startedAt": "2026-10-02T10:50:23.180Z",
+      "completedAt": "2026-10-02T10:55:23.180Z",
+      "createdAt": "2026-10-02T10:50:23.180Z",
+      "updatedAt": "2026-10-02T10:55:23.180Z"
+    }
+  ],
+  "symptoms": [
+    {
+      "id": "sym-001",
+      "caseId": "MB-CASE-9MNBTN-001",
+      "patientId": "MB-2026-9MNBTN",
+      "symptomName": "Acute chest pain with sweating and breathlessness",
+      "severity": "SEVERE",
+      "severityScore": 8,
+      "duration": "today",
+      "onset": "GRADUAL",
+      "bodySite": "Chest / Precordial",
+      "notes": "Reported during conversational pre-arrival clinical intake interview",
+      "source": "PATIENT_REPORTED",
+      "createdAt": "2026-10-02T10:52:50.801Z"
+    }
+  ],
+  "medicalHistory": [
+    {
+      "id": "medhist-001",
+      "patientId": "MB-2026-9MNBTN",
+      "conditionName": "Mild Essential Hypertension",
+      "diagnosisDate": "2024-03-15",
+      "status": "CONTROLLED",
+      "icdCode": "I10",
+      "notes": "Managed with regular low-dose Amlodipine.",
+      "source": "DOCTOR_VERIFIED",
+      "createdAt": "2026-10-02T07:26:21.995Z",
+      "updatedAt": "2026-10-02T07:26:21.995Z"
+    }
+  ],
+  "medications": [
+    {
+      "id": "med-001",
+      "patientId": "MB-2026-9MNBTN",
+      "caseId": "MB-CASE-9MNBTN-001",
+      "prescribedByDoctorId": "doc-moraya-001",
+      "medicationName": "Amlodipine 5mg OD",
+      "dosage": "5mg",
+      "frequency": "Once daily in the morning",
+      "route": "Oral",
+      "startDate": "2024-03-15",
+      "status": "ACTIVE",
+      "source": "DOCTOR_PRESCRIBED",
+      "createdAt": "2026-10-02T07:26:21.995Z",
+      "updatedAt": "2026-10-02T07:26:21.995Z"
+    }
+  ],
+  "allergies": [
+    {
+      "id": "alg-001",
+      "patientId": "MB-2026-9MNBTN",
+      "allergen": "Penicillin",
+      "allergyType": "DRUG",
+      "severity": "MILD",
+      "reaction": "Cutaneous rash without anaphylaxis",
+      "identifiedDate": "2020-05-10",
+      "createdAt": "2026-10-02T07:26:21.995Z",
+      "updatedAt": "2026-10-02T07:26:21.995Z"
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-img-1790947303143",
+      "patientId": "MB-2026-9MNBTN",
+      "fileName": "Chest_XRay_PA.png",
+      "fileType": "XRAY",
+      "mimeType": "image/png",
+      "fileSize": "68 B",
+      "fileSizeBytes": 68,
+      "uploadDate": "2026-10-02T13:21:43.144Z",
+      "filePath": "data/uploads/MB-2026-9MNBTN/doc-img-1790947303143_Chest_XRay_PA.png",
+      "fileUrl": "/api/documents?id=doc-img-1790947303143",
+      "downloadUrl": "/api/documents?id=doc-img-1790947303143&download=true",
+      "fileData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+      "extractedData": {
+        "facilityName": "City Imaging Center",
+        "physicianName": "Dr. Priya Rao",
+        "extractedDiagnoses": [
+          "Normal Cardiopulmonary Shadow"
+        ]
+      },
+      "status": "COMPLETED",
+      "caseId": "MB-CASE-9MNBTN-001"
+    },
+    {
+      "id": "doc-test-1790947303118",
+      "patientId": "MB-2026-9MNBTN",
+      "fileName": "Comprehensive_Blood_Panel.pdf",
+      "fileType": "LAB_REPORT",
+      "mimeType": "application/pdf",
+      "fileSize": "477 B",
+      "fileSizeBytes": 477,
+      "uploadDate": "2026-10-02T13:21:43.133Z",
+      "filePath": "data/uploads/MB-2026-9MNBTN/doc-test-1790947303118_Comprehensive_Blood_Panel.pdf",
+      "fileUrl": "/api/documents?id=doc-test-1790947303118",
+      "downloadUrl": "/api/documents?id=doc-test-1790947303118&download=true",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCA1NSA+PiBzdHJlYW0KQlQgL0YxIDE0IFRmIDUwIDcwMCBUZCAoTUVESUJSSURHRSBDTElOSUNBTCBSRVBPUlQgLSBWRVJJRklFRCkgVGogRVQKZW5kc3RyZWFtIGVuZG9iagp4cmVmCjAgNQowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDIxNCAwMDAwMCBuCnRyYWlsZXIgPDwgL1NpemUgNSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzE4CiUlRU9G",
+      "extractedData": {
+        "facilityName": "Metro Diagnostic Lab",
+        "physicianName": "Dr. Sunil Kulkarni",
+        "extractedDiagnoses": [
+          "Mild Dyslipidemia",
+          "Normal Fasting Glucose"
+        ]
+      },
+      "status": "COMPLETED",
+      "caseId": "MB-CASE-9MNBTN-001"
+    },
+    {
+      "id": "doc-test-1790947267406",
+      "patientId": "MB-2026-9MNBTN",
+      "fileName": "Comprehensive_Blood_Panel.pdf",
+      "fileType": "LAB_REPORT",
+      "mimeType": "application/pdf",
+      "fileSize": "477 B",
+      "fileSizeBytes": 477,
+      "uploadDate": "2026-10-02T13:21:07.409Z",
+      "filePath": "data/uploads/MB-2026-9MNBTN/doc-test-1790947267406_Comprehensive_Blood_Panel.pdf",
+      "fileUrl": "/api/documents?id=doc-test-1790947267406",
+      "downloadUrl": "/api/documents?id=doc-test-1790947267406&download=true",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCA1NSA+PiBzdHJlYW0KQlQgL0YxIDE0IFRmIDUwIDcwMCBUZCAoTUVESUJSSURHRSBDTElOSUNBTCBSRVBPUlQgLSBWRVJJRklFRCkgVGogRVQKZW5kc3RyZWFtIGVuZG9iagp4cmVmCjAgNQowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDIxNCAwMDAwMCBuCnRyYWlsZXIgPDwgL1NpemUgNSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzE4CiUlRU9G",
+      "extractedData": {
+        "facilityName": "Metro Diagnostic Lab",
+        "physicianName": "Dr. Sunil Kulkarni",
+        "extractedDiagnoses": [
+          "Mild Dyslipidemia",
+          "Normal Fasting Glucose"
+        ]
+      },
+      "status": "COMPLETED",
+      "caseId": "MB-CASE-9MNBTN-001"
+    }
+  ],
+  "aiReports": [
+    {
+      "id": "air-001",
+      "caseId": "MB-CASE-9MNBTN-001",
+      "patientId": "MB-2026-9MNBTN",
+      "summaryText": "Patient presented with acute chest pain and breathlessness. Evaluated and verified.",
+      "chiefComplaint": "Acute chest pain with sweating and breathlessness",
+      "triagePriority": "GREEN",
+      "redFlagsDetected": [],
+      "clinicalAnalysis": "Hemodynamically stable pre-arrival intake. Vitals and 12-lead ECG reviewed.",
+      "snomedCodes": [
+        "29857009"
+      ],
+      "confidenceScore": 0.96,
+      "missingOrUncertainInfo": [
+        "Objective vitals require in-person physician verification"
+      ],
+      "generatedAt": "2026-10-02T10:55:23.179Z",
+      "createdAt": "2026-10-02T10:55:23.179Z"
+    }
+  ],
+  "clinicalNotes": [
+    {
+      "id": "note-001",
+      "caseId": "MB-CASE-9MNBTN-001",
+      "patientId": "MB-2026-9MNBTN",
+      "doctorId": "doc-moraya-001",
+      "hospitalId": "HOSP-2026-92401",
+      "noteType": "ASSESSMENT",
+      "content": "Evaluated clinical intake summary and documentation. Patient is hemodynamically stable. 12-lead ECG obtained showing normal sinus rhythm without acute ischemic changes. Advised rest, hydration, and continue regular Amlodipine 5mg.",
+      "prescriptionOrders": [
+        "Continue Amlodipine 5mg OD",
+        "Follow up in Outpatient Cardiology Clinic in 7 days"
+      ],
+      "signedAt": "2026-10-02T11:15:00.000Z",
+      "isVerified": true,
+      "createdAt": "2026-10-02T11:15:00.000Z",
+      "updatedAt": "2026-10-02T11:15:00.000Z"
+    }
+  ],
+  "assignments": [
+    {
+      "id": "asn-001",
+      "caseId": "MB-CASE-9MNBTN-001",
+      "patientId": "MB-2026-9MNBTN",
+      "hospitalId": "HOSP-2026-92401",
+      "doctorId": "doc-moraya-001",
+      "assignedByUserId": "usr-hosp-1790939092401",
+      "assignedAt": "2026-10-02T11:05:00.000Z",
+      "status": "COMPLETED",
+      "notes": "Assigned to attending cardiologist Dr. Anita Sharma for emergency triage evaluation.",
+      "createdAt": "2026-10-02T11:05:00.000Z",
+      "updatedAt": "2026-10-02T11:15:00.000Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-001",
+      "caseId": "MB-CASE-9MNBTN-001",
+      "senderUserId": "usr-hosp-1790939092401",
+      "receiverUserId": "usr-pat-1790925981995",
+      "senderRole": "HOSPITAL_ADMIN",
+      "receiverRole": "PATIENT",
+      "subject": "Case Assigned & Clinical Dossier Verified",
+      "messageText": "Your pre-arrival clinical case MB-CASE-9MNBTN-001 has been assigned to Dr. Anita Sharma at Moraya General Hospital. The clinical notes and orders are available on your patient dashboard.",
+      "isRead": true,
+      "sentAt": "2026-10-02T11:16:00.000Z",
+      "createdAt": "2026-10-02T11:16:00.000Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-001",
+      "userId": "usr-pat-1790925981995",
+      "patientId": "MB-2026-9MNBTN",
+      "hospitalId": "HOSP-2026-92401",
+      "type": "CASE_ASSIGNED",
+      "title": "Clinical Intake Verified by Doctor",
+      "message": "Dr. Anita Sharma has reviewed and verified your clinical dossier for case MB-CASE-9MNBTN-001.",
+      "link": "/patient/dashboard",
+      "isRead": true,
+      "createdAt": "2026-10-02T11:16:00.000Z"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "aud-001",
+      "timestamp": "2026-10-02T11:05:00.000Z",
+      "actorId": "usr-hosp-1790939092401",
+      "actorName": "Moraya General Hospital",
+      "actorRole": "HOSPITAL_ADMIN",
+      "action": "ASSIGN_DOCTOR",
+      "targetEntity": "CASES",
+      "targetId": "MB-CASE-9MNBTN-001",
+      "details": "Assigned clinical case MB-CASE-9MNBTN-001 to Dr. Anita Sharma (doc-moraya-001).",
+      "ipAddress": "127.0.0.1 (Authenticated Server)",
+      "createdAt": "2026-10-02T11:05:00.000Z"
+    }
+  ],
   "accessRequests": [
     {
       "patientId": "MB-2026-9MNBTN",
@@ -234,9 +534,9 @@
       "originalLanguage": "en",
       "originalPatientStatement": "Acute chest pain with sweating and breathlessness",
       "translatedSummary": "Patient (MB-2026-9MNBTN, 34y MALE) presented via MediBridge pre-arrival intake with chief complaint of: Acute chest pain with sweating and breathlessness. Symptom onset is reported as gradual with a duration of today, self-assessed as Severe (8/10). Patient reports no major prior chronic medical conditions. No regular prescription medications reported. No known drug or environmental allergies reported (NKDA). Clinical intake completed from patient home and awaiting in-person physical examination and physician orders.",
-      "selectedHospitalId": "HOSP-2026-56474",
+      "selectedHospitalId": "HOSP-2026-92401",
       "selectedDepartmentId": "dept-001",
-      "targetDoctorId": "doc-001",
+      "targetDoctorId": "doc-moraya-001",
       "redFlagsDetected": [],
       "isRedFlagTriggered": false,
       "aiSummary": {
@@ -353,151 +653,9 @@
       }
     }
   ],
-  "documents": [
-    {
-      "id": "doc-img-1790947303143",
-      "patientId": "MB-2026-9MNBTN",
-      "fileName": "Chest_XRay_PA.png",
-      "fileType": "XRAY",
-      "mimeType": "image/png",
-      "fileSize": "68 B",
-      "fileSizeBytes": 68,
-      "uploadDate": "2026-10-02T13:21:43.144Z",
-      "filePath": "data/uploads/MB-2026-9MNBTN/doc-img-1790947303143_Chest_XRay_PA.png",
-      "fileUrl": "/api/documents?id=doc-img-1790947303143",
-      "downloadUrl": "/api/documents?id=doc-img-1790947303143&download=true",
-      "fileData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-      "extractedData": {
-        "facilityName": "City Imaging Center",
-        "physicianName": "Dr. Priya Rao",
-        "extractedDiagnoses": [
-          "Normal Cardiopulmonary Shadow"
-        ]
-      },
-      "status": "COMPLETED"
-    },
-    {
-      "id": "doc-test-1790947303118",
-      "patientId": "MB-2026-9MNBTN",
-      "fileName": "Comprehensive_Blood_Panel.pdf",
-      "fileType": "LAB_REPORT",
-      "mimeType": "application/pdf",
-      "fileSize": "477 B",
-      "fileSizeBytes": 477,
-      "uploadDate": "2026-10-02T13:21:43.133Z",
-      "filePath": "data/uploads/MB-2026-9MNBTN/doc-test-1790947303118_Comprehensive_Blood_Panel.pdf",
-      "fileUrl": "/api/documents?id=doc-test-1790947303118",
-      "downloadUrl": "/api/documents?id=doc-test-1790947303118&download=true",
-      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCA1NSA+PiBzdHJlYW0KQlQgL0YxIDE0IFRmIDUwIDcwMCBUZCAoTUVESUJSSURHRSBDTElOSUNBTCBSRVBPUlQgLSBWRVJJRklFRCkgVGogRVQKZW5kc3RyZWFtIGVuZG9iagp4cmVmCjAgNQowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDIxNCAwMDAwMCBuCnRyYWlsZXIgPDwgL1NpemUgNSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzE4CiUlRU9G",
-      "extractedData": {
-        "facilityName": "Metro Diagnostic Lab",
-        "physicianName": "Dr. Sunil Kulkarni",
-        "extractedDiagnoses": [
-          "Mild Dyslipidemia",
-          "Normal Fasting Glucose"
-        ]
-      },
-      "status": "COMPLETED"
-    },
-    {
-      "id": "doc-test-1790947267406",
-      "patientId": "MB-2026-9MNBTN",
-      "fileName": "Comprehensive_Blood_Panel.pdf",
-      "fileType": "LAB_REPORT",
-      "mimeType": "application/pdf",
-      "fileSize": "477 B",
-      "fileSizeBytes": 477,
-      "uploadDate": "2026-10-02T13:21:07.409Z",
-      "filePath": "data/uploads/MB-2026-9MNBTN/doc-test-1790947267406_Comprehensive_Blood_Panel.pdf",
-      "fileUrl": "/api/documents?id=doc-test-1790947267406",
-      "downloadUrl": "/api/documents?id=doc-test-1790947267406&download=true",
-      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2JqCjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4gZW5kb2JqCjMgMCBvYmogPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgPj4gZW5kb2JqCjQgMCBvYmogPDwgL0xlbmd0aCA1NSA+PiBzdHJlYW0KQlQgL0YxIDE0IFRmIDUwIDcwMCBUZCAoTUVESUJSSURHRSBDTElOSUNBTCBSRVBPUlQgLSBWRVJJRklFRCkgVGogRVQKZW5kc3RyZWFtIGVuZG9iagp4cmVmCjAgNQowMDAwMDAwMDAwIDY1NTM1IGYKMDAwMDAwMDAwOSAwMDAwMCBuCjAwMDAwMDAwNTggMDAwMDAgbgowMDAwMDAwMTE1IDAwMDAwIG4KMDAwMDAwMDIxNCAwMDAwMCBuCnRyYWlsZXIgPDwgL1NpemUgNSAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzE4CiUlRU9G",
-      "extractedData": {
-        "facilityName": "Metro Diagnostic Lab",
-        "physicianName": "Dr. Sunil Kulkarni",
-        "extractedDiagnoses": [
-          "Mild Dyslipidemia",
-          "Normal Fasting Glucose"
-        ]
-      },
-      "status": "COMPLETED"
-    }
-  ],
   "emergencies": [],
   "appointments": [],
-  "auditLogs": [
-    {
-      "id": "aud-1790925748540-366",
-      "timestamp": "2026-10-02T07:22:28.540Z",
-      "actorId": "doc-stranger",
-      "actorName": "Dr. Stranger",
-      "actorRole": "DOCTOR",
-      "action": "QR_ACCESS",
-      "targetEntity": "PatientProfile",
-      "targetId": "MB-2026-JGZM2A",
-      "ipAddress": "127.0.0.1 (Authenticated Server)",
-      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-UNKNOWN-999\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.540Z\",\"accessResult\":\"PENDING_CONSENT\",\"consentStatus\":\"UNAUTHORIZED\",\"breakGlass\":false}"
-    },
-    {
-      "id": "aud-1790925748535-164",
-      "timestamp": "2026-10-02T07:22:28.535Z",
-      "actorId": "doc-stranger",
-      "actorName": "Dr. Stranger",
-      "actorRole": "DOCTOR",
-      "action": "QR_ACCESS",
-      "targetEntity": "PatientProfile",
-      "targetId": "MB-2026-JGZM2A",
-      "ipAddress": "127.0.0.1 (Authenticated Server)",
-      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-UNKNOWN-999\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.535Z\",\"accessResult\":\"SUCCESS\",\"consentStatus\":\"AUTHORIZED\",\"breakGlass\":false}"
-    },
-    {
-      "id": "aud-1790925748530-541",
-      "timestamp": "2026-10-02T07:22:28.530Z",
-      "actorId": "doc-stranger",
-      "actorName": "Dr. Stranger",
-      "actorRole": "DOCTOR",
-      "action": "QR_ACCESS",
-      "targetEntity": "PatientProfile",
-      "targetId": "MB-2026-JGZM2A",
-      "ipAddress": "127.0.0.1 (Authenticated Server)",
-      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-UNKNOWN-999\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.530Z\",\"accessResult\":\"PENDING_CONSENT\",\"consentStatus\":\"UNAUTHORIZED\",\"breakGlass\":false}"
-    },
-    {
-      "id": "aud-1790925748527-644",
-      "timestamp": "2026-10-02T07:22:28.527Z",
-      "actorId": "doc-101",
-      "actorName": "Dr. Vivek Joshi",
-      "actorRole": "DOCTOR",
-      "action": "QR_ACCESS",
-      "targetEntity": "PatientProfile",
-      "targetId": "MB-2026-JGZM2A",
-      "ipAddress": "127.0.0.1 (Authenticated Server)",
-      "details": "{\"patientId\":\"MB-2026-JGZM2A\",\"doctorHospitalId\":\"HOSP-PUNE-3088\",\"accessMethod\":\"QR\",\"dateTime\":\"2026-10-02T07:22:28.527Z\",\"accessResult\":\"SUCCESS\",\"consentStatus\":\"AUTHORIZED\",\"breakGlass\":false}"
-    }
-  ],
-  "verificationCodes": {
-    "patient.qr.1790925623039@medibridge.ai": {
-      "email": "patient.qr.1790925623039@medibridge.ai",
-      "code": "972086",
-      "expiresAt": 1790926223043,
-      "attempts": 0,
-      "createdAt": "2026-10-02T07:20:23.043Z"
-    },
-    "rajesh.verma.1790935783806@medibridge.ai": {
-      "email": "rajesh.verma.1790935783806@medibridge.ai",
-      "code": "680613",
-      "expiresAt": 1790936383854,
-      "attempts": 0,
-      "createdAt": "2026-10-02T10:09:43.854Z"
-    },
-    "rajesh.verma.1790940401847@medibridge.ai": {
-      "email": "rajesh.verma.1790940401847@medibridge.ai",
-      "code": "288244",
-      "expiresAt": 1790941001897,
-      "attempts": 0,
-      "createdAt": "2026-10-02T11:26:41.897Z"
-    }
-  },
+  "verificationCodes": {},
   "patientQrs": [
     {
       "id": "qr-MB-2026-9MNBTN",
@@ -510,5 +668,5 @@
     }
   ],
   "version": 2,
-  "lastUpdated": "2026-10-02T13:21:43.145Z"
+  "lastUpdated": "2026-10-02T14:31:04.303Z"
 }

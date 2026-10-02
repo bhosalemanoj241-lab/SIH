@@ -367,7 +367,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <div className="flex items-center gap-1.5 bg-teal-50 text-teal-800 border border-teal-200 px-3 py-1 rounded-lg">
                 <span className="text-xs font-mono font-bold">
-                  Patient ID: {patientProfile?.patientId || 'MB-2026-ACTIVE'}
+                  Patient ID: {resolvedPatientId || patientProfile?.patientId || currentUser?.patientId || 'Pending Registration'}
                 </span>
                 {patientProfile?.patientId && (
                   <button
