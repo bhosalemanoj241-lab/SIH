@@ -23,21 +23,48 @@ import {
 import { sendVerificationEmail } from './emailService';
 
 export default async function handler(req: any, res: any) {
-  // Production CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PUT,DELETE');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
-  );
+  try {
+    // Helper Polyfills for Vercel / Express / Node HTTP compatibility
+    if (!res.status) {
+      res.status = function (code: number) {
+        res.statusCode = code;
+        return res;
+      };
+    }
+    if (!res.json) {
+      res.json = function (data: any) {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(data));
+        return res;
+      };
+    }
+    if (!req.query && req.url) {
+      try {
+        const parsedUrl = new URL(req.url, 'http://localhost');
+        const q: Record<string, string> = {};
+        parsedUrl.searchParams.forEach((v, k) => {
+          q[k] = v;
+        });
+        req.query = q;
+      } catch {}
+    }
+    if (!req.query) req.query = {};
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+    // Production CORS headers
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PUT,DELETE');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+    );
 
-  const method = req.method || 'GET';
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+
+    const method = req.method || 'GET';
 
   // ─────────────────────────────────────────────────────────────────────────
   // 1. GET: Verification, session status, lookup, or clear
@@ -726,5 +753,12 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ success: false, error: `Unsupported action: ${action}` });
   }
 
-  return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err: any) {
+    console.error('[API /api/auth Error]:', err);
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Internal Server Error'
+    });
+  }
 }
