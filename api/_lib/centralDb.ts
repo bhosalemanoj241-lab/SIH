@@ -268,9 +268,9 @@ export const DEFAULT_SEED_HOSPITALS: HospitalAccount[] = [
     state: 'Maharashtra',
     location: 'Bandra West, Mumbai',
     pincode: '400050',
-    hasAmbulance: true,
-    latitude: 19.0522,
-    longitude: 72.8295,
+    ambulanceAvailable: true,
+    coordinates: { lat: 19.0522, lng: 72.8295 },
+    departments: ['Emergency & Trauma', 'General Medicine', 'Cardiology', 'ICU'],
     status: 'VERIFIED',
     createdAt: '2025-10-01T08:00:00Z'
   }
@@ -280,7 +280,7 @@ export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [
   {
     id: 'doc-sharma',
     userId: 'usr-doc-sharma',
-    name: 'Dr. Anita Sharma',
+    doctorName: 'Dr. Anita Sharma',
     email: 'dr.sharma@medibridge.ai',
     phone: '+91 98200 12345',
     registrationNumber: 'MCI-2015-44912',
@@ -355,8 +355,9 @@ function sanitizeDatabase(data: any): CentralDatabase {
 
   const patients: PatientProfile[] = Array.isArray(data?.patients) ? [...data.patients] : [];
   for (const p of DEFAULT_SEED_PATIENTS) {
+    const pEmail = (p.email || '').toLowerCase();
     const pIdx = patients.findIndex(
-      x => (x.patientId || '').toUpperCase() === p.patientId.toUpperCase() || (x.email || '').toLowerCase() === p.email.toLowerCase()
+      x => (x.patientId || '').toUpperCase() === p.patientId.toUpperCase() || (Boolean(pEmail) && (x.email || '').toLowerCase() === pEmail)
     );
     if (pIdx === -1) {
       patients.push(p);
@@ -367,14 +368,17 @@ function sanitizeDatabase(data: any): CentralDatabase {
 
   const hospitals: HospitalAccount[] = Array.isArray(data?.hospitals) ? [...data.hospitals] : [];
   for (const h of DEFAULT_SEED_HOSPITALS) {
-    if (!hospitals.some(x => (x.hospitalId || '').toUpperCase() === h.hospitalId.toUpperCase() || (x.email || '').toLowerCase() === h.email.toLowerCase())) {
+    const hHospId = (h.hospitalId || '').toUpperCase();
+    const hEmail = (h.email || '').toLowerCase();
+    if (!hospitals.some(x => (Boolean(hHospId) && (x.hospitalId || '').toUpperCase() === hHospId) || (Boolean(hEmail) && (x.email || '').toLowerCase() === hEmail))) {
       hospitals.push(h);
     }
   }
 
   const doctors: DoctorProfile[] = Array.isArray(data?.doctors) ? [...data.doctors] : [];
   for (const d of DEFAULT_SEED_DOCTORS) {
-    if (!doctors.some(x => (x.email || '').toLowerCase() === d.email.toLowerCase())) {
+    const dEmail = (d.email || '').toLowerCase();
+    if (!doctors.some(x => Boolean(dEmail) && (x.email || '').toLowerCase() === dEmail)) {
       doctors.push(d);
     }
   }

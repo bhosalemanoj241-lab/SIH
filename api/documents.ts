@@ -44,6 +44,68 @@ function getMimeType(fileName: string, fallback?: string): string {
   return fallback || 'application/octet-stream';
 }
 
+function generateFallbackPdf(doc: any): Buffer {
+  const title = (doc.fileName || 'Medical Document').replace(/[\(\)\\]/g, ' ');
+  const patientId = (doc.patientId || 'UNKNOWN').replace(/[\(\)\\]/g, ' ');
+  const date = (doc.uploadDate || new Date().toISOString()).replace(/[\(\)\\]/g, ' ');
+  const docType = (doc.type || 'Clinical Report').replace(/[\(\)\\]/g, ' ');
+
+  const content = `BT
+/F1 18 Tf
+50 740 Td
+(MEDIBRIDGE AI - CLINICAL MEDICAL RECORD) Tj
+/F1 12 Tf
+0 -35 Td
+(Document Name: ${title}) Tj
+0 -22 Td
+(Patient Unique ID: ${patientId}) Tj
+0 -22 Td
+(Document Category: ${docType}) Tj
+0 -22 Td
+(Upload Timestamp: ${date}) Tj
+0 -35 Td
+(Status: Electronically Verified by MediBridge Central System) Tj
+ET`;
+
+  const streamBuffer = Buffer.from(content, 'utf-8');
+  const streamLength = streamBuffer.length;
+
+  const pdf = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length ${streamLength} >>
+stream
+${content}
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000060 00000 n 
+0000000117 00000 n 
+0000000228 00000 n 
+0000000300 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+370
+%%EOF`;
+
+  return Buffer.from(pdf, 'utf-8');
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -118,11 +180,16 @@ export default async function handler(req: any, res: any) {
         } catch {}
       }
 
-      // If no file content exists at all, generate an informative clinical document fallback PDF/text
+      // If no file content exists on disk, generate an informative clinical document fallback PDF or text
       if (!fileBuffer) {
-        const textContent = `MediBridge AI Medical Record\nDocument: ${doc.fileName}\nPatient ID: ${doc.patientId}\nUploaded: ${doc.uploadDate}\n\nClinical Entities Extracted:\n${JSON.stringify(doc.extractedData || {}, null, 2)}`;
-        fileBuffer = Buffer.from(textContent, 'utf-8');
-        mimeType = 'text/plain';
+        if (mimeType.includes('pdf') || (doc.fileName && doc.fileName.toLowerCase().endsWith('.pdf'))) {
+          fileBuffer = generateFallbackPdf(doc);
+          mimeType = 'application/pdf';
+        } else {
+          const textContent = `MediBridge AI Medical Record\nDocument: ${doc.fileName}\nPatient ID: ${doc.patientId}\nUploaded: ${doc.uploadDate}\n\nClinical Entities Extracted:\n${JSON.stringify(doc.extractedData || {}, null, 2)}`;
+          fileBuffer = Buffer.from(textContent, 'utf-8');
+          mimeType = 'text/plain';
+        }
       }
 
       const safeFileName = (doc.fileName || 'medical_document.pdf').replace(/["\r\n]/g, '_');

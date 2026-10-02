@@ -418,15 +418,15 @@ class CentralAuthService {
     departments?: string[];
   }): Promise<AuthResult> {
     const cleanName = String(data.hospitalName || '').trim();
-    const cleanRegId = String(data.registrationId || '').trim();
+    let cleanRegId = String(data.registrationId || '').trim();
+    if (!cleanRegId) {
+      cleanRegId = `REG-HOSP-${Date.now().toString().slice(-6)}`;
+    }
     const cleanEmail = String(data.email || '').trim().toLowerCase();
     const cleanPassword = String(data.password || '').trim();
 
     if (!cleanName) {
       return { success: false, message: 'Hospital Name is required.' };
-    }
-    if (!cleanRegId) {
-      return { success: false, message: 'Registration / License ID is required.' };
     }
     if (!cleanEmail) {
       return { success: false, message: 'Hospital Email is required.' };
@@ -455,18 +455,34 @@ class CentralAuthService {
       const resData = await response.json().catch(() => ({}));
 
       if (response.ok && resData.success && resData.user) {
+        const resolvedHospital = resData.hospitalAccount || resData.hospital || {
+          id: resData.hospitalId || `HOSP-2026-${Date.now().toString().slice(-5)}`,
+          hospitalId: resData.hospitalId || `HOSP-2026-${Date.now().toString().slice(-5)}`,
+          hospitalName: cleanName,
+          registrationId: cleanRegId,
+          email: cleanEmail,
+          phone: data.emergencyContact || '',
+          emergencyContact: data.emergencyContact || '',
+          address: data.address || '',
+          city: data.city || 'Mumbai',
+          location: data.location || data.city || 'Mumbai',
+          ambulanceAvailable: data.ambulanceAvailable ?? true,
+          status: 'VERIFIED',
+          createdAt: new Date().toISOString()
+        };
+
         this.hydrateLocalDatabase(resData);
         this.persistSession({
           isAuthenticated: true,
           token: resData.token,
           user: resData.user,
-          hospitalAccount: resData.hospitalAccount
+          hospitalAccount: resolvedHospital
         });
         return {
           success: true,
-          hospitalId: resData.hospitalAccount?.hospitalId || resData.hospitalAccount?.id,
+          hospitalId: resolvedHospital.hospitalId || resolvedHospital.id,
           user: resData.user,
-          hospitalAccount: resData.hospitalAccount
+          hospitalAccount: resolvedHospital
         };
       }
 

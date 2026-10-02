@@ -428,6 +428,9 @@ export default async function handler(req: any, res: any) {
         if (existingUser) {
           existingUser.password = cleanPassword;
           existingUser.isEmailVerified = true;
+          if (accountType === 'hospital') {
+            existingUser.role = 'HOSPITAL_ADMIN';
+          }
         }
         if (existingPatientByEmail) {
           existingPatientByEmail.password = cleanPassword;
@@ -437,29 +440,66 @@ export default async function handler(req: any, res: any) {
         if (existingHospitalByEmail) {
           existingHospitalByEmail.password = cleanPassword;
         }
+
+        // If registering as hospital, ensure hospital record exists in db.hospitals
+        let currentHosp = existingHospitalByEmail;
+        if (accountType === 'hospital' && !currentHosp) {
+          const timestamp = Date.now();
+          const hospitalId = existingUser?.hospitalId || `HOSP-2026-${timestamp.toString().slice(-5)}`;
+          currentHosp = {
+            id: hospitalId,
+            userId: existingUser?.id || `usr-hosp-${timestamp}`,
+            hospitalId,
+            hospitalName: String(rawHospital?.hospitalName || rawHospital?.name || existingUser?.fullName || 'Registered Hospital').trim(),
+            registrationId: String(rawHospital?.registrationId || `REG-HOSP-${timestamp.toString().slice(-6)}`).trim(),
+            address: rawHospital?.address || 'Hospital Facility Address',
+            city: rawHospital?.city || rawHospital?.location || 'Mumbai',
+            location: rawHospital?.location || rawHospital?.city || 'Clinical Medical Campus',
+            state: rawHospital?.state || 'Maharashtra',
+            pincode: rawHospital?.pincode || '400001',
+            emergencyContact: rawHospital?.emergencyContact || rawHospital?.phone || '',
+            phone: rawHospital?.phone || rawHospital?.emergencyContact || '',
+            email: cleanEmail,
+            password: cleanPassword,
+            ambulanceAvailable: rawHospital?.ambulanceAvailable ?? true,
+            departments: rawHospital?.departments || ['Emergency & Trauma', 'General Medicine', 'Cardiology', 'ICU'],
+            status: 'VERIFIED',
+            createdAt: new Date().toISOString()
+          };
+          if (currentHosp) {
+            db.hospitals.unshift(currentHosp);
+          }
+          if (existingUser) {
+            existingUser.hospitalId = hospitalId;
+            existingUser.role = 'HOSPITAL_ADMIN';
+          }
+        }
+
         saveDatabase(db);
 
         const targetUser = existingUser || {
-          id: existingPatientByEmail?.userId || existingHospitalByEmail?.userId || `usr-${Date.now()}`,
+          id: existingPatientByEmail?.userId || currentHosp?.userId || `usr-${Date.now()}`,
           email: cleanEmail,
-          fullName: existingPatientByEmail?.fullName || existingHospitalByEmail?.hospitalName || 'MediBridge User',
-          role: existingHospitalByEmail ? 'HOSPITAL_ADMIN' : 'PATIENT',
+          fullName: currentHosp?.hospitalName || existingPatientByEmail?.fullName || 'MediBridge User',
+          role: accountType === 'hospital' ? 'HOSPITAL_ADMIN' : (existingHospitalByEmail ? 'HOSPITAL_ADMIN' : 'PATIENT'),
           patientId: existingPatientByEmail?.patientId,
-          hospitalId: existingHospitalByEmail?.hospitalId || existingHospitalByEmail?.id,
+          hospitalId: currentHosp?.hospitalId || currentHosp?.id,
           isEmailVerified: true
         };
         const token = `mb-tok-${targetUser.id}-${Date.now()}`;
-        const { password: _p, ...safeU } = targetUser;
+        const { password: _p, ...safeU } = (targetUser as any);
         const safeP = existingPatientByEmail ? (({ password: _pp, ...pRest }) => pRest)(existingPatientByEmail) : undefined;
-        const safeH = existingHospitalByEmail ? (({ password: _hp, ...hRest }) => hRest)(existingHospitalByEmail) : undefined;
+        const safeH = currentHosp ? (({ password: _hp, ...hRest }) => hRest)(currentHosp) : undefined;
 
         return res.status(200).json({
           success: true,
           token,
           user: safeU,
           patientProfile: safeP,
+          hospital: safeH,
           hospitalAccount: safeH,
           patientId: targetUser.patientId,
+          hospitalId: targetUser.hospitalId,
           message: 'Account updated and signed in successfully!'
         });
       }
@@ -560,21 +600,18 @@ export default async function handler(req: any, res: any) {
       // ── REGISTRATION: HOSPITAL ──
       if (accountType === 'hospital') {
         const hospitalName = String(rawHospital?.hospitalName || rawHospital?.name || rawUser.fullName || rawUser.name || '').trim();
-        const registrationId = String(rawHospital?.registrationId || `REG-HOSP-${Date.now().toString().slice(-6)}`).trim();
+        let registrationId = String(rawHospital?.registrationId || `REG-HOSP-${Date.now().toString().slice(-6)}`).trim();
 
         if (!hospitalName) {
           return res.status(400).json({ success: false, error: 'Hospital Name is required for registration.' });
         }
 
-        // Prevent duplicate registration ID
+        // Auto-deduplicate registration ID to prevent collision
         const dupRegId = db.hospitals.find(
           h => (h.registrationId || '').trim().toLowerCase() === registrationId.toLowerCase()
         );
         if (dupRegId) {
-          return res.status(409).json({
-            success: false,
-            error: `A hospital with Registration ID "${registrationId}" is already registered. Please sign in.`
-          });
+          registrationId = `${registrationId}-${Date.now().toString().slice(-4)}`;
         }
 
         const timestamp = Date.now();
@@ -590,6 +627,7 @@ export default async function handler(req: any, res: any) {
           fullName: hospitalName,
           role: 'HOSPITAL_ADMIN',
           hospitalId,
+          isEmailVerified: true,
           createdAt: new Date().toISOString()
         };
 
