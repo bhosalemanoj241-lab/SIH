@@ -5,35 +5,7 @@ import path from 'path';
 
 const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4';
 
-const DEFAULT_ADMIN_USERS = [
-  {
-    id: 'usr-admin-root',
-    email: 'admin@medibridge.ai',
-    password: 'Admin@123',
-    phone: '+91 99300 88777',
-    fullName: 'System Administrator',
-    role: 'SYSTEM_ADMIN',
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-gov',
-    email: 'admin@medibridge.gov.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'National Health Administrator',
-    role: 'SYSTEM_ADMIN',
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-in',
-    email: 'admin@medibridge.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'Platform Administrator',
-    role: 'SYSTEM_ADMIN',
-    createdAt: '2025-10-01T08:00:00Z'
-  }
-];
+const DEFAULT_ADMIN_USERS = [];
 
 async function run() {
   console.log('--- PURGING ALL REGISTRATION DATA FROM 3 PORTALS ---');

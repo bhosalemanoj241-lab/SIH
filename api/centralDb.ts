@@ -115,52 +115,25 @@ export interface CentralDatabase {
   clearedAt?: string;
 }
 
-export const DEFAULT_ADMIN_USERS: User[] = [
-  {
-    id: 'usr-admin-root',
-    email: 'admin@medibridge.ai',
-    password: 'Admin@123',
-    phone: '+91 99300 88777',
-    fullName: 'System Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-gov',
-    email: 'admin@medibridge.gov.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'National Health Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-admin-in',
-    email: 'admin@medibridge.in',
-    password: 'Admin@2026',
-    phone: '+91 11 2300 0000',
-    fullName: 'Platform Administrator',
-    role: 'SYSTEM_ADMIN',
-    isEmailVerified: true,
-    createdAt: '2025-10-01T08:00:00Z'
-  }
-];
+export const DEFAULT_ADMIN_USERS: User[] = [];
 
 let inMemoryDb: CentralDatabase | null = null;
 
 export function getDbFilePath(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join('/tmp', 'medibridge_central_database.json');
+  }
+
   try {
     const cwd = process.cwd();
     const dataDir = path.join(cwd, 'data');
-    if (!fs.existsSync(dataDir)) {
-      try {
-        fs.mkdirSync(dataDir, { recursive: true });
-      } catch {}
-    }
     if (fs.existsSync(dataDir)) {
-      return path.join(dataDir, 'medibridge_central_database.json');
+      try {
+        const testFile = path.join(dataDir, '.write_test');
+        fs.writeFileSync(testFile, '1');
+        fs.unlinkSync(testFile);
+        return path.join(dataDir, 'medibridge_central_database.json');
+      } catch {}
     }
   } catch {}
 

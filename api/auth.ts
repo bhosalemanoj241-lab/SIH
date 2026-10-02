@@ -659,6 +659,36 @@ export default async function handler(req: any, res: any) {
         });
       }
 
+      // ── REGISTRATION: SYSTEM ADMIN ──
+      if (accountType === 'admin' || accountType === 'system_admin') {
+        const fullName = String(rawUser.fullName || rawUser.name || 'System Administrator').trim();
+        const role = 'SYSTEM_ADMIN';
+        const userId = `usr-admin-${Date.now()}`;
+
+        const newUser: User = {
+          id: userId,
+          email: cleanEmail,
+          password: cleanPassword,
+          phone: rawUser.phone || '',
+          fullName,
+          role,
+          isEmailVerified: true,
+          createdAt: new Date().toISOString()
+        };
+
+        db.users.unshift(newUser);
+        saveDatabase(db);
+
+        const token = `mb-tok-${newUser.id}-${Date.now()}`;
+        const { password: _p1, ...safeUser } = newUser;
+
+        return res.status(201).json({
+          success: true,
+          token,
+          user: safeUser
+        });
+      }
+
       return res.status(400).json({ success: false, error: `Unsupported account type: ${accountType}` });
     }
 
