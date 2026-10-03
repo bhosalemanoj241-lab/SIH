@@ -1384,7 +1384,7 @@ export function saveAppointment(appointment: any): boolean {
     recipientRole: 'HOSPITAL',
     title: `📅 New OPD Appointment: ${appointment.patientName || appointment.patientId}`,
     message: `${appointment.patientName || 'Patient'} has booked an appointment with ${appointment.doctorName || 'Doctor'} (${appointment.departmentName || 'Specialty'}) for ${appointment.date} at ${appointment.timeSlot}.`,
-    type: 'APPOINTMENT',
+    type: 'APPOINTMENT' as any,
     actionUrl: `/hospital/dashboard?tab=APPOINTMENTS&patientId=${encodeURIComponent(appointment.patientId || '')}`,
     isRead: false,
     timestamp: new Date().toISOString(),

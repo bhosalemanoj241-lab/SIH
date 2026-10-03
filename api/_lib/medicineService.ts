@@ -411,7 +411,7 @@ export class MedicineRecommendationService {
     lang: LanguageCode = 'en'
   ): string {
     if (assessment.category === 'CRITICAL_EMERGENCY') {
-      const msgs: Record<LanguageCode, string> = {
+      const msgs: Record<string, string> = {
         en: '🚨 **CRITICAL SAFETY ADVISORY**: Emergency red flags have been detected. Do NOT take over-the-counter medication. Immediate emergency hospital care is required.',
         hi: '🚨 **गंभीर आपातकालीन चेतावनी**: आपातकालीन लक्षण (रेड फ्लैग) पाए गए हैं। कृपया कोई भी सामान्य गोली या दवा खुद से न लें। तुरंत नजदीकी अस्पताल के आपातकालीन कक्ष (ER) जाएं।',
         mr: '🚨 **तातडीची आणीबाणी सूचना**: आपत्कालीन लक्षणे आढळली आहेत. कोणतीही औषधे स्वतःहून घेऊ नका. तातडीने जवळच्या हॉस्पिटलच्या अपघात विभागात जा.',

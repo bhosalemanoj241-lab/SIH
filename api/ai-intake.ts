@@ -570,7 +570,7 @@ Generate the next intelligent, context-aware clinical intake response.`;
     let quickReplies: string[] = [];
 
     if (entities.duration === 'Unspecified') {
-      const qDuration: Record<LanguageCode, string> = {
+      const qDuration: Record<string, string> = {
         en: `I understand. When did your **${entities.chiefComplaint.slice(0, 40)}** begin, and has it been getting progressively worse, sudden, or staying the same?`,
         hi: `मैं समझ गया। यह समस्या कब से शुरू हुई है (कितने दिन या घंटे से)? क्या यह अचानक शुरू हुई या धीरे-धीरे बढ़ रही है?`,
         mr: `समजले. हा त्रास कधीपासून सुरू झाला आहे (किती दिवस किंवा तास)? तो अचानक सुरू झाला की हळूहळू वाढत आहे?`,
@@ -583,7 +583,7 @@ Generate the next intelligent, context-aware clinical intake response.`;
       nextMsg = qDuration[language] || qDuration.en;
       quickReplies = ['Started 2-3 days ago', 'Started suddenly today', 'Since yesterday (Worsening)', 'Mildly for 1 week'];
     } else if (entities.existingConditions.length === 0 && !/no conditions|koi bimari nahi|kahi nahi/i.test(currentMessage)) {
-      const qHistory: Record<LanguageCode, string> = {
+      const qHistory: Record<string, string> = {
         en: `Thank you for clarifying. Do you have any pre-existing health conditions (such as Diabetes, High BP, Asthma, or Thyroid), and are you taking any regular medications?`,
         hi: `धन्यवाद। क्या आपको पहले से कोई बीमारी है (जैसे डायबिटीज, बीपी, थायराइड या अस्थमा)? क्या आप कोई नियमित दवाइयां लेते हैं?`,
         mr: `धन्यवाद. तुम्हाला आधीपासून मधुमेह, रक्तदाब (BP), दमा किंवा थायरॉईडसारखा जुना आजार आहे का? तुम्ही नियमित कोणती औषधे घेता?`,
@@ -596,7 +596,7 @@ Generate the next intelligent, context-aware clinical intake response.`;
       nextMsg = qHistory[language] || qHistory.en;
       quickReplies = ['Diabetes & BP medications', 'No prior chronic conditions', 'Thyroid pill daily', 'Asthma inhaler'];
     } else {
-      const qAllergies: Record<LanguageCode, string> = {
+      const qAllergies: Record<string, string> = {
         en: `For your safety at the hospital: Do you have any known drug allergies (e.g. Penicillin, Painkillers) or food allergies? Have you undergone any previous surgeries?`,
         hi: `सुरक्षा की दृष्टि से बहुत जरूरी: क्या आपको किसी दवा (जैसे पेनिसिलिन, दर्द निवारक) से एलर्जी है? क्या पहले कोई ऑपरेशन हुआ है?`,
         mr: `क्लिनिकल सुरक्षिततेसाठी अत्यंत महत्त्वाचे: तुम्हाला कोणत्याही औषधाची (पेनिसिलिन इ.) अ‍ॅलर्जी आहे का? पूर्वी शस्त्रक्रिया झाली आहे का?`,
