@@ -484,10 +484,10 @@ export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [
     userId: 'usr-doc-vikram',
     doctorName: 'Dr. Vikram Malhotra',
     registrationNumber: 'MCI-2015-987654',
-    qualification: 'MBBS, MD (Cardiology), DM',
-    specialization: 'Cardiology & Critical Care',
+    qualification: 'MBBS, MD (Cardiology), DM (Interventional Cardiology)',
+    specialization: 'Cardiology & CCU',
     departmentId: 'dept-cardio-01',
-    departmentName: 'Cardiology & ICU',
+    departmentName: 'Cardiology',
     hospitalId: 'HOSP-2026-PUNE01',
     hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
     phone: '9822054321',
@@ -495,6 +495,114 @@ export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [
     experienceYears: 14,
     isAvailable: true,
     activePatientsCount: 1,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'doc-priya',
+    userId: 'usr-doc-priya',
+    doctorName: 'Dr. Priya Deshmukh',
+    registrationNumber: 'MCI-2018-442211',
+    qualification: 'MBBS, MD (General Medicine)',
+    specialization: 'General Medicine & Diabetology',
+    departmentId: 'dept-genmed-01',
+    departmentName: 'General Medicine',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    phone: '9822011223',
+    email: 'dr.priya@apexmed.in',
+    experienceYears: 11,
+    isAvailable: true,
+    activePatientsCount: 2,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'doc-rohan',
+    userId: 'usr-doc-rohan',
+    doctorName: 'Dr. Rohan Kulkarni',
+    registrationNumber: 'MCI-2016-554433',
+    qualification: 'MBBS, MS (Orthopedics)',
+    specialization: 'Orthopedics & Joint Replacement',
+    departmentId: 'dept-ortho-01',
+    departmentName: 'Orthopedics',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    phone: '9822099887',
+    email: 'dr.rohan@apexmed.in',
+    experienceYears: 12,
+    isAvailable: true,
+    activePatientsCount: 1,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'doc-ananya',
+    userId: 'usr-doc-ananya',
+    doctorName: 'Dr. Ananya Iyer',
+    registrationNumber: 'MCI-2019-887766',
+    qualification: 'MBBS, MD (Pulmonology)',
+    specialization: 'Pulmonology & Respiratory Medicine',
+    departmentId: 'dept-pulmo-01',
+    departmentName: 'Pulmonology',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    phone: '9822066554',
+    email: 'dr.ananya@apexmed.in',
+    experienceYears: 10,
+    isAvailable: true,
+    activePatientsCount: 1,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'doc-siddharth',
+    userId: 'usr-doc-siddharth',
+    doctorName: 'Dr. Siddharth Joshi',
+    registrationNumber: 'MCI-2014-112233',
+    qualification: 'MBBS, DM (Neurology)',
+    specialization: 'Neurology & Stroke Care',
+    departmentId: 'dept-neuro-01',
+    departmentName: 'Neurology',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    phone: '9822044332',
+    email: 'dr.siddharth@apexmed.in',
+    experienceYears: 15,
+    isAvailable: true,
+    activePatientsCount: 0,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'doc-meera',
+    userId: 'usr-doc-meera',
+    doctorName: 'Dr. Meera Nambiar',
+    registrationNumber: 'MCI-2020-998811',
+    qualification: 'MBBS, MD (Pediatrics)',
+    specialization: 'Pediatrics & Neonatology',
+    departmentId: 'dept-pedia-01',
+    departmentName: 'Pediatrics',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    phone: '9822033221',
+    email: 'dr.meera@apexmed.in',
+    experienceYears: 8,
+    isAvailable: true,
+    activePatientsCount: 1,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'doc-rajesh-er',
+    userId: 'usr-doc-rajesh-er',
+    doctorName: 'Dr. Rajesh Sengupta',
+    registrationNumber: 'MCI-2017-332211',
+    qualification: 'MBBS, MEM (Emergency Medicine)',
+    specialization: 'Emergency Medicine & Critical Trauma',
+    departmentId: 'dept-er-01',
+    departmentName: 'Emergency & Trauma',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    phone: '9822022110',
+    email: 'dr.rajesh@apexmed.in',
+    experienceYears: 9,
+    isAvailable: true,
+    activePatientsCount: 3,
     createdAt: '2026-10-01T08:00:00Z'
   }
 ];
@@ -1263,37 +1371,64 @@ export function isHospitalAuthorizedForPatient(hospitalIdentifier: string, patie
 export function saveAppointment(appointment: any): boolean {
   if (!appointment || !appointment.id) return false;
   const db = getDatabase();
-  db.appointments = (db.appointments || []).filter(a => a.id !== appointment.id);
+  if (!db.appointments) db.appointments = [];
+  db.appointments = db.appointments.filter((a: any) => a.id !== appointment.id);
   db.appointments.unshift(appointment);
+
+  // Also dispatch notification to the hospital
+  if (!db.notifications) db.notifications = [];
+  const notifId = `notif-apt-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  db.notifications.unshift({
+    id: notifId,
+    recipientId: appointment.hospitalId || 'HOSP-2026-PUNE01',
+    recipientRole: 'HOSPITAL',
+    title: `📅 New OPD Appointment: ${appointment.patientName || appointment.patientId}`,
+    message: `${appointment.patientName || 'Patient'} has booked an appointment with ${appointment.doctorName || 'Doctor'} (${appointment.departmentName || 'Specialty'}) for ${appointment.date} at ${appointment.timeSlot}.`,
+    type: 'APPOINTMENT',
+    actionUrl: `/hospital/dashboard?tab=APPOINTMENTS&patientId=${encodeURIComponent(appointment.patientId || '')}`,
+    isRead: false,
+    timestamp: new Date().toISOString(),
+    createdAt: new Date().toISOString()
+  });
+
   return saveDatabase(db);
 }
 
 export function getAppointments(patientId?: string, hospitalId?: string): any[] {
   const db = getDatabase();
   let list = db.appointments || [];
+
   if (patientId) {
-    const clean = patientId.trim().toLowerCase();
-    const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
-    list = list.filter(a => {
-      const aId = (a.patientId || '').trim().toLowerCase();
-      const aAlpha = aId.replace(/[^a-z0-9]/g, '');
-      return aId === clean || aAlpha === cleanAlpha;
+    const cleanPat = patientId.trim().toLowerCase();
+    const cleanPatAlpha = cleanPat.replace(/[^a-z0-9]/g, '');
+    list = list.filter((a: any) => {
+      const aPat = (a.patientId || '').trim().toLowerCase();
+      const aPatAlpha = aPat.replace(/[^a-z0-9]/g, '');
+      return aPat === cleanPat || aPatAlpha === cleanPatAlpha;
     });
   }
+
   if (hospitalId) {
     const cleanHosp = hospitalId.trim().toLowerCase();
-    list = list.filter(a => (a.hospitalId || '').trim().toLowerCase() === cleanHosp);
+    const cleanHospAlpha = cleanHosp.replace(/[^a-z0-9]/g, '');
+    list = list.filter((a: any) => {
+      const aHosp = (a.hospitalId || '').trim().toLowerCase();
+      const aHospAlpha = aHosp.replace(/[^a-z0-9]/g, '');
+      return aHosp === cleanHosp || aHospAlpha === cleanHospAlpha;
+    });
   }
-  return list;
+
+  return list.sort((a: any, b: any) => new Date(`${b.date || ''} ${b.timeSlot || ''}`).getTime() - new Date(`${a.date || ''} ${a.timeSlot || ''}`).getTime());
 }
 
 export function updateAppointmentStatus(id: string, status: string, notes?: string): boolean {
-  if (!id) return false;
+  if (!id || !status) return false;
   const db = getDatabase();
-  const target = (db.appointments || []).find(a => a.id === id);
+  const target = (db.appointments || []).find((a: any) => a.id === id);
   if (target) {
     target.status = status;
     if (notes) target.notes = notes;
+    target.updatedAt = new Date().toISOString();
     return saveDatabase(db);
   }
   return false;
@@ -1302,8 +1437,9 @@ export function updateAppointmentStatus(id: string, status: string, notes?: stri
 export function deleteAppointment(id: string): boolean {
   if (!id) return false;
   const db = getDatabase();
-  db.appointments = (db.appointments || []).filter(a => a.id !== id);
-  return saveDatabase(db);
+  const initLen = (db.appointments || []).length;
+  db.appointments = (db.appointments || []).filter((a: any) => a.id !== id);
+  return db.appointments.length !== initLen ? saveDatabase(db) : false;
 }
 
 export function saveEmergencyAlert(alert: any): boolean {
@@ -2333,18 +2469,6 @@ export function saveAuditLogRecord(log: Partial<AuditLogRecord>): AuditLogRecord
   db.auditLogs.unshift(newLog);
   saveDatabase(db);
   return newLog;
-}
-
-export function getAuditLogsForEntity(targetEntity?: string, targetId?: string): AuditLogRecord[] {
-  const db = getDatabase();
-  let list = db.auditLogs || [];
-  if (targetEntity) {
-    list = list.filter(l => l.targetEntity.toUpperCase() === targetEntity.toUpperCase());
-  }
-  if (targetId) {
-    list = list.filter(l => l.targetId.toUpperCase() === targetId.toUpperCase());
-  }
-  return list;
 }
 
 export default async function handler(req: any, res: any) {

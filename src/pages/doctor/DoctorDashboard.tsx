@@ -145,6 +145,22 @@ export const DoctorDashboard: React.FC = () => {
       setAppointments(db.getAppointments());
     }).catch(() => {});
 
+    // Fetch fresh central appointments
+    const fetchApiAppts = async () => {
+      try {
+        const cleanHosp = doctorProfile?.hospitalId || hospitalAccount?.id || '';
+        const res = await fetch(`/api/appointments?hospitalId=${encodeURIComponent(cleanHosp)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.appointments && Array.isArray(json.appointments)) {
+            json.appointments.forEach((a: Appointment) => db.addAppointment(a));
+            setAppointments(db.getAppointments());
+          }
+        }
+      } catch {}
+    };
+    fetchApiAppts();
+
     const handleDbUpdate = () => {
       setSessions(db.getClinicalSessions());
       setAppointments(db.getAppointments());
@@ -282,7 +298,7 @@ export const DoctorDashboard: React.FC = () => {
       patient = db.getPatientByPatientId(trimmed) || db.getPatientById(trimmed);
     }
     if (patient) {
-      await loadPatientDossier(patient);
+      await loadPatientDossier(patient, true);
     }
   };
 
