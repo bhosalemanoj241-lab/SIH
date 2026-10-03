@@ -369,17 +369,6 @@ export const DEFAULT_ADMIN_USERS: User[] = [
     createdAt: '2025-10-01T08:00:00Z'
   },
   {
-    id: 'usr-pat-arv-982',
-    email: 'patient@medibridge.ai',
-    password: 'Patient@123',
-    phone: '9820199887',
-    fullName: 'Aarav Sharma',
-    role: 'PATIENT',
-    patientId: 'MB-2026-ARV982',
-    isEmailVerified: true,
-    createdAt: '2026-10-01T08:00:00Z'
-  },
-  {
     id: 'usr-hosp-apex',
     email: 'hospital@medibridge.ai',
     password: 'Hospital@123',
@@ -403,39 +392,7 @@ export const DEFAULT_ADMIN_USERS: User[] = [
   }
 ];
 
-export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [
-  {
-    id: 'pat-arv-982',
-    userId: 'usr-pat-arv-982',
-    patientId: 'MB-2026-ARV982',
-    abhaId: '91-9820-1234-5678',
-    abhaAddress: 'aarav.sharma@abdm',
-    dob: '1990-05-15',
-    age: 36,
-    gender: 'MALE',
-    bloodGroup: 'O+',
-    heightCm: 175,
-    weightKg: 72,
-    emergencyContactName: 'Priya Sharma',
-    emergencyContactPhone: '9820199887',
-    emergencyContactRelation: 'Spouse',
-    address: 'Flat 402, Green Glen Layout, Bellandur',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '411001',
-    fullName: 'Aarav Sharma',
-    phone: '9820199887',
-    email: 'patient@medibridge.ai',
-    preferredLanguage: 'English',
-    allergies: ['Penicillin', 'Sulfa drugs'],
-    chronicConditions: ['Hypertension (Stage 1)', 'Mild Asthma'],
-    currentMedications: ['Telmisartan 40mg OD', 'Salbutamol inhaler PRN'],
-    status: 'ACTIVE',
-    password: 'Patient@123',
-    isEmailVerified: true,
-    createdAt: '2026-10-01T08:00:00Z'
-  }
-];
+export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [];
 
 export const DEFAULT_SEED_HOSPITALS: HospitalAccount[] = [
   {

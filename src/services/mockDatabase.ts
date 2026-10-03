@@ -72,22 +72,7 @@ const SEED_HOSPITAL_ACCOUNTS: HospitalAccount[] = [
 ];
 
 // Seed Trusted Hospitals
-const SEED_TRUSTED_HOSPITALS: TrustedHospital[] = [
-  {
-    id: 'trust-arv-apex-01',
-    patientId: 'MB-2026-ARV982',
-    patientProfileId: 'pat-arv-982',
-    hospitalId: 'HOSP-2026-PUNE01',
-    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
-    hospitalAddress: 'Plot 45, Senapati Bapat Road, Shivajinagar, Pune',
-    hospitalCity: 'Pune',
-    grantedAt: '2026-10-01T08:00:00Z',
-    status: 'ACTIVE',
-    allowEmergencyAlert: true,
-    allowMedicalHistory: true,
-    ambulanceAvailable: true
-  }
-];
+const SEED_TRUSTED_HOSPITALS: TrustedHospital[] = [];
 
 // Platform Users
 const SEED_USERS: User[] = [
@@ -101,17 +86,6 @@ const SEED_USERS: User[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
     isEmailVerified: true,
     createdAt: '2025-10-01T08:00:00Z'
-  },
-  {
-    id: 'usr-pat-arv-982',
-    email: 'patient@medibridge.ai',
-    password: 'Patient@123',
-    phone: '9820123456',
-    fullName: 'Aarav Sharma',
-    role: 'PATIENT',
-    patientId: 'MB-2026-ARV982',
-    isEmailVerified: true,
-    createdAt: '2026-10-01T08:00:00Z'
   },
   {
     id: 'usr-hosp-apex-01',
@@ -138,39 +112,7 @@ const SEED_USERS: User[] = [
 ];
 
 // Seed Patient Profiles
-const SEED_PATIENTS: PatientProfile[] = [
-  {
-    id: 'pat-arv-982',
-    userId: 'usr-pat-arv-982',
-    patientId: 'MB-2026-ARV982',
-    abhaId: '91-9820-1234-5678',
-    abhaAddress: 'aarav.sharma@abdm',
-    dob: '1990-05-15',
-    age: 36,
-    gender: 'MALE',
-    bloodGroup: 'O+',
-    heightCm: 175,
-    weightKg: 72,
-    emergencyContactName: 'Priya Sharma',
-    emergencyContactPhone: '9820199887',
-    emergencyContactRelation: 'Spouse',
-    address: 'Flat 402, Green Glen Layout, Bellandur',
-    city: 'Pune',
-    state: 'Maharashtra',
-    pincode: '411001',
-    fullName: 'Aarav Sharma',
-    phone: '9820123456',
-    email: 'patient@medibridge.ai',
-    preferredLanguage: 'en',
-    allergies: ['Penicillin', 'Sulfa drugs'],
-    chronicConditions: ['Mild Asthma', 'Hypertension Stage 1'],
-    currentMedications: ['Amlodipine 5mg OD', 'Salbutamol Inhaler PRN'],
-    status: 'ACTIVE',
-    password: 'Patient@123',
-    isEmailVerified: true,
-    createdAt: '2026-10-01T08:00:00Z'
-  }
-];
+const SEED_PATIENTS: PatientProfile[] = [];
 
 // Seed Doctors
 const SEED_DOCTORS: DoctorProfile[] = [
@@ -189,276 +131,22 @@ const SEED_DOCTORS: DoctorProfile[] = [
     departmentName: 'Cardiology & ICU',
     experienceYears: 14,
     isAvailable: true,
-    activePatientsCount: 2
+    activePatientsCount: 0
   }
 ];
 
 // Seed Clinical Intake Sessions
-const SEED_SESSIONS: ClinicalSession[] = [
-  {
-    id: 'session-arv-001',
-    patientId: 'MB-2026-ARV982',
-    encounterId: 'enc-arv-2026-01',
-    patientName: 'Aarav Sharma',
-    patientAge: 36,
-    patientGender: 'MALE',
-    patientPhone: '9820123456',
-    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-    completedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    status: 'EMERGENCY_TRIGGERED',
-    triagePriority: 'RED',
-    triageRationale: '🚨 CRITICAL RED FLAG DETECTED: Acute substernal chest pressure radiating to left arm with diaphoresis. High clinical concern for Acute Coronary Syndrome.',
-    chiefComplaint: 'Acute chest tightness with radiation to left shoulder and mild dyspnea',
-    originalLanguage: 'en',
-    originalPatientStatement: 'I have severe pressure in the center of my chest radiating down my left arm for the past 45 minutes.',
-    translatedSummary: 'Severe central chest pressure radiating to left arm accompanied by diaphoresis and mild shortness of breath.',
-    selectedHospitalId: 'HOSP-2026-PUNE01',
-    selectedDepartmentId: 'dept-cardio-01',
-    targetDoctorId: 'doc-apex-001',
-    redFlagsDetected: ['Acute Central Chest Pain', 'Radiation to Left Arm', 'Diaphoresis', 'Shortness of Breath'],
-    isRedFlagTriggered: true,
-    conversationMessages: [
-      {
-        id: 'msg-1',
-        sessionId: 'ses-arv-cardiac-001',
-        sender: 'AI_CLINICAL_INTAKE',
-        text: 'Hello Aarav. I am your MediBridge AI Clinical Assistant. What symptoms are you experiencing right now?',
-        language: 'en',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString()
-      },
-      {
-        id: 'msg-2',
-        sessionId: 'ses-arv-cardiac-001',
-        sender: 'PATIENT',
-        text: 'I have severe pressure in the center of my chest radiating down my left arm for the past 45 minutes.',
-        language: 'en',
-        timestamp: new Date(Date.now() - 1000 * 60 * 28).toISOString()
-      },
-      {
-        id: 'msg-3',
-        sessionId: 'ses-arv-cardiac-001',
-        sender: 'AI_CLINICAL_INTAKE',
-        text: '🚨 Critical Red Flag Alert Triggered! Your symptoms indicate potential cardiac ischemia. Emergency alert dispatched to Apex Multi-Specialty Hospital. Emergency team notified.',
-        language: 'en',
-        timestamp: new Date(Date.now() - 1000 * 60 * 27).toISOString()
-      }
-    ],
-    shortReport: {
-      chiefComplaint: {
-        mainReason: 'Acute substernal chest pressure radiating to left arm',
-        source: 'PATIENT REPORTED'
-      },
-      historyOfPresentIllness: {
-        narrative: '36-year-old male with sudden onset retrosternal squeezing chest pain, 8/10 severity, radiating to left shoulder and arm. Accompanied by mild cold sweat and shortness of breath. No relief with rest.',
-        source: 'PATIENT REPORTED'
-      },
-      redFlags: {
-        detected: true,
-        flags: ['Acute Central Chest Pain', 'Radiation to Left Arm', 'Diaphoresis'],
-        source: 'AI SUMMARIZED'
-      },
-      summary: {
-        text: 'Patient exhibits classic presentation of acute coronary syndrome. Emergency alert and clinical telemetry dispatched to Apex Multi-Specialty Hospital.',
-        source: 'AI SUMMARIZED'
-      }
-    } as any
-  }
-];
+const SEED_SESSIONS: ClinicalSession[] = [];
 
-// Seed Uploaded Medical Documents & Lab Reports (With Full PDF Data)
-const SEED_DOCUMENTS: MedicalDocument[] = [
-  {
-    id: 'doc-cbc-001',
-    patientId: 'MB-2026-ARV982',
-    fileName: 'Complete_Blood_Count_Report.pdf',
-    fileType: 'LAB_REPORT',
-    fileUrl: '/api/documents?id=doc-cbc-001',
-    downloadUrl: '/api/documents?id=doc-cbc-001&download=true',
-    fileSize: '145 KB',
-    mimeType: 'application/pdf',
-    status: 'COMPLETED',
-    uploadDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    extractedData: {
-      documentId: 'doc-cbc-001',
-      documentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-      facilityName: 'Apex Multi-Specialty Hospital Diagnostic Center',
-      physicianName: 'Dr. Vikram Malhotra',
-      extractedDiagnoses: ['Normal Hematological Profile'],
-      extractedMedications: [],
-      extractedLabResults: [
-        { testName: 'Hemoglobin', value: '14.2', unit: 'g/dL', referenceRange: '13.0 - 17.0', isAbnormal: false },
-        { testName: 'Platelets', value: '245,000', unit: '/mcL', referenceRange: '150,000 - 450,000', isAbnormal: false },
-        { testName: 'Total Leukocyte Count (TLC)', value: '7,800', unit: '/mcL', referenceRange: '4,000 - 11,000', isAbnormal: false }
-      ],
-      procedures: [],
-      confidenceScore: 0.98,
-      rawTextSnippets: ['Hemoglobin: 14.2 g/dL', 'Platelets: 245,000 /mcL', 'TLC: 7,800 /mcL']
-    }
-  },
-  {
-    id: 'doc-cxr-002',
-    patientId: 'MB-2026-ARV982',
-    fileName: 'Digital_Chest_XRay_PA_View.pdf',
-    fileType: 'RADIOLOGY_REPORT',
-    fileUrl: '/api/documents?id=doc-cxr-002',
-    downloadUrl: '/api/documents?id=doc-cxr-002&download=true',
-    fileSize: '220 KB',
-    mimeType: 'application/pdf',
-    status: 'COMPLETED',
-    uploadDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    extractedData: {
-      documentId: 'doc-cxr-002',
-      documentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-      facilityName: 'Apex Imaging & Radiology Institute',
-      physicianName: 'Dr. Vikram Malhotra',
-      extractedDiagnoses: ['Clear Lung Fields', 'Normal Cardiac Silhouette'],
-      extractedMedications: [],
-      extractedLabResults: [],
-      procedures: ['Chest X-Ray PA View'],
-      confidenceScore: 0.97,
-      rawTextSnippets: ['Bilateral lung fields clear', 'Normal bronchovascular markings', 'No pleural effusion']
-    }
-  },
-  {
-    id: 'doc-ecg-003',
-    patientId: 'MB-2026-ARV982',
-    fileName: '12_Lead_Electrocardiogram_ECG.pdf',
-    fileType: 'LAB_REPORT',
-    fileUrl: '/api/documents?id=doc-ecg-003',
-    downloadUrl: '/api/documents?id=doc-ecg-003&download=true',
-    fileSize: '180 KB',
-    mimeType: 'application/pdf',
-    status: 'COMPLETED',
-    uploadDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    extractedData: {
-      documentId: 'doc-ecg-003',
-      documentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-      facilityName: 'Apex Heart & Vascular Center',
-      physicianName: 'Dr. Vikram Malhotra',
-      extractedDiagnoses: ['Normal Sinus Rhythm at 74 bpm', 'Normal Cardiac Axis'],
-      extractedMedications: [],
-      extractedLabResults: [],
-      procedures: ['12-Lead Electrocardiogram'],
-      confidenceScore: 0.99,
-      rawTextSnippets: ['Normal Sinus Rhythm', 'HR: 74 bpm', 'PR 156ms', 'QRS 84ms', 'QTc 416ms']
-    }
-  },
-  {
-    id: 'doc-rx-004',
-    patientId: 'MB-2026-ARV982',
-    fileName: 'Cardiology_Outpatient_Prescription.pdf',
-    fileType: 'PRESCRIPTION',
-    fileUrl: '/api/documents?id=doc-rx-004',
-    downloadUrl: '/api/documents?id=doc-rx-004&download=true',
-    fileSize: '110 KB',
-    mimeType: 'application/pdf',
-    status: 'COMPLETED',
-    uploadDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    extractedData: {
-      documentId: 'doc-rx-004',
-      documentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-      facilityName: 'Apex Multi-Specialty Hospital OPD',
-      physicianName: 'Dr. Vikram Malhotra',
-      extractedDiagnoses: ['Essential Hypertension', 'Cardiovascular Risk Prevention'],
-      extractedMedications: [
-        { name: 'Telmisartan', dosage: '40mg', frequency: 'OD', route: 'Oral', isActive: true, indication: 'Hypertension' },
-        { name: 'Atorvastatin', dosage: '10mg', frequency: 'HS', route: 'Oral', isActive: true, indication: 'Lipid Management' }
-      ],
-      extractedLabResults: [],
-      procedures: [],
-      confidenceScore: 0.96,
-      rawTextSnippets: ['Telmisartan 40mg once daily', 'Atorvastatin 10mg at bedtime']
-    }
-  }
-];
+// Seed Uploaded Medical Documents & Lab Reports
+const SEED_DOCUMENTS: MedicalDocument[] = [];
 
 // Seed Timeline Events
-const SEED_TIMELINE: TimelineEvent[] = [
-  {
-    id: 'tl-1',
-    patientId: 'MB-2026-ARV982',
-    date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    category: 'LAB',
-    title: 'Complete Blood Count & Metabolic Profile',
-    description: 'All hematological parameters within healthy adult reference limits.',
-    provider: 'Dr. Vikram Malhotra',
-    tags: ['CBC', 'Hematology', 'Verified']
-  },
-  {
-    id: 'tl-2',
-    patientId: 'MB-2026-ARV982',
-    date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    category: 'CONSULTATION',
-    title: 'Digital Chest X-Ray & 12-Lead ECG Evaluation',
-    description: 'Bilateral lung fields clear. Normal cardiac axis and sinus rhythm.',
-    provider: 'Dr. Vikram Malhotra',
-    tags: ['ECG', 'Chest X-Ray', 'Cardiology']
-  }
-];
+const SEED_TIMELINE: TimelineEvent[] = [];
 
 // Seed Initial Collections
-const SEED_EMERGENCIES: EmergencyAlert[] = [
-  {
-    id: 'emg-arv-apex-001',
-    caseId: 'session-arv-001',
-    sessionId: 'session-arv-001',
-    patientId: 'MB-2026-ARV982',
-    patientName: 'Aarav Sharma',
-    patientAge: 36,
-    patientGender: 'MALE',
-    patientPhone: '9820123456',
-    hospitalId: 'HOSP-2026-PUNE01',
-    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
-    priority: 'RED',
-    severity: 'CRITICAL',
-    redFlags: ['Acute Central Chest Pain', 'Radiation to Left Arm', 'Diaphoresis'],
-    redFlagDetails: 'Acute Central Chest Pain, Radiation to Left Arm, Diaphoresis',
-    triggerReason: 'Clinical red flags triggered during AI intake chat',
-    originalMessage: 'I have severe pressure in the center of my chest radiating down my left arm for the past 45 minutes.',
-    detectedLanguage: 'en',
-    detectedEmergencyConcern: 'Acute cardiac ischemia / ACS protocol',
-    status: 'DISPATCHED',
-    timestamp: new Date().toISOString(),
-    liveLocation: {
-      lat: 18.5314,
-      lng: 73.8446,
-      address: 'Flat 402, Green Glen Layout, Bellandur, Pune',
-      city: 'Pune'
-    },
-    ambulanceAssigned: {
-      vehicleNumber: 'MH-12-APEX-108',
-      driverName: 'Santosh Shinde (Advanced Life Support Unit)',
-      driverPhone: '+91 98224 45566',
-      etaMinutes: 4,
-      currentVitals: {
-        bp: '158/96 mmHg',
-        pulse: 104,
-        spo2: 94,
-        temp: '98.6°F',
-        respiratoryRate: 24
-      },
-      liveCoordinates: { lat: 18.5314, lng: 73.8446 }
-    }
-  }
-];
-const SEED_APPOINTMENTS: Appointment[] = [
-  {
-    id: 'apt-arv-apex-01',
-    patientId: 'MB-2026-ARV982',
-    patientName: 'Aarav Sharma',
-    hospitalId: 'HOSP-2026-PUNE01',
-    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
-    departmentId: 'dept-cardio-01',
-    departmentName: 'Cardiology & ICU',
-    doctorId: 'doc-apex-001',
-    doctorName: 'Dr. Vikram Malhotra',
-    date: new Date().toISOString().split('T')[0],
-    timeSlot: '11:00 AM',
-    status: 'CONFIRMED',
-    triagePriority: 'RED',
-    notes: 'Acute Chest Pain Evaluation & Coronary Risk Stratification — Priority OPD / Emergency triage fast-track'
-  }
-];
+const SEED_EMERGENCIES: EmergencyAlert[] = [];
+const SEED_APPOINTMENTS: Appointment[] = [];
 const SEED_CONSENTS: ConsentRecord[] = [];
 const SEED_AUDIT_LOGS: AuditLog[] = [];
 const SEED_NOTIFICATIONS: AppNotification[] = [];
@@ -531,37 +219,37 @@ export class MockDatabase {
 
   private init(): void {
     // Universal cleanup to purge any previously stored mock sessions, dummy documents, and fake patients
-    const CLEANUP_KEY = 'medibridge_purge_all_fake_and_reset_v16';
+    const CLEANUP_KEY = 'medibridge_purge_all_fake_and_reset_v17';
     if (!getStorageItem(CLEANUP_KEY)) {
       try {
         setStorageItem(STORAGE_KEYS.USERS, JSON.stringify(SEED_USERS));
         setStorageItem(STORAGE_KEYS.HOSPITALS, JSON.stringify(SEED_HOSPITALS));
         setStorageItem(STORAGE_KEYS.HOSPITAL_ACCOUNTS, JSON.stringify(SEED_HOSPITAL_ACCOUNTS));
         setStorageItem(STORAGE_KEYS.DOCTORS, JSON.stringify(SEED_DOCTORS));
-        setStorageItem(STORAGE_KEYS.PATIENTS, JSON.stringify(SEED_PATIENTS));
-        setStorageItem(STORAGE_KEYS.SESSIONS, JSON.stringify(SEED_SESSIONS));
-        setStorageItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(SEED_DOCUMENTS));
-        setStorageItem(STORAGE_KEYS.TIMELINE, JSON.stringify(SEED_TIMELINE));
-        setStorageItem(STORAGE_KEYS.EMERGENCIES, JSON.stringify(SEED_EMERGENCIES));
-        setStorageItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(SEED_APPOINTMENTS));
-        setStorageItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(SEED_NOTIFICATIONS));
-        setStorageItem(STORAGE_KEYS.CONSENTS, JSON.stringify(SEED_CONSENTS));
-        setStorageItem(STORAGE_KEYS.TRUSTED_HOSPITALS, JSON.stringify(SEED_TRUSTED_HOSPITALS));
-        setStorageItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(SEED_AUDIT_LOGS));
+        setStorageItem(STORAGE_KEYS.PATIENTS, '[]');
+        setStorageItem(STORAGE_KEYS.SESSIONS, '[]');
+        setStorageItem(STORAGE_KEYS.DOCUMENTS, '[]');
+        setStorageItem(STORAGE_KEYS.TIMELINE, '[]');
+        setStorageItem(STORAGE_KEYS.EMERGENCIES, '[]');
+        setStorageItem(STORAGE_KEYS.APPOINTMENTS, '[]');
+        setStorageItem(STORAGE_KEYS.NOTIFICATIONS, '[]');
+        setStorageItem(STORAGE_KEYS.CONSENTS, '[]');
+        setStorageItem(STORAGE_KEYS.TRUSTED_HOSPITALS, '[]');
+        setStorageItem(STORAGE_KEYS.AUDIT_LOGS, '[]');
         setStorageItem('medibridge_cloud_hospitals_cache', JSON.stringify(SEED_HOSPITALS));
-        setStorageItem('medibridge_cloud_patients_cache', JSON.stringify(SEED_PATIENTS));
-        setStorageItem('medibridge_cloud_requests_cache', JSON.stringify(SEED_SESSIONS));
-        setStorageItem('medibridge_cloud_trusted_cache', JSON.stringify(SEED_TRUSTED_HOSPITALS));
-        setStorageItem('medibridge_cloud_sessions_cache', JSON.stringify(SEED_SESSIONS));
-        setStorageItem('medibridge_cloud_documents_cache', JSON.stringify(SEED_DOCUMENTS));
-        setStorageItem('medibridge_cloud_emergencies_cache', JSON.stringify(SEED_EMERGENCIES));
-        setStorageItem('medibridge_cloud_timeline_cache', JSON.stringify(SEED_TIMELINE));
-        setStorageItem('medibridge_cloud_appointments_cache', JSON.stringify(SEED_APPOINTMENTS));
-        setStorageItem('medibridge_sessions', JSON.stringify(SEED_SESSIONS));
-        setStorageItem('medibridge_documents', JSON.stringify(SEED_DOCUMENTS));
-        setStorageItem('medibridge_emergencies', JSON.stringify(SEED_EMERGENCIES));
-        setStorageItem('medibridge_timeline', JSON.stringify(SEED_TIMELINE));
-        setStorageItem('medibridge_appointments', JSON.stringify(SEED_APPOINTMENTS));
+        setStorageItem('medibridge_cloud_patients_cache', '[]');
+        setStorageItem('medibridge_cloud_requests_cache', '[]');
+        setStorageItem('medibridge_cloud_trusted_cache', '[]');
+        setStorageItem('medibridge_cloud_sessions_cache', '[]');
+        setStorageItem('medibridge_cloud_documents_cache', '[]');
+        setStorageItem('medibridge_cloud_emergencies_cache', '[]');
+        setStorageItem('medibridge_cloud_timeline_cache', '[]');
+        setStorageItem('medibridge_cloud_appointments_cache', '[]');
+        setStorageItem('medibridge_sessions', '[]');
+        setStorageItem('medibridge_documents', '[]');
+        setStorageItem('medibridge_emergencies', '[]');
+        setStorageItem('medibridge_timeline', '[]');
+        setStorageItem('medibridge_appointments', '[]');
       } catch {}
       setStorageItem(CLEANUP_KEY, 'true');
     }
@@ -581,19 +269,6 @@ export class MockDatabase {
     initializeStorage(STORAGE_KEYS.AUDIT_LOGS, SEED_AUDIT_LOGS);
     initializeStorage(STORAGE_KEYS.NOTIFICATIONS, SEED_NOTIFICATIONS);
 
-    // Ensure verified seed patients exist in storage if empty or incomplete
-    const currentPatients = this.getItems<PatientProfile>(STORAGE_KEYS.PATIENTS);
-    let patientsUpdated = false;
-    for (const sp of SEED_PATIENTS) {
-      if (!currentPatients.some(p => p.patientId === sp.patientId || p.id === sp.id)) {
-        currentPatients.push(sp);
-        patientsUpdated = true;
-      }
-    }
-    if (patientsUpdated) {
-      this.setItems(STORAGE_KEYS.PATIENTS, currentPatients);
-    }
-
     // Ensure verified seed hospitals exist in storage
     const currentHospitals = this.getItems<Hospital>(STORAGE_KEYS.HOSPITALS);
     let hospitalsUpdated = false;
@@ -605,19 +280,6 @@ export class MockDatabase {
     }
     if (hospitalsUpdated) {
       this.setItems(STORAGE_KEYS.HOSPITALS, currentHospitals);
-    }
-
-    // Ensure verified seed documents exist in storage
-    const currentDocsList = this.getItems<MedicalDocument>(STORAGE_KEYS.DOCUMENTS);
-    let docsListUpdated = false;
-    for (const sd of SEED_DOCUMENTS) {
-      if (!currentDocsList.some(d => d.id === sd.id)) {
-        currentDocsList.push(sd);
-        docsListUpdated = true;
-      }
-    }
-    if (docsListUpdated) {
-      this.setItems(STORAGE_KEYS.DOCUMENTS, currentDocsList);
     }
 
     // Ensure verified seed doctors exist in storage if empty or incomplete
@@ -634,7 +296,7 @@ export class MockDatabase {
       this.setItems(STORAGE_KEYS.DOCTORS, currentDocs);
     }
 
-    // Ensure seed users (doctors, admins, triage, patient) exist in storage
+    // Ensure seed users (doctors, admins, triage) exist in storage
     const currentUsers = this.getItems<User>(STORAGE_KEYS.USERS);
     const existingUserEmails = new Set(currentUsers.map(u => u.email.toLowerCase()));
     let usersUpdated = false;
