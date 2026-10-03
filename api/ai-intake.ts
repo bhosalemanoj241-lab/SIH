@@ -3,18 +3,19 @@
 
 import {
   LanguageCode,
-  TriagePriority,
-  MedicalSystem,
-  PhysicianShortReport,
-  ClinicalHistorySummary,
-  ClinicalSession,
-  ClinicalSourceTag,
   ConditionCategory,
   MedicineRecommendation,
-  ClinicalTriageAssessment
-} from '../src/types';
-import { MedicineRecommendationService } from '../src/services/medicineRecommendationService';
+  ClinicalTriageAssessment,
+  MedicineRecommendationService
+} from './_lib/medicineService.js';
 import { saveClinicalSession, getClinicalSessionsForPatient } from './_lib/centralDb.js';
+
+export type TriagePriority = 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
+export type MedicalSystem = 'ALLOPATHY' | 'AYURVEDA' | 'HOMEOPATHY' | 'UNANI';
+export type ClinicalSourceTag = 'PATIENT_REPORTED' | 'DOCUMENT_EXTRACTED' | 'PHYSICIAN_OVERRIDE';
+export type PhysicianShortReport = any;
+export type ClinicalHistorySummary = any;
+export type ClinicalSession = any;
 
 const CENTRAL_AUTH_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0e316cf6f2508';
 const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh/medibridge_cloud_db_v4';
