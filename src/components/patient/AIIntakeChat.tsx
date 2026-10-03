@@ -620,9 +620,87 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
             console.warn('[POST /api/emergencies warn]:', apiErr);
           }
 
-          // 4. Real-time broadcast strictly to verified trusted hospital channel
+          // 4. Save and broadcast emergency clinical session for Pre-Arrival Queue visibility
+          const emergencySession: any = {
+            id: activeSessionId,
+            patientId: pId,
+            encounterId: `enc-${Date.now()}`,
+            conversationMessages: updatedHistory,
+            shortReport: {
+              chiefComplaint: {
+                mainReason: redFlagDetailsStr,
+                duration: 'Acute sudden onset',
+                severity: 'CRITICAL / RED',
+                progression: 'Acute clinical red flag deterioration',
+                bodySites: ['Cardiovascular / Vital Systems']
+              },
+              historyOfPresentIllness: messageContent,
+              redFlags: {
+                detected: true,
+                items: result.redFlagsDetected,
+                actionTaken: `Emergency alert dispatched strictly to verified trusted hospital ${targetHospitalName}. Paramedic unit en route.`
+              },
+              summary: {
+                text: `Patient triggered acute red flag clinical criteria: ${redFlagDetailsStr}. Original Statement: "${messageContent}". AI intake immediately dispatched emergency telemetry to ${targetHospitalName}.`
+              }
+            },
+            patientName: pName,
+            patientAge: patientProfile?.age || 35,
+            patientGender: patientProfile?.gender || 'Male',
+            patientPhone: currentUser?.phone || patientProfile?.emergencyContactPhone || '+91 98000 00000',
+            startedAt: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
+            completedAt: new Date().toISOString(),
+            status: 'EMERGENCY_TRIGGERED',
+            triagePriority: 'RED',
+            triageRationale: `🚨 CRITICAL RED FLAG DETECTED: ${redFlagDetailsStr}. Immediate ED resuscitation priority.`,
+            chiefComplaint: redFlagDetailsStr,
+            originalLanguage: language,
+            originalPatientStatement: messageContent,
+            translatedSummary: result.translatedConcern || redFlagDetailsStr,
+            selectedHospitalId: targetHospitalId,
+            selectedDepartmentId: 'dept-001',
+            targetDoctorId: 'doc-001',
+            redFlagsDetected: result.redFlagsDetected,
+            isRedFlagTriggered: true,
+            aiSummary: {
+              chiefComplaint: {
+                mainReason: redFlagDetailsStr,
+                duration: 'Acute sudden onset',
+                severity: 'CRITICAL / RED',
+                progression: 'Acute clinical red flag deterioration',
+                bodySites: ['Cardiovascular / Vital Systems']
+              },
+              historyOfPresentIllness: messageContent,
+              redFlags: {
+                detected: true,
+                items: result.redFlagsDetected,
+                actionTaken: `Emergency alert dispatched to verified trusted hospital ${targetHospitalName}.`
+              },
+              triageAssessment: {
+                suggestedPriority: 'RED',
+                rationale: 'Critical clinical red flag detected during AI intake. Immediate emergency physician evaluation required.'
+              }
+            }
+          };
+
+          db.saveClinicalSession(emergencySession);
+          await AIIntakeEngine.saveSessionToCloud(emergencySession);
+          try {
+            await fetch('/api/patients', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'save_session', session: emergencySession })
+            });
+          } catch (sessionApiErr) {
+            console.warn('[save emergency session API warn]:', sessionApiErr);
+          }
+
+          // 5. Real-time broadcast strictly to verified trusted hospital channels
           syncRelay.publish(`hospital_emergency_${targetHospitalId}`, alertToSave);
           syncRelay.publish('emergency_alert_dispatched', alertToSave);
+          syncRelay.publish('clinical_session_saved', emergencySession);
+          syncRelay.publish(`hospital_session_${targetHospitalId}`, emergencySession);
+          window.dispatchEvent(new CustomEvent('medibridge_db_update', { detail: { type: 'SAVE_CLINICAL_SESSION', session: emergencySession } }));
 
           db.addNotification({
             id: `notif-${Date.now()}`,

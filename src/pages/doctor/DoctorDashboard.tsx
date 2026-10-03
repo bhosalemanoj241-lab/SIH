@@ -4,7 +4,7 @@ import {
   CheckCircle2, Activity, Filter, Search, Siren, KeyRound,
   FileText, ArrowRight, Lock, AlertCircle, ShieldAlert,
   Phone, User, Calendar, FileSpreadsheet, Eye, Pill, Tag,
-  Check, XCircle, Sparkles, MapPin, HeartPulse, Building2, QrCode, Download
+  Check, XCircle, Sparkles, MapPin, HeartPulse, Building2, Download
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
@@ -12,7 +12,6 @@ import { useNotification } from '../../context/NotificationContext';
 import { PreArrivalQueue } from '../../components/doctor/PreArrivalQueue';
 import { ClinicalReviewPanel } from '../../components/doctor/ClinicalReviewPanel';
 import { SharedPatientsPanel } from '../../components/doctor/SharedPatientsPanel';
-import { PatientQrScanner } from '../../components/doctor/PatientQrScanner';
 import { db } from '../../services/mockDatabase';
 import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { cloudDb } from '../../services/cloudDatabaseEngine';
@@ -111,7 +110,7 @@ export const DoctorDashboard: React.FC = () => {
     };
   }, [doctorHospitalId, doctorHospitalName, fetchDoctorHospitalEmergencies]);
 
-  const [activeTab, setActiveTab] = useState<'QUEUE' | 'SEARCH' | 'QR_SCAN' | 'SHARED_PATIENTS' | 'APPOINTMENTS'>(() => {
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'SEARCH' | 'SHARED_PATIENTS' | 'APPOINTMENTS'>(() => {
     // Default to SHARED_PATIENTS tab if user is a hospital portal admin with no doctor profile
     return hospitalAccount && !doctorProfile ? 'SHARED_PATIENTS' : 'QUEUE';
   });
@@ -423,15 +422,6 @@ export const DoctorDashboard: React.FC = () => {
             <span>Lookup Patient by ID</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('QR_SCAN')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'QR_SCAN' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <QrCode className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Scan Patient QR</span>
-          </button>
 
           <button
             onClick={() => setActiveTab('SHARED_PATIENTS')}
@@ -1036,19 +1026,6 @@ export const DoctorDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Patient QR Scanner Section */}
-      {activeTab === 'QR_SCAN' && (
-        <PatientQrScanner
-          onPatientLoaded={async (patient, isAuthorized) => {
-            await loadPatientDossier(patient, isAuthorized);
-            setActiveTab('SEARCH');
-          }}
-          onRequestEmergencyAccess={(patient) => {
-            setBreakGlassPatient(patient);
-            setShowBreakGlassModal(true);
-          }}
-        />
-      )}
 
       {/* Shared Patients View */}
       {activeTab === 'SHARED_PATIENTS' && (

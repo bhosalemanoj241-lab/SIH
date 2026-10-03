@@ -3,7 +3,7 @@ import {
   Mic, FileText, Clock, Building2, ShieldCheck,
   Siren, User, Activity, AlertTriangle, ArrowRight,
   Sparkles, CheckCircle2, Download, Phone, MapPin,
-  Heart, AlertCircle, Hospital, Ban, Square, QrCode
+  Heart, AlertCircle, Hospital, Ban, Square
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
@@ -17,7 +17,6 @@ import { EmergencyStatusCard, EmergencyAudioService } from '../../components/pat
 import { ConsentManager } from '../../components/patient/ConsentManager';
 import { AppointmentBooker } from '../../components/patient/AppointmentBooker';
 import { TrustedHospitalsManager } from '../../components/patient/TrustedHospitalsManager';
-import { PatientQrCard } from '../../components/patient/PatientQrCard';
 import { db } from '../../services/mockDatabase';
 import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { AccessRequest, ClinicalSession } from '../../types';
@@ -225,14 +224,6 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
       icon: ShieldCheck,
       badge: t('booking_badge'),
       color: 'from-emerald-600 to-teal-700 text-white'
-    },
-    {
-      id: 'qr-code',
-      title: 'My Medical QR',
-      subtitle: 'Official digital pass & QR record',
-      icon: QrCode,
-      badge: 'Digital Pass',
-      color: 'from-blue-600 to-indigo-700 text-white'
     }
   ];
 
@@ -386,15 +377,6 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
               <span className="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 font-mono">
                 ABHA: {patientProfile?.abhaId || '91-XXXX-XXXX-XXXX'}
               </span>
-              <button
-                type="button"
-                onClick={() => setActiveTab('qr-code')}
-                className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer"
-                title="View My Medical QR"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>My Medical QR</span>
-              </button>
             </div>
           </div>
         </div>
@@ -423,7 +405,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
         <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-500 px-1">
           Quick Actions for You
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {quickActions.map(action => {
             const Icon = action.icon;
             const isSelected = activeTab === action.id;
@@ -558,10 +540,6 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ initialTab =
         {activeTab === 'trusted-hospitals' && <TrustedHospitalsManager />}
 
         {activeTab === 'consent' && <ConsentManager />}
-
-        {activeTab === 'qr-code' && (
-          <PatientQrCard patient={patientProfile} user={currentUser} />
-        )}
       </div>
     </div>
   );

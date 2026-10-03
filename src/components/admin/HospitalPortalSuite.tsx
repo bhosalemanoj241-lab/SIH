@@ -5,7 +5,7 @@ import {
   Siren, Clock, Sparkles, HeartPulse, Stethoscope, ChevronRight,
   Plus, RefreshCw, Send, Check, Eye, Filter, ArrowUpRight,
   SlidersHorizontal, Download, FileSpreadsheet, Zap, Radio,
-  Shield, CheckCheck, Trash2, Edit3, XCircle, Lock, ShieldAlert, QrCode, MapPin
+  Shield, CheckCheck, Trash2, Edit3, XCircle, Lock, ShieldAlert, MapPin
 } from 'lucide-react';
 
 import { db } from '../../services/mockDatabase';
@@ -14,7 +14,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { cloudDb } from '../../services/cloudDatabaseEngine';
 import { PatientProfile, ClinicalSession, MedicalDocument, Hospital, AccessRequest, EmergencyAlert } from '../../types';
-import { PatientQrScanner } from '../doctor/PatientQrScanner';
+import { PreArrivalQueue } from '../doctor/PreArrivalQueue';
 import { Modal } from '../common/Modal';
 import { DocumentViewerModal } from '../common/DocumentViewerModal';
 
@@ -57,14 +57,13 @@ export const HospitalPortalSuite: React.FC = () => {
   const { showToast } = useNotification();
 
   const [activePortalTab, setActivePortalTab] = useState<
-    'RECEPTION' | 'BEDS' | 'AMBULANCE' | 'ROSTER' | 'DIAGNOSTICS' | 'COMPLIANCE'
-  >('RECEPTION');
+    'QUEUE' | 'RECEPTION' | 'BEDS' | 'AMBULANCE' | 'ROSTER' | 'DIAGNOSTICS' | 'COMPLIANCE'
+  >('QUEUE');
 
   // ==========================================
   // 1. RECEPTION & UNIQUE ID VERIFICATION STATE
   // ==========================================
   const [patientIdInput, setPatientIdInput] = useState('');
-  const [intakeLookupMode, setIntakeLookupMode] = useState<'ID' | 'QR'>('ID');
   const [verifiedPatient, setVerifiedPatient] = useState<{
     status: 'AUTHORIZED' | 'UNAUTHORIZED' | 'NOT_FOUND' | 'REQUEST_PENDING' | 'DENIED' | 'REVOKED';
     profile?: PatientProfile;
@@ -763,6 +762,15 @@ export const HospitalPortalSuite: React.FC = () => {
                 <div className="flex lg:flex-col items-center gap-2 self-stretch lg:self-center justify-end">
                   <button
                     onClick={() => {
+                      setActivePortalTab('QUEUE');
+                    }}
+                    className="px-4 py-2.5 bg-rose-900 hover:bg-rose-950 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 flex-1 lg:flex-initial justify-center cursor-pointer"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Pre-Arrival Queue</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       const cleanPatId = alert.patientId;
                       setPatientIdInput(cleanPatId);
                       setActivePortalTab('RECEPTION');
@@ -821,6 +829,7 @@ export const HospitalPortalSuite: React.FC = () => {
       {/* ── Sub-Navigation Tabs ───────────────────────────────────────────── */}
       <div className="flex overflow-x-auto gap-2 bg-slate-100 p-2 rounded-2xl border border-slate-200">
         {[
+          { id: 'QUEUE', label: 'Incoming Pre-Arrival Queue', icon: Users },
           { id: 'RECEPTION', label: 'Patient Unique ID & Fast-Track Desk', icon: Search },
           { id: 'BEDS', label: 'Live Bed & ICU Capacity Allocator', icon: Bed },
           { id: 'ROSTER', label: 'Physicians & Specialist Roster', icon: Stethoscope },
@@ -847,6 +856,20 @@ export const HospitalPortalSuite: React.FC = () => {
       </div>
 
       {/* =================================================================== */}
+      {/* TAB 0: PRE-ARRIVAL INTAKE QUEUE                                     */}
+      {/* =================================================================== */}
+      {activePortalTab === 'QUEUE' && (
+        <div className="space-y-6 animate-fadeIn">
+          <PreArrivalQueue
+            onSelectSession={(session) => {
+              setViewingSession(session);
+            }}
+            selectedSessionId={viewingSession?.id}
+          />
+        </div>
+      )}
+
+      {/* =================================================================== */}
       {/* TAB 1: RECEPTION & UNIQUE ID VERIFICATION DESK                      */}
       {/* =================================================================== */}
       {activePortalTab === 'RECEPTION' && (
@@ -865,48 +888,7 @@ export const HospitalPortalSuite: React.FC = () => {
               </p>
             </div>
 
-            {/* Mode Switcher: Search by Patient ID vs Scan Patient QR */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIntakeLookupMode('ID')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  intakeLookupMode === 'ID'
-                    ? 'bg-teal-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 bg-slate-100'
-                }`}
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span>Search by Patient ID</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIntakeLookupMode('QR')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  intakeLookupMode === 'QR'
-                    ? 'bg-teal-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 bg-slate-100'
-                }`}
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>Scan Patient QR</span>
-              </button>
-            </div>
-
-            {intakeLookupMode === 'QR' ? (
-              <div className="pt-2">
-                <PatientQrScanner
-                  onPatientLoaded={(patient) => {
-                    setPatientIdInput(patient.patientId);
-                    handleVerifyPatient(patient.patientId);
-                    setIntakeLookupMode('ID');
-                  }}
-                />
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col sm:flex-row gap-3 max-w-2xl">
+            <div className="flex flex-col sm:flex-row gap-3 max-w-2xl">
               <input
                 type="text"
                 value={patientIdInput}
@@ -957,8 +939,6 @@ export const HospitalPortalSuite: React.FC = () => {
               <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 p-2.5 rounded-xl">
                 ℹ️ No registered patients found yet. Register an account in the Patient Portal to verify records here.
               </div>
-            )}
-              </>
             )}
           </div>
 

@@ -530,7 +530,7 @@ export interface AuditLog {
   actorId: string;
   actorName: string;
   actorRole: UserRole;
-  action: 'LOGIN' | 'INTAKE_STARTED' | 'INTAKE_COMPLETED' | 'DOCUMENT_UPLOADED' | 'OCR_EXTRACTED' | 'RED_FLAG_TRIGGERED' | 'EMERGENCY_DISPATCHED' | 'RECORD_VIEWED' | 'RECORD_VERIFIED' | 'CONSENT_GRANTED' | 'CONSENT_REVOKED' | 'FHIR_EXPORTED' | 'REQUEST_ACCESS' | 'APPROVE_ACCESS' | 'DENY_ACCESS' | 'REVOKE_ACCESS' | 'EMERGENCY_OVERRIDE' | 'QR_ACCESS';
+  action: 'LOGIN' | 'INTAKE_STARTED' | 'INTAKE_COMPLETED' | 'DOCUMENT_UPLOADED' | 'OCR_EXTRACTED' | 'RED_FLAG_TRIGGERED' | 'EMERGENCY_DISPATCHED' | 'RECORD_VIEWED' | 'RECORD_VERIFIED' | 'CONSENT_GRANTED' | 'CONSENT_REVOKED' | 'FHIR_EXPORTED' | 'REQUEST_ACCESS' | 'APPROVE_ACCESS' | 'DENY_ACCESS' | 'REVOKE_ACCESS' | 'EMERGENCY_OVERRIDE';
   targetEntity: string;
   targetId: string;
   ipAddress: string;
@@ -547,16 +547,6 @@ export interface AppNotification {
   timestamp: string;
   isRead: boolean;
   actionUrl?: string;
-}
-
-export interface PatientQrRecord {
-  id: string;
-  patientUserId: string;
-  patientId: string;
-  secureToken: string;
-  createdAt: string;
-  updatedAt: string;
-  status: 'ACTIVE' | 'REVOKED';
 }
 
 // =========================================================================
