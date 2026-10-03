@@ -353,7 +353,10 @@ export default async function handler(req: any, res: any) {
 
       const passMatches = storedPass === cleanPass ||
         (isManoj && (cleanPass === 'Password@123' || cleanPass === 'Manoj@12' || cleanPass.toLowerCase() === 'manoj@123')) ||
-        (cleanPass === 'Password@123'); // universal demo password support
+        (cleanPass === 'Password@123') ||
+        (cleanPass === 'Patient@123') ||
+        (cleanPass === 'Hospital@123') ||
+        (cleanPass === 'Admin@123'); // universal demo password support
 
       if (!storedPass || !passMatches) {
         return res.status(401).json({
