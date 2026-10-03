@@ -409,7 +409,7 @@ export default async function handler(req: any, res: any) {
     const activeFlags = directRedFlags.length > 0 ? directRedFlags : ['Acute Emergency Symptoms Detected'];
 
     if (isRedFlag) {
-      const redAlertMessages: Record<LanguageCode, string> = {
+      const redAlertMessages: Record<string, string> = {
         en: `🚨 **CRITICAL SAFETY ALERT**: Emergency red-flag symptoms detected (${activeFlags.join(', ')}).\n\n⚠️ **DO NOT TAKE OVER-THE-COUNTER MEDICINES**: In acute emergencies, self-medication is unsafe. Hospital emergency triage has been notified. Please proceed to the nearest Emergency Department (ER) immediately.`,
         hi: `🚨 **गंभीर आपातकालीन चेतावनी**: आपातकालीन लक्षण (${activeFlags.join(', ')}) पहचाने गए हैं।\n\n⚠️ **कोई भी दवा खुद से न लें**: आपातकाल में सामान्य दवाइयां लेना घातक हो सकता है। कृपया तुरंत नजदीकी अस्पताल के आपातकालीन कक्ष (ER) जाएं।`,
         mr: `🚨 **तातडीची आणीबाणी सूचना**: आपत्कालीन लक्षणे आढळली आहेत (${activeFlags.join(', ')}).\n\n⚠️ **कोणतीही गोळी स्वतः घेऊ नका**: आणीबाणीमध्ये स्वतः औषध घेणे घातक ठरू शकते. तातडीने जवळच्या हॉस्पिटलच्या अपघात विभागात (ER) जा.`,
@@ -538,7 +538,7 @@ Generate the next intelligent, context-aware clinical intake response.`;
     const localizedAdvisory = MedicineRecommendationService.getLocalizedAdvisory(triageAssessment, language);
 
     if (isFinished) {
-      const completionMessages: Record<LanguageCode, string> = {
+      const completionMessages: Record<string, string> = {
         en: '✅ **Clinical Intake Complete**: I have gathered your symptoms, clinical history, and allergy profile. I am now compiling your physician-ready clinical report for your doctor.',
         hi: '✅ **क्लिनिकल इनटेक पूरा हुआ**: आपके लक्षण और मेडिकल हिस्ट्री दर्ज कर ली गई है। डॉक्टर के लिए रिपोर्ट तैयार की जा रही है।',
         mr: '✅ **क्लिनिकल तपासणी पूर्ण**: तुमची लक्षणे आणि मेडिकल हिस्ट्री नोंदवली गेली आहे. डॉक्टरांसाठी रिपोर्ट तयार केला जात आहे.',
@@ -867,29 +867,29 @@ Generate the physician-ready short clinical intake report.`;
       shortReport,
       painScore: shortReport.symptoms.severity?.includes('8/10') ? 8 : 4,
       medicalSystem,
-      symptomsList: shortReport.symptoms.importantSymptoms.map(sym => ({
+      symptomsList: (shortReport.symptoms.importantSymptoms || []).map((sym: any) => ({
         name: sym,
         severity: shortReport.symptoms.severity?.includes('8/10') ? 8 : 5,
         duration: shortReport.symptoms.duration || '2-3 days',
         onset: shortReport.symptoms.onset === 'Sudden' ? 'SUDDEN' : 'GRADUAL'
       })),
-      pastMedicalHistory: shortReport.medicalHistory.existingConditions.map(c => ({
+      pastMedicalHistory: (shortReport.medicalHistory.existingConditions || []).map((c: any) => ({
         condition: c,
         diagnosedYear: '2020',
         status: 'CONTROLLED'
       })),
-      currentMedications: shortReport.medicationsAndAllergies.currentMedications.map(m => ({
+      currentMedications: (shortReport.medicationsAndAllergies.currentMedications || []).map((m: any) => ({
         name: m,
         dosage: 'As prescribed',
         frequency: 'Daily',
         route: 'Oral',
         isActive: true
       })),
-      allergies: shortReport.medicationsAndAllergies.knownAllergies.map(a => ({
+      allergies: (shortReport.medicationsAndAllergies.knownAllergies || []).map((a: any) => ({
         allergen: a,
         type: 'DRUG',
         reaction: 'Hypersensitivity reported',
-        severity: a.toLowerCase().includes('penicillin') ? 'SEVERE_ANAPHYLACTIC' : 'MODERATE'
+        severity: typeof a === 'string' && a.toLowerCase().includes('penicillin') ? 'SEVERE_ANAPHYLACTIC' : 'MODERATE'
       })),
       surgicalHistory: [],
       familyHistory: [],
@@ -903,8 +903,8 @@ Generate the physician-ready short clinical intake report.`;
           note: shortReport.redFlags?.flags?.join(', ') || 'No acute red flags detected'
         }
       ],
-      safetyWarnings: shortReport.medicationsAndAllergies.knownAllergies.length > 0
-        ? shortReport.medicationsAndAllergies.knownAllergies.map(a => `Allergy Alert: ${a}`)
+      safetyWarnings: (shortReport.medicationsAndAllergies.knownAllergies || []).length > 0
+        ? (shortReport.medicationsAndAllergies.knownAllergies || []).map((a: any) => `Allergy Alert: ${a}`)
         : [],
       verificationStatus: 'PENDING_PHYSICIAN_REVIEW'
     };

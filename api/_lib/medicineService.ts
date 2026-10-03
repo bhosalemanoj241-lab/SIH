@@ -425,7 +425,7 @@ export class MedicineRecommendationService {
     }
 
     if (assessment.category === 'SPECIALIZED_DOCTOR_REQUIRED') {
-      const msgs: Record<LanguageCode, string> = {
+      const msgs: Record<string, string> = {
         en: `⚠️ **CLINICAL ADVISORY — NO OVER-THE-COUNTER MEDICINES RECOMMENDED**:\nYour reported symptoms indicate a specialized or non-minor condition (${assessment.rationale}). Taking unprescribed over-the-counter medicines could mask important signs or cause complications. Please consult a qualified specialist in **${assessment.recommendedDepartment || 'General Medicine'}**.`,
         hi: `⚠️ **क्लिनिकल सलाह — बिना डॉक्टर की पर्ची के दवा न लें**:\nआपकी समस्या सामान्य बुखार/सिरदर्द से अलग और विशेष प्रकार की है (${assessment.rationale})। खुद से दवाइयां लेना हानिकारक हो सकता है। कृपया **${assessment.recommendedDepartment || 'जनरल फिजिशियन'}** से परामर्श करें।`,
         mr: `⚠️ **वैद्यकीय सल्ला — स्वतःहून औषधे घेऊ नका**:\nतुमची लक्षणे सामान्य सर्दी-तापापेक्षा वेगळी आणि गुंतागुंतीची आहेत (${assessment.rationale})। स्वतःहून औषध घेतल्यास मूळ आजार लपून धोका वाढू शकतो. कृपया **${assessment.recommendedDepartment || 'तज्ज्ञ डॉक्टर'}** यांचा सल्ला घ्या.`,
@@ -439,7 +439,7 @@ export class MedicineRecommendationService {
     }
 
     if (assessment.category === 'NORMAL_MINOR_ISSUE' && assessment.medicines && assessment.medicines.length > 0) {
-      const msgs: Record<LanguageCode, string> = {
+      const msgs: Record<string, string> = {
         en: `💊 **Verified OTC Symptomatic Care**: For your reported mild symptoms (such as fever / headache / cold), the following over-the-counter remedies provide safe relief with verified pharmacy buying links:`,
         hi: `💊 **सामान्य लक्षणों हेतु सुरक्षित दवाइयां**: आपके सामान्य लक्षणों (जैसे बुखार / सिरदर्द / सर्दी) के लिए निम्नलिखित सुरक्षित ओवर-द-काउंटर दवाइयां और उनके ऑनलाइन खरीद लिंक उपलब्ध हैं:`,
         mr: `💊 **सामान्य त्रासासाठी सुरक्षित औषधे**: तुमच्या सामान्य लक्षणांसाठी (ताप / डोकेदुखी / सर्दी) खालील सुरक्षित औषधे आणि खरेदीच्या खात्रीशीर लिंक्स उपलब्ध आहेत:`,
