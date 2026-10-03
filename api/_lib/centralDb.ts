@@ -369,6 +369,17 @@ export const DEFAULT_ADMIN_USERS: User[] = [
     createdAt: '2025-10-01T08:00:00Z'
   },
   {
+    id: 'usr-pat-arv-982',
+    email: 'patient@medibridge.ai',
+    password: 'Patient@123',
+    phone: '9820123456',
+    fullName: 'Aarav Sharma',
+    role: 'PATIENT',
+    patientId: 'MB-2026-ARV982',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
     id: 'usr-hosp-apex',
     email: 'hospital@medibridge.ai',
     password: 'Hospital@123',
@@ -392,7 +403,39 @@ export const DEFAULT_ADMIN_USERS: User[] = [
   }
 ];
 
-export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [];
+export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [
+  {
+    id: 'pat-arv-982',
+    userId: 'usr-pat-arv-982',
+    patientId: 'MB-2026-ARV982',
+    abhaId: '91-9820-1234-5678',
+    abhaAddress: 'aarav.sharma@abdm',
+    dob: '1990-05-15',
+    age: 36,
+    gender: 'MALE',
+    bloodGroup: 'O+',
+    heightCm: 175,
+    weightKg: 72,
+    emergencyContactName: 'Priya Sharma',
+    emergencyContactPhone: '9820199887',
+    emergencyContactRelation: 'Spouse',
+    address: 'Flat 402, Green Glen Layout, Bellandur',
+    city: 'Pune',
+    state: 'Maharashtra',
+    pincode: '411001',
+    fullName: 'Aarav Sharma',
+    phone: '9820123456',
+    email: 'patient@medibridge.ai',
+    preferredLanguage: 'English',
+    allergies: ['Penicillin', 'Sulfa drugs'],
+    chronicConditions: ['Hypertension (Stage 1)', 'Mild Asthma'],
+    currentMedications: ['Amlodipine 5mg OD', 'Salbutamol inhaler PRN'],
+    status: 'ACTIVE',
+    password: 'Patient@123',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
+  }
+];
 
 export const DEFAULT_SEED_HOSPITALS: HospitalAccount[] = [
   {
@@ -439,23 +482,169 @@ export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [
   {
     id: 'doc-vikram',
     userId: 'usr-doc-vikram',
-    fullName: 'Dr. Vikram Malhotra',
+    doctorName: 'Dr. Vikram Malhotra',
     registrationNumber: 'MCI-2015-987654',
-    specialty: 'Cardiology & Critical Care',
-    department: 'Cardiology',
+    qualification: 'MBBS, MD (Cardiology), DM',
+    specialization: 'Cardiology & Critical Care',
+    departmentId: 'dept-cardio-01',
+    departmentName: 'Cardiology & ICU',
     hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
     phone: '9822054321',
     email: 'dr.vikram@apexmed.in',
-    yearsOfExperience: 14,
-    status: 'ACTIVE',
+    experienceYears: 14,
+    isAvailable: true,
+    activePatientsCount: 1,
     createdAt: '2026-10-01T08:00:00Z'
   }
 ];
 
-// Valid standard Base64-encoded PDF for pre-seeded medical documents
-const SAMPLE_VALID_PDF_BASE64 = Buffer.from(
-  '%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n4 0 obj\n<< /Length 315 >>\nstream\nBT\n/F1 16 Tf\n50 720 Td\n(MEDIBRIDGE AI - COMPREHENSIVE CLINICAL DOSSIER) Tj\n/F1 11 Tf\n0 -28 Td\n(Patient Name: Manoj Bhosale       Patient ID: MB-2026-9MNBTN) Tj\n0 -20 Td\n(Hospital: Lilavati Hospital & Research Centre) Tj\n0 -20 Td\n(Consulting Physician: Dr. Anita Sharma, MD Cardiology) Tj\n0 -20 Td\n(Report Date: 02 October 2026) Tj\n0 -30 Td\n(Clinical Findings: Normal Sinus Rhythm, Blood Pressure 124/82 mmHg) Tj\n0 -20 Td\n(Status: Verified & Signed by Lilavati Department of Cardiology) Tj\nET\nendstream\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000610 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n679\n%%EOF'
-).toString('base64');
+function createStandardPdfBase64(title: string, subtitle: string, lines: string[]): string {
+  const content = `BT\n/F1 15 Tf\n50 720 Td\n(${title.replace(/[()]/g, '')}) Tj\n/F1 10 Tf\n0 -26 Td\n(${subtitle.replace(/[()]/g, '')}) Tj\n${lines.map(l => `0 -20 Td\n(${l.replace(/[()]/g, '')}) Tj`).join('\n')}\nET`;
+  const streamBuf = Buffer.from(content, 'utf-8');
+  const pdfStr = `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n4 0 obj\n<< /Length ${streamBuf.length} >>\nstream\n${content}\nendstream\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000610 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n679\n%%EOF`;
+  return Buffer.from(pdfStr, 'utf-8').toString('base64');
+}
+
+export const DEFAULT_SEED_TRUSTED_HOSPITALS = [
+  {
+    id: 'trust-arv-apex-01',
+    patientId: 'MB-2026-ARV982',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    hospitalAddress: 'Plot 45, Senapati Bapat Road, Shivajinagar, Pune',
+    hospitalCity: 'Pune',
+    grantedAt: '2026-10-01T08:00:00Z',
+    status: 'ACTIVE',
+    allowEmergencyAlert: true,
+    allowMedicalHistory: true,
+    ambulanceAvailable: true
+  }
+];
+
+export const DEFAULT_SEED_DOCUMENTS: MedicalDocumentRecord[] = [
+  {
+    id: 'doc-cbc-001',
+    patientId: 'MB-2026-ARV982',
+    fileName: 'Complete_Blood_Count_Report.pdf',
+    fileType: 'LAB_REPORT',
+    fileUrl: '/api/documents?id=doc-cbc-001',
+    downloadUrl: '/api/documents?id=doc-cbc-001&download=true',
+    fileSize: '145 KB',
+    fileSizeBytes: 148480,
+    mimeType: 'application/pdf',
+    fileData: `data:application/pdf;base64,${createStandardPdfBase64('APEX DIAGNOSTIC LABS - COMPLETE BLOOD COUNT CBC', 'Patient: Aarav Sharma MB-2026-ARV982 | Date: 01 Oct 2026', [
+      'Facility: Apex Diagnostic Center, Pune',
+      'Physician: Dr. Vikram Malhotra MCI-2015-987654',
+      'Hemoglobin: 14.2 g/dL Reference: 13.0 - 17.0 g/dL',
+      'Platelet Count: 245,000 /mcL Reference: 150,000 - 450,000 /mcL',
+      'Total Leukocyte Count TLC: 7,800 /mcL Reference: 4,000 - 11,000 /mcL',
+      'Impression: Normal Complete Blood Count parameters within physiological reference limits.'
+    ])}`,
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    createdAt: '2026-10-01T08:00:00Z',
+    extractedData: {
+      facilityName: 'Apex Diagnostic Center',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Normal Hematological Profile'],
+      extractedMedications: [],
+      extractedLabResults: [
+        { testName: 'Hemoglobin', value: '14.2', unit: 'g/dL', referenceRange: '13.0 - 17.0', isAbnormal: false },
+        { testName: 'Platelets', value: '245,000', unit: '/mcL', referenceRange: '150,000 - 450,000', isAbnormal: false },
+        { testName: 'Total Leukocyte Count (TLC)', value: '7,800', unit: '/mcL', referenceRange: '4,000 - 11,000', isAbnormal: false }
+      ]
+    }
+  },
+  {
+    id: 'doc-cxr-002',
+    patientId: 'MB-2026-ARV982',
+    fileName: 'Digital_Chest_XRay_PA_View.pdf',
+    fileType: 'IMAGING',
+    fileUrl: '/api/documents?id=doc-cxr-002',
+    downloadUrl: '/api/documents?id=doc-cxr-002&download=true',
+    fileSize: '220 KB',
+    fileSizeBytes: 225280,
+    mimeType: 'application/pdf',
+    fileData: `data:application/pdf;base64,${createStandardPdfBase64('APEX RADIOLOGY - DIGITAL CHEST RADIOGRAPH PA VIEW', 'Patient: Aarav Sharma MB-2026-ARV982 | Date: 01 Oct 2026', [
+      'Facility: Apex Radiology Institute, Pune',
+      'Physician: Dr. Vikram Malhotra MCI-2015-987654',
+      'Modality: Digital Radiography PA View',
+      'Findings: Normal cardiothoracic ratio < 0.50. Lung fields clear bilaterally.',
+      'Impression: Normal Chest X-Ray. No acute cardiopulmonary pathology.'
+    ])}`,
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    createdAt: '2026-10-01T08:00:00Z',
+    extractedData: {
+      facilityName: 'Apex Radiology Institute',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Clear Lung Fields', 'Normal Cardiac Silhouette'],
+      extractedMedications: [],
+      extractedLabResults: []
+    }
+  },
+  {
+    id: 'doc-ecg-003',
+    patientId: 'MB-2026-ARV982',
+    fileName: '12_Lead_Electrocardiogram_ECG.pdf',
+    fileType: 'OTHER',
+    fileUrl: '/api/documents?id=doc-ecg-003',
+    downloadUrl: '/api/documents?id=doc-ecg-003&download=true',
+    fileSize: '180 KB',
+    fileSizeBytes: 184320,
+    mimeType: 'application/pdf',
+    fileData: `data:application/pdf;base64,${createStandardPdfBase64('APEX CARDIOLOGY - 12-LEAD RESTING ELECTROCARDIOGRAM', 'Patient: Aarav Sharma MB-2026-ARV982 | Date: 01 Oct 2026', [
+      'Facility: Apex Heart & Vascular Center, Pune',
+      'Consultant: Dr. Vikram Malhotra, DM Cardiology',
+      'Rhythm: Normal Sinus Rhythm Heart Rate: 72 bpm',
+      'PR Interval: 156 ms | QRS Duration: 88 ms | QTc: 418 ms',
+      'Impression: Normal 12-lead Electrocardiogram ECG.'
+    ])}`,
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    createdAt: '2026-10-01T08:00:00Z',
+    extractedData: {
+      facilityName: 'Apex Heart & Vascular Center',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Normal Sinus Rhythm (HR 72 bpm)', 'Normal PR and QTc intervals'],
+      extractedMedications: [],
+      extractedLabResults: []
+    }
+  },
+  {
+    id: 'doc-rx-004',
+    patientId: 'MB-2026-ARV982',
+    fileName: 'Cardiology_Outpatient_Prescription.pdf',
+    fileType: 'PRESCRIPTION',
+    fileUrl: '/api/documents?id=doc-rx-004',
+    downloadUrl: '/api/documents?id=doc-rx-004&download=true',
+    fileSize: '110 KB',
+    fileSizeBytes: 112640,
+    mimeType: 'application/pdf',
+    fileData: `data:application/pdf;base64,${createStandardPdfBase64('APEX CLINICS - OUTPATIENT PRESCRIPTION & CLINICAL SUMMARY', 'Patient: Aarav Sharma MB-2026-ARV982 | Date: 01 Oct 2026', [
+      'Facility: Apex Outpatient Cardiology Clinic, Pune',
+      'Doctor: Dr. Vikram Malhotra, MBBS MD DM Cardiology',
+      'Diagnosis: Essential Hypertension Stage 1, Controlled',
+      'Medication 1: Tab. Amlodipine 5mg - 1 tablet orally OD morning 30 days',
+      'Medication 2: Salbutamol Inhaler 100mcg - 2 puffs PRN as needed',
+      'Advice: Low sodium diet, 30 mins brisk walking daily.'
+    ])}`,
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    createdAt: '2026-10-01T08:00:00Z',
+    extractedData: {
+      facilityName: 'Apex Outpatient Clinic',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Essential Hypertension (Controlled)'],
+      extractedMedications: [
+        { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily morning', duration: '30 days' },
+        { name: 'Salbutamol Inhaler', dosage: '100mcg', frequency: 'As needed for wheezing', duration: 'PRN' }
+      ],
+      extractedLabResults: []
+    }
+  }
+];
 
 let inMemoryDb: CentralDatabase | null = null;
 
@@ -548,10 +737,20 @@ function sanitizeDatabase(data: any): CentralDatabase {
   const documents: any[] = Array.isArray(data?.documents)
     ? data.documents.filter((d: any) => d.id !== 'doc-manoj-pdf-01' && !((d.fileName || '').toLowerCase().includes('lilavati')))
     : [];
+  for (const doc of DEFAULT_SEED_DOCUMENTS) {
+    if (!documents.some((d: any) => d.id === doc.id || (d.patientId === doc.patientId && d.fileName === doc.fileName))) {
+      documents.push(doc);
+    }
+  }
 
   const trustedHospitals: any[] = Array.isArray(data?.trustedHospitals)
     ? data.trustedHospitals.filter((t: any) => t.id !== 'trust-manoj-lilavati' && !((t.hospitalName || '').toLowerCase().includes('lilavati')))
     : [];
+  for (const th of DEFAULT_SEED_TRUSTED_HOSPITALS) {
+    if (!trustedHospitals.some((t: any) => t.id === th.id || (t.patientId === th.patientId && t.hospitalId === th.hospitalId))) {
+      trustedHospitals.push(th);
+    }
+  }
 
   const cases: CaseRecord[] = (Array.isArray(data?.cases) ? data.cases : [])
     .filter((c: CaseRecord) => (c.patientId || '').toUpperCase() !== 'MB-2026-RAJESH' && !((c.chiefComplaint || '').toLowerCase().includes('rajesh')));

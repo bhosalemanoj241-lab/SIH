@@ -72,7 +72,22 @@ const SEED_HOSPITAL_ACCOUNTS: HospitalAccount[] = [
 ];
 
 // Seed Trusted Hospitals
-const SEED_TRUSTED_HOSPITALS: TrustedHospital[] = [];
+const SEED_TRUSTED_HOSPITALS: TrustedHospital[] = [
+  {
+    id: 'trust-arv-apex-01',
+    patientId: 'MB-2026-ARV982',
+    patientProfileId: 'pat-arv-982',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    hospitalAddress: 'Plot 45, Senapati Bapat Road, Shivajinagar, Pune',
+    hospitalCity: 'Pune',
+    grantedAt: '2026-10-01T08:00:00Z',
+    status: 'ACTIVE',
+    allowEmergencyAlert: true,
+    allowMedicalHistory: true,
+    ambulanceAvailable: true
+  }
+];
 
 // Platform Users
 const SEED_USERS: User[] = [
@@ -86,6 +101,17 @@ const SEED_USERS: User[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
     isEmailVerified: true,
     createdAt: '2025-10-01T08:00:00Z'
+  },
+  {
+    id: 'usr-pat-arv-982',
+    email: 'patient@medibridge.ai',
+    password: 'Patient@123',
+    phone: '9820123456',
+    fullName: 'Aarav Sharma',
+    role: 'PATIENT',
+    patientId: 'MB-2026-ARV982',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
   },
   {
     id: 'usr-hosp-apex-01',
@@ -112,7 +138,39 @@ const SEED_USERS: User[] = [
 ];
 
 // Seed Patient Profiles
-const SEED_PATIENTS: PatientProfile[] = [];
+const SEED_PATIENTS: PatientProfile[] = [
+  {
+    id: 'pat-arv-982',
+    userId: 'usr-pat-arv-982',
+    patientId: 'MB-2026-ARV982',
+    abhaId: '91-9820-1234-5678',
+    abhaAddress: 'aarav.sharma@abdm',
+    dob: '1990-05-15',
+    age: 36,
+    gender: 'MALE',
+    bloodGroup: 'O+',
+    heightCm: 175,
+    weightKg: 72,
+    emergencyContactName: 'Priya Sharma',
+    emergencyContactPhone: '9820199887',
+    emergencyContactRelation: 'Spouse',
+    address: 'Flat 402, Green Glen Layout, Bellandur',
+    city: 'Pune',
+    state: 'Maharashtra',
+    pincode: '411001',
+    fullName: 'Aarav Sharma',
+    phone: '9820123456',
+    email: 'patient@medibridge.ai',
+    preferredLanguage: 'en',
+    allergies: ['Penicillin', 'Sulfa drugs'],
+    chronicConditions: ['Mild Asthma', 'Hypertension Stage 1'],
+    currentMedications: ['Amlodipine 5mg OD', 'Salbutamol Inhaler PRN'],
+    status: 'ACTIVE',
+    password: 'Patient@123',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
+  }
+];
 
 // Seed Doctors
 const SEED_DOCTORS: DoctorProfile[] = [
@@ -131,7 +189,7 @@ const SEED_DOCTORS: DoctorProfile[] = [
     departmentName: 'Cardiology & ICU',
     experienceYears: 14,
     isAvailable: true,
-    activePatientsCount: 0
+    activePatientsCount: 1
   }
 ];
 
@@ -139,7 +197,111 @@ const SEED_DOCTORS: DoctorProfile[] = [
 const SEED_SESSIONS: ClinicalSession[] = [];
 
 // Seed Uploaded Medical Documents & Lab Reports
-const SEED_DOCUMENTS: MedicalDocument[] = [];
+const SEED_DOCUMENTS: MedicalDocument[] = [
+  {
+    id: 'doc-cbc-001',
+    patientId: 'MB-2026-ARV982',
+    fileName: 'Complete_Blood_Count_Report.pdf',
+    fileType: 'LAB_REPORT',
+    fileUrl: '/api/documents?id=doc-cbc-001',
+    downloadUrl: '/api/documents?id=doc-cbc-001&download=true',
+    fileSize: '145 KB',
+    mimeType: 'application/pdf',
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    extractedData: {
+      documentId: 'doc-cbc-001',
+      documentDate: '2026-10-01',
+      facilityName: 'Apex Diagnostic Center',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Normal Hematological Profile'],
+      extractedMedications: [],
+      extractedLabResults: [
+        { testName: 'Hemoglobin', value: '14.2', unit: 'g/dL', referenceRange: '13.0 - 17.0', isAbnormal: false },
+        { testName: 'Platelets', value: '245,000', unit: '/mcL', referenceRange: '150,000 - 450,000', isAbnormal: false },
+        { testName: 'Total Leukocyte Count (TLC)', value: '7,800', unit: '/mcL', referenceRange: '4,000 - 11,000', isAbnormal: false }
+      ],
+      procedures: [],
+      confidenceScore: 0.98,
+      rawTextSnippets: ['Complete Blood Count (CBC) normal.']
+    }
+  },
+  {
+    id: 'doc-cxr-002',
+    patientId: 'MB-2026-ARV982',
+    fileName: 'Digital_Chest_XRay_PA_View.pdf',
+    fileType: 'RADIOLOGY_REPORT',
+    fileUrl: '/api/documents?id=doc-cxr-002',
+    downloadUrl: '/api/documents?id=doc-cxr-002&download=true',
+    fileSize: '220 KB',
+    mimeType: 'application/pdf',
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    extractedData: {
+      documentId: 'doc-cxr-002',
+      documentDate: '2026-10-01',
+      facilityName: 'Apex Radiology Institute',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Clear Lung Fields', 'Normal Cardiac Silhouette'],
+      extractedMedications: [],
+      extractedLabResults: [],
+      procedures: ['Chest Radiography (PA View)'],
+      confidenceScore: 0.99,
+      rawTextSnippets: ['Normal chest radiograph, clear fields.']
+    }
+  },
+  {
+    id: 'doc-ecg-003',
+    patientId: 'MB-2026-ARV982',
+    fileName: '12_Lead_Electrocardiogram_ECG.pdf',
+    fileType: 'LAB_REPORT',
+    fileUrl: '/api/documents?id=doc-ecg-003',
+    downloadUrl: '/api/documents?id=doc-ecg-003&download=true',
+    fileSize: '180 KB',
+    mimeType: 'application/pdf',
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    extractedData: {
+      documentId: 'doc-ecg-003',
+      documentDate: '2026-10-01',
+      facilityName: 'Apex Heart & Vascular Center',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Normal Sinus Rhythm at 74 bpm'],
+      extractedMedications: [],
+      extractedLabResults: [],
+      procedures: ['12-Lead Electrocardiogram'],
+      confidenceScore: 0.98,
+      rawTextSnippets: ['Normal sinus rhythm, normal axis.']
+    }
+  },
+  {
+    id: 'doc-rx-004',
+    patientId: 'MB-2026-ARV982',
+    fileName: 'Cardiology_Outpatient_Prescription.pdf',
+    fileType: 'PRESCRIPTION',
+    fileUrl: '/api/documents?id=doc-rx-004',
+    downloadUrl: '/api/documents?id=doc-rx-004&download=true',
+    fileSize: '110 KB',
+    mimeType: 'application/pdf',
+    status: 'COMPLETED',
+    uploadDate: '2026-10-01T08:00:00Z',
+    extractedData: {
+      documentId: 'doc-rx-004',
+      documentDate: '2026-10-01',
+      facilityName: 'Apex Multi-Specialty Hospital OPD',
+      physicianName: 'Dr. Vikram Malhotra',
+      extractedDiagnoses: ['Essential Hypertension', 'Cardiovascular Risk Prevention'],
+      extractedMedications: [
+        { name: 'Telmisartan', dosage: '40mg', frequency: 'OD', route: 'Oral', isActive: true },
+        { name: 'Atorvastatin', dosage: '10mg', frequency: 'HS', route: 'Oral', isActive: true }
+      ],
+      extractedLabResults: [],
+      procedures: [],
+      confidenceScore: 0.97,
+      rawTextSnippets: ['Telmisartan 40mg OD, Atorvastatin 10mg HS.']
+    }
+  }
+];
 
 // Seed Timeline Events
 const SEED_TIMELINE: TimelineEvent[] = [];
@@ -219,34 +381,34 @@ export class MockDatabase {
 
   private init(): void {
     // Universal cleanup to purge any previously stored mock sessions, dummy documents, and fake patients
-    const CLEANUP_KEY = 'medibridge_purge_all_fake_and_reset_v17';
+    const CLEANUP_KEY = 'medibridge_purge_all_fake_and_reset_v18';
     if (!getStorageItem(CLEANUP_KEY)) {
       try {
         setStorageItem(STORAGE_KEYS.USERS, JSON.stringify(SEED_USERS));
         setStorageItem(STORAGE_KEYS.HOSPITALS, JSON.stringify(SEED_HOSPITALS));
         setStorageItem(STORAGE_KEYS.HOSPITAL_ACCOUNTS, JSON.stringify(SEED_HOSPITAL_ACCOUNTS));
         setStorageItem(STORAGE_KEYS.DOCTORS, JSON.stringify(SEED_DOCTORS));
-        setStorageItem(STORAGE_KEYS.PATIENTS, '[]');
+        setStorageItem(STORAGE_KEYS.PATIENTS, JSON.stringify(SEED_PATIENTS));
         setStorageItem(STORAGE_KEYS.SESSIONS, '[]');
-        setStorageItem(STORAGE_KEYS.DOCUMENTS, '[]');
+        setStorageItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(SEED_DOCUMENTS));
         setStorageItem(STORAGE_KEYS.TIMELINE, '[]');
         setStorageItem(STORAGE_KEYS.EMERGENCIES, '[]');
         setStorageItem(STORAGE_KEYS.APPOINTMENTS, '[]');
         setStorageItem(STORAGE_KEYS.NOTIFICATIONS, '[]');
         setStorageItem(STORAGE_KEYS.CONSENTS, '[]');
-        setStorageItem(STORAGE_KEYS.TRUSTED_HOSPITALS, '[]');
+        setStorageItem(STORAGE_KEYS.TRUSTED_HOSPITALS, JSON.stringify(SEED_TRUSTED_HOSPITALS));
         setStorageItem(STORAGE_KEYS.AUDIT_LOGS, '[]');
         setStorageItem('medibridge_cloud_hospitals_cache', JSON.stringify(SEED_HOSPITALS));
-        setStorageItem('medibridge_cloud_patients_cache', '[]');
+        setStorageItem('medibridge_cloud_patients_cache', JSON.stringify(SEED_PATIENTS));
         setStorageItem('medibridge_cloud_requests_cache', '[]');
-        setStorageItem('medibridge_cloud_trusted_cache', '[]');
+        setStorageItem('medibridge_cloud_trusted_cache', JSON.stringify(SEED_TRUSTED_HOSPITALS));
         setStorageItem('medibridge_cloud_sessions_cache', '[]');
-        setStorageItem('medibridge_cloud_documents_cache', '[]');
+        setStorageItem('medibridge_cloud_documents_cache', JSON.stringify(SEED_DOCUMENTS));
         setStorageItem('medibridge_cloud_emergencies_cache', '[]');
         setStorageItem('medibridge_cloud_timeline_cache', '[]');
         setStorageItem('medibridge_cloud_appointments_cache', '[]');
         setStorageItem('medibridge_sessions', '[]');
-        setStorageItem('medibridge_documents', '[]');
+        setStorageItem('medibridge_documents', JSON.stringify(SEED_DOCUMENTS));
         setStorageItem('medibridge_emergencies', '[]');
         setStorageItem('medibridge_timeline', '[]');
         setStorageItem('medibridge_appointments', '[]');
@@ -268,6 +430,32 @@ export class MockDatabase {
     initializeStorage(STORAGE_KEYS.CONSENTS, SEED_CONSENTS);
     initializeStorage(STORAGE_KEYS.AUDIT_LOGS, SEED_AUDIT_LOGS);
     initializeStorage(STORAGE_KEYS.NOTIFICATIONS, SEED_NOTIFICATIONS);
+
+    // Ensure verified seed patients exist in storage if empty or incomplete
+    const currentPatients = this.getItems<PatientProfile>(STORAGE_KEYS.PATIENTS);
+    let patientsUpdated = false;
+    for (const sp of SEED_PATIENTS) {
+      if (!currentPatients.some(p => p.patientId === sp.patientId || p.id === sp.id)) {
+        currentPatients.push(sp);
+        patientsUpdated = true;
+      }
+    }
+    if (patientsUpdated) {
+      this.setItems(STORAGE_KEYS.PATIENTS, currentPatients);
+    }
+
+    // Ensure verified seed documents exist in storage
+    const currentDocsList = this.getItems<MedicalDocument>(STORAGE_KEYS.DOCUMENTS);
+    let docsListUpdated = false;
+    for (const sd of SEED_DOCUMENTS) {
+      if (!currentDocsList.some(d => d.id === sd.id)) {
+        currentDocsList.push(sd);
+        docsListUpdated = true;
+      }
+    }
+    if (docsListUpdated) {
+      this.setItems(STORAGE_KEYS.DOCUMENTS, currentDocsList);
+    }
 
     // Ensure verified seed hospitals exist in storage
     const currentHospitals = this.getItems<Hospital>(STORAGE_KEYS.HOSPITALS);

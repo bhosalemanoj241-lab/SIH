@@ -758,6 +758,21 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
     }
   };
 
+  const handleSimulateRedFlagEmergency = () => {
+    handleToggleRedFlagDetection(true);
+    const redFlagStatements: Record<LanguageCode, string> = {
+      en: 'I am having severe crushing chest pain radiating to my left arm and shoulder, with cold sweats, dizziness, and difficulty breathing for the past 45 minutes.',
+      hi: 'मुझे पिछले 45 मिनट से सीने में बहुत तेज दबाव और दर्द हो रहा है जो बाएं हाथ तक जा रहा है, साथ में पसीना और सांस लेने में तकलीफ हो रही है।',
+      mr: 'मला गेल्या 45 मिनिटांपासून छातीत अतिशय तीव्र कळ आणि दाब जाणवत असून तो डाव्या हाताकडे पसरत आहे, खूप घाम फुटला आहे आणि श्वास घेण्यास त्रास होत आहे.',
+      ur: 'مجھے پچھلے 45 منٹ سے سینے میں شدید دباؤ اور درد ہو रहा ہے جو بائیں بازو میں جا رہا ہے، ساتھ میں پسینہ اور سانس لینے میں دشواری ہو رہی ہے۔',
+      kn: 'ನನಗೆ ಕಳೆದ 45 ನಿಮಿಷಗಳಿಂದ ಎದೆಯಲ್ಲಿ ತೀವ್ರವಾದ ನೋವು ಮತ್ತು ಎಡಗೈಗೆ ಹರಡುತ್ತಿರುವ ಒತ್ತಡವಿದೆ, ಜೊತೆಗೆ ತಣ್ಣನೆಯ ಬೆವರು ಮತ್ತು ಉಸಿರಾಟದ ತೊಂದರೆ ಇದೆ.',
+      gu: 'મને છેલ્લા 45 મિનિટથી છાતીમાં ખૂબ જ તીવ્ર દબાણ અને દુખાવો થઈ રહ્યો છે જે ડાબા હાથમાં ફેલાઈ રહ્યો છે, સાથે ઠંડો પરસેવો અને શ્વાસ લેવામાં તકલીફ છે.',
+      ta: 'எனக்கு கடந்த 45 நிமிடங்களாக மார்பில் கடுமையான அழுத்தம் மற்றும் வலி இடது கைக்கு பரவுகிறது, அத்துடன் குளிர்ந்த வியர்வை மற்றும் மூச்சுத்திணறல் உள்ளது.',
+      bn: 'আমার গত 45 মিনিট ধরে বুকে তীব্র চাপ ও ব্যথা হচ্ছে যা বাম হাতে ছড়িয়ে পড়ছে, সাথে ঠান্ডা ঘাম এবং শ্বাসকষ্ট হচ্ছে।'
+    };
+    handleSendMessage(redFlagStatements[language] || redFlagStatements.en);
+  };
+
   const toggleVoiceListen = () => {
     if (isListening) {
       setIsListening(false);
@@ -842,6 +857,18 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Automatic Red Flag Detection Trigger Button */}
+          <button
+            type="button"
+            onClick={handleSimulateRedFlagEmergency}
+            disabled={isProcessing}
+            className="px-2.5 py-1 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-sm flex items-center gap-1.5 transition active:scale-95 cursor-pointer border border-red-500"
+            title="Automatically triggers Red Flag detection and dispatches emergency alert to linked hospital"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+            <span className="font-extrabold tracking-tight">🚨 Auto Red Flag Test</span>
+          </button>
+
           {/* Stop / Enable Red Flag Detection Toggle */}
           <button
             type="button"
@@ -1167,6 +1194,23 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
           <WaveformVisualizer isActive={isListening} color="#dc2626" />
         </div>
       )}
+
+      {/* Quick Red Flag Auto-Trigger Banner */}
+      <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-rose-50 via-red-50 to-amber-50 border-t border-rose-200 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-rose-950 font-medium">
+          <span className="w-2 h-2 rounded-full bg-red-600 animate-ping shrink-0" />
+          <span>Need to demonstrate emergency triage? Click button to trigger live red-flag dispatch:</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleSimulateRedFlagEmergency}
+          disabled={isProcessing}
+          className="px-3 py-1 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shrink-0"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-yellow-300" />
+          <span>🚨 Simulate Red-Flag Emergency</span>
+        </button>
+      </div>
 
       {/* Input Form Bar */}
       <div className="p-3 sm:p-4 bg-white border-t border-slate-200">

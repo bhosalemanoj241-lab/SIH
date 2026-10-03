@@ -556,6 +556,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
           {/* Patient Login Form */}
           {authMode === 'LOGIN' && (
             <form onSubmit={handlePatientLoginSubmit} className="space-y-4">
+              {/* Quick Demo Helper */}
+              <div className="p-3 bg-teal-50/80 border border-teal-200 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-bold text-teal-900">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Verified Demo Patient: Aarav Sharma</span>
+                  </div>
+                  <div className="text-[11px] text-teal-700 font-mono">
+                    ID: <strong>MB-2026-ARV982</strong> • <span className="font-semibold">patient@medibridge.ai</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail('patient@medibridge.ai');
+                    setLoginPassword('Patient@123');
+                    setErrorMessage('');
+                  }}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[11px] rounded-xl shadow-xs transition active:scale-95 shrink-0 cursor-pointer"
+                >
+                  ⚡ Auto-Fill
+                </button>
+              </div>
+
               <div className="space-y-1.5">
                 <label className={labelCls}><Mail className="w-3.5 h-3.5 text-teal-600" /><span>Email or Patient ID</span></label>
                 <input type="text" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
@@ -784,6 +808,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, initialPortal 
           {/* Hospital Login Form */}
           {authMode === 'LOGIN' && (
             <form onSubmit={handleHospitalLoginSubmit} className="space-y-4">
+              {/* Quick Demo Helper */}
+              <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Verified Hospital: Apex Multi-Specialty</span>
+                  </div>
+                  <div className="text-[11px] text-blue-700 font-mono">
+                    ID: <strong>HOSP-2026-PUNE01</strong> • <span className="font-semibold">hospital@medibridge.ai</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail('hospital@medibridge.ai');
+                    setLoginPassword('Hospital@123');
+                    setErrorMessage('');
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[11px] rounded-xl shadow-xs transition active:scale-95 shrink-0 cursor-pointer"
+                >
+                  ⚡ Auto-Fill
+                </button>
+              </div>
+
               <div><label className={labelCls}><Mail className="w-3.5 h-3.5 text-blue-600" />Hospital Email</label>
                 <input type="email" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
                   placeholder="Enter hospital registered email" className={inputCls} /></div>
