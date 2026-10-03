@@ -367,12 +367,96 @@ export const DEFAULT_ADMIN_USERS: User[] = [
     role: 'SYSTEM_ADMIN',
     isEmailVerified: true,
     createdAt: '2025-10-01T08:00:00Z'
+  },
+  {
+    id: 'usr-pat-arv-982',
+    email: 'patient@medibridge.ai',
+    password: 'Patient@123',
+    phone: '9820199887',
+    fullName: 'Aarav Sharma',
+    role: 'PATIENT',
+    patientId: 'MB-2026-ARV982',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'usr-hosp-apex',
+    email: 'hospital@medibridge.ai',
+    password: 'Hospital@123',
+    phone: '0202567890',
+    fullName: 'Apex Multi-Specialty Hospital Admin',
+    role: 'HOSPITAL',
+    hospitalId: 'HOSP-2026-PUNE01',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
+  },
+  {
+    id: 'usr-doc-vikram',
+    email: 'dr.vikram@apexmed.in',
+    password: 'Password@123',
+    phone: '9822054321',
+    fullName: 'Dr. Vikram Malhotra',
+    role: 'DOCTOR',
+    hospitalId: 'HOSP-2026-PUNE01',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
   }
 ];
 
-export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [];
+export const DEFAULT_SEED_PATIENTS: PatientProfile[] = [
+  {
+    id: 'pat-arv-982',
+    userId: 'usr-pat-arv-982',
+    patientId: 'MB-2026-ARV982',
+    abhaId: '91-9820-1234-5678',
+    abhaAddress: 'aarav.sharma@abdm',
+    dob: '1990-05-15',
+    age: 36,
+    gender: 'MALE',
+    bloodGroup: 'O+',
+    heightCm: 175,
+    weightKg: 72,
+    emergencyContactName: 'Priya Sharma',
+    emergencyContactPhone: '9820199887',
+    emergencyContactRelation: 'Spouse',
+    address: 'Flat 402, Green Glen Layout, Bellandur',
+    city: 'Pune',
+    state: 'Maharashtra',
+    pincode: '411001',
+    fullName: 'Aarav Sharma',
+    phone: '9820199887',
+    email: 'patient@medibridge.ai',
+    preferredLanguage: 'English',
+    allergies: ['Penicillin', 'Sulfa drugs'],
+    chronicConditions: ['Hypertension (Stage 1)', 'Mild Asthma'],
+    currentMedications: ['Telmisartan 40mg OD', 'Salbutamol inhaler PRN'],
+    status: 'ACTIVE',
+    password: 'Patient@123',
+    isEmailVerified: true,
+    createdAt: '2026-10-01T08:00:00Z'
+  }
+];
 
 export const DEFAULT_SEED_HOSPITALS: HospitalAccount[] = [
+  {
+    id: 'hosp-apex',
+    userId: 'usr-hosp-apex',
+    hospitalId: 'HOSP-2026-PUNE01',
+    hospitalName: 'Apex Multi-Specialty Hospital & Trauma Center',
+    registrationId: 'REG-APEX-PUNE-2026',
+    email: 'hospital@medibridge.ai',
+    phone: '0202567890',
+    emergencyContact: '0202567899',
+    address: 'Plot 45, Senapati Bapat Road, Shivaji Nagar',
+    city: 'Pune',
+    state: 'Maharashtra',
+    location: 'Shivaji Nagar, Pune',
+    pincode: '411016',
+    ambulanceAvailable: true,
+    departments: ['Emergency & Trauma', 'Cardiology & CCU', 'General Surgery', 'Pulmonology', 'Intensive Care (ICU)'],
+    status: 'VERIFIED',
+    createdAt: '2026-10-01T08:00:00Z'
+  },
   {
     id: 'hosp-moraya',
     userId: 'usr-hosp-moraya',
@@ -394,7 +478,22 @@ export const DEFAULT_SEED_HOSPITALS: HospitalAccount[] = [
   }
 ];
 
-export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [];
+export const DEFAULT_SEED_DOCTORS: DoctorProfile[] = [
+  {
+    id: 'doc-vikram',
+    userId: 'usr-doc-vikram',
+    fullName: 'Dr. Vikram Malhotra',
+    registrationNumber: 'MCI-2015-987654',
+    specialty: 'Cardiology & Critical Care',
+    department: 'Cardiology',
+    hospitalId: 'HOSP-2026-PUNE01',
+    phone: '9822054321',
+    email: 'dr.vikram@apexmed.in',
+    yearsOfExperience: 14,
+    status: 'ACTIVE',
+    createdAt: '2026-10-01T08:00:00Z'
+  }
+];
 
 // Valid standard Base64-encoded PDF for pre-seeded medical documents
 const SAMPLE_VALID_PDF_BASE64 = Buffer.from(

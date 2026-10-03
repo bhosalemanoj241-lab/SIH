@@ -1,6 +1,39 @@
 {
   "users": [
     {
+      "id": "usr-doc-apex-001",
+      "email": "dr.vikram@apexmed.in",
+      "password": "Password@123",
+      "phone": "9822054321",
+      "fullName": "Dr. Vikram Malhotra",
+      "role": "DOCTOR",
+      "hospitalId": "HOSP-2026-PUNE01",
+      "isEmailVerified": true,
+      "createdAt": "2026-10-03T03:42:42.220Z"
+    },
+    {
+      "id": "usr-hosp-apex-01",
+      "email": "hospital@medibridge.ai",
+      "password": "Hospital@123",
+      "phone": "020-67119000",
+      "fullName": "Apex Multi-Specialty Hospital & Trauma Center",
+      "role": "HOSPITAL_ADMIN",
+      "hospitalId": "HOSP-2026-PUNE01",
+      "isEmailVerified": true,
+      "createdAt": "2026-10-03T03:42:42.220Z"
+    },
+    {
+      "id": "usr-pat-arv-982",
+      "email": "patient@medibridge.ai",
+      "password": "Patient@123",
+      "phone": "9820123456",
+      "fullName": "Aarav Sharma",
+      "role": "PATIENT",
+      "patientId": "MB-2026-ARV982",
+      "isEmailVerified": true,
+      "createdAt": "2026-10-03T03:42:42.220Z"
+    },
+    {
       "id": "usr-hosp-1790939092401",
       "email": "sumithatagale93@gmail.com",
       "password": "Manoj@12",
@@ -33,8 +66,80 @@
       "createdAt": "2026-10-02T08:00:00Z"
     }
   ],
-  "patients": [],
+  "patients": [
+    {
+      "id": "pat-arv-982",
+      "userId": "usr-pat-arv-982",
+      "patientId": "MB-2026-ARV982",
+      "abhaId": "91-9820-1234-5678",
+      "abhaAddress": "aarav.sharma@abdm",
+      "dob": "1990-05-15",
+      "age": 36,
+      "gender": "MALE",
+      "bloodGroup": "O+",
+      "heightCm": 175,
+      "weightKg": 72,
+      "emergencyContactName": "Priya Sharma",
+      "emergencyContactPhone": "9820199887",
+      "emergencyContactRelation": "Spouse",
+      "address": "Flat 402, Green Glen Layout, Bellandur",
+      "city": "Pune",
+      "state": "Maharashtra",
+      "pincode": "411001",
+      "fullName": "Aarav Sharma",
+      "phone": "9820123456",
+      "email": "patient@medibridge.ai",
+      "preferredLanguage": "en",
+      "allergies": [
+        "Penicillin",
+        "Sulfa drugs"
+      ],
+      "chronicConditions": [
+        "Mild Asthma",
+        "Hypertension Stage 1"
+      ],
+      "currentMedications": [
+        "Amlodipine 5mg OD",
+        "Salbutamol Inhaler PRN"
+      ],
+      "status": "ACTIVE",
+      "password": "Patient@123",
+      "isEmailVerified": true,
+      "createdAt": "2026-10-03T03:42:42.220Z"
+    }
+  ],
   "hospitals": [
+    {
+      "id": "HOSP-2026-PUNE01",
+      "userId": "usr-hosp-apex-01",
+      "hospitalId": "HOSP-2026-PUNE01",
+      "hospitalName": "Apex Multi-Specialty Hospital & Trauma Center",
+      "registrationId": "MAH-PUN-2026-0812",
+      "address": "Plot 45, Senapati Bapat Road, Shivajinagar",
+      "city": "Pune",
+      "location": "Shivajinagar, Pune",
+      "state": "Maharashtra",
+      "pincode": "411016",
+      "emergencyContact": "020-67119999",
+      "phone": "020-67119000",
+      "email": "hospital@medibridge.ai",
+      "password": "Hospital@123",
+      "ambulanceAvailable": true,
+      "coordinates": {
+        "lat": 18.5314,
+        "lng": 73.8446
+      },
+      "departments": [
+        "Emergency & Trauma",
+        "Cardiology & ICU",
+        "Pulmonology",
+        "Neurology",
+        "General Medicine",
+        "Orthopedics"
+      ],
+      "status": "VERIFIED",
+      "createdAt": "2026-10-03T03:42:42.220Z"
+    },
     {
       "id": "HOSP-2026-92401",
       "userId": "usr-hosp-1790939092401",
@@ -68,6 +173,24 @@
   ],
   "doctors": [
     {
+      "id": "doc-apex-001",
+      "userId": "usr-doc-apex-001",
+      "doctorName": "Dr. Vikram Malhotra",
+      "email": "dr.vikram@apexmed.in",
+      "phone": "9822054321",
+      "registrationNumber": "NMC-MH-2016-77889",
+      "qualification": "MBBS, MD (Cardiology), DM (Interventional Cardiology)",
+      "specialization": "Cardiology & Critical Care",
+      "hospitalId": "HOSP-2026-PUNE01",
+      "hospitalName": "Apex Multi-Specialty Hospital & Trauma Center",
+      "departmentId": "dept-cardio-01",
+      "departmentName": "Cardiology & ICU",
+      "experienceYears": 14,
+      "isAvailable": true,
+      "activePatientsCount": 2,
+      "createdAt": "2026-10-03T03:42:42.220Z"
+    },
+    {
       "id": "doc-moraya-001",
       "userId": "usr-doc-anita-001",
       "doctorName": "Dr. Anita Sharma",
@@ -91,7 +214,80 @@
   "medicalHistory": [],
   "medications": [],
   "allergies": [],
-  "documents": [],
+  "documents": [
+    {
+      "id": "doc-rx-004",
+      "patientId": "MB-2026-ARV982",
+      "userId": "usr-pat-arv-982",
+      "fileName": "Cardiology_Outpatient_Prescription.pdf",
+      "fileType": "PRESCRIPTION",
+      "fileUrl": "/api/documents?id=doc-rx-004",
+      "downloadUrl": "/api/documents?id=doc-rx-004&download=true",
+      "fileSize": "110 KB",
+      "fileSizeBytes": 1264,
+      "mimeType": "application/pdf",
+      "filePath": "data/uploads/MB_2026_ARV982/doc-rx-004_Cardiology_Outpatient_Prescription.pdf",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA3MjAgPj4Kc3RyZWFtCkJUCi9GMSAxNiBUZgo0MCA3NTAgVGQKKEFQRVggSEVBTFRIQ0FSRSAmIE1FRElCUklER0UgQUkgLSBPRkZJQ0lBTCBDTElOSUNBTCBSRUNPUkQpIFRqCi9GMSAxMiBUZgowIC0zMCBUZAooRG9jdW1lbnQgVGl0bGU6IENhcmRpb2xvZ3kgT3V0cGF0aWVudCBQcmVzY3JpcHRpb24gJiBGb2xsb3ctdXAgUGxhbikgVGoKMCAtMjAgVGQKKFBhdGllbnQgTmFtZTogQWFyYXYgU2hhcm1hKSBUagowIC0yMCBUZAooUGF0aWVudCBVbmlxdWUgSUQ6IE1CLTIwMjYtQVJWOTgyKSBUagowIC0yMCBUZAooRG9jdW1lbnQgVHlwZTogUFJFU0NSSVBUSU9OKSBUagowIC0yMCBUZAooRGF0ZSAmIFRpbWU6IDMvMTAvMjAyNiwgOToxMjo0MiBhbSkgVGoKMCAtMzAgVGQKKENMSU5JQ0FMIFJFUE9SVCBTVU1NQVJZICYgRklORElOR1M6KSBUagovRjEgMTAgVGYKMCAtMjAgVGQKKFRhYiBBbWxvZGlwaW5lIDVtZyBvbmNlIGRhaWx5IG1vcm5pbmcuIFRhYiBBdG9ydmFzdGF0aW4gMTBtZyBuaWdodC4gU2FsYnV0YW1vbCBJbmhhbGVyIDIgcHVmZnMgUFJOLikgVGoKMCAtNDAgVGQKKFZlcmlmaWVkIGJ5OiBEci4gVmlrcmFtIE1hbGhvdHJhLCBNRCBDYXJkaW9sb2d5IHwgQXBleCBNdWx0aS1TcGVjaWFsdHkgSG9zcGl0YWwpIFRqCjAgLTE4IFRkCihBQkRNIENvbXBsaWFudCBFbGVjdHJvbmljIEhlYWx0aCBSZWNvcmQgLSBBdXRoZW50aWNhdGVkIGFuZCBEaWdpdGFsbHkgU2lnbmVkKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMTAgMDAwMDAgbiAKMDAwMDAwMDA2MCAwMDAwMCBuIAowMDAwMDAwMTE3IDAwMDAwIG4gCjAwMDAwMDAyMjggMDAwMDAgbiAKMDAwMDAwMDMwMCAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjM2MAolJUVPRg==",
+      "ocrText": "Tab Amlodipine 5mg once daily morning. Tab Atorvastatin 10mg night. Salbutamol Inhaler 2 puffs PRN.",
+      "status": "COMPLETED",
+      "uploadDate": "2026-10-01T03:42:42.210Z",
+      "createdAt": "2026-10-01T03:42:42.210Z"
+    },
+    {
+      "id": "doc-ecg-003",
+      "patientId": "MB-2026-ARV982",
+      "userId": "usr-pat-arv-982",
+      "fileName": "12_Lead_Electrocardiogram_ECG.pdf",
+      "fileType": "LAB_REPORT",
+      "fileUrl": "/api/documents?id=doc-ecg-003",
+      "downloadUrl": "/api/documents?id=doc-ecg-003&download=true",
+      "fileSize": "180 KB",
+      "fileSizeBytes": 1252,
+      "mimeType": "application/pdf",
+      "filePath": "data/uploads/MB_2026_ARV982/doc-ecg-003_12_Lead_Electrocardiogram_ECG.pdf",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA3MDggPj4Kc3RyZWFtCkJUCi9GMSAxNiBUZgo0MCA3NTAgVGQKKEFQRVggSEVBTFRIQ0FSRSAmIE1FRElCUklER0UgQUkgLSBPRkZJQ0lBTCBDTElOSUNBTCBSRUNPUkQpIFRqCi9GMSAxMiBUZgowIC0zMCBUZAooRG9jdW1lbnQgVGl0bGU6IDEyLUxlYWQgU3RhbmRhcmQgRWxlY3Ryb2NhcmRpb2dyYW0pIFRqCjAgLTIwIFRkCihQYXRpZW50IE5hbWU6IEFhcmF2IFNoYXJtYSkgVGoKMCAtMjAgVGQKKFBhdGllbnQgVW5pcXVlIElEOiBNQi0yMDI2LUFSVjk4MikgVGoKMCAtMjAgVGQKKERvY3VtZW50IFR5cGU6IExBQl9SRVBPUlQpIFRqCjAgLTIwIFRkCihEYXRlICYgVGltZTogMy8xMC8yMDI2LCA5OjEyOjQyIGFtKSBUagowIC0zMCBUZAooQ0xJTklDQUwgUkVQT1JUIFNVTU1BUlkgJiBGSU5ESU5HUzopIFRqCi9GMSAxMCBUZgowIC0yMCBUZAooTm9ybWFsIFNpbnVzIFJoeXRobSBhdCA3NCBicG0uIE5vcm1hbCBheGlzLCBQUiAxNTZtcywgUVJTIDg0bXMsIFFUYyA0MTZtcy4gTm8gYWN1dGUgaXNjaGVtaWMgU1QgZWxldmF0aW9uLikgVGoKMCAtNDAgVGQKKFZlcmlmaWVkIGJ5OiBEci4gVmlrcmFtIE1hbGhvdHJhLCBNRCBDYXJkaW9sb2d5IHwgQXBleCBNdWx0aS1TcGVjaWFsdHkgSG9zcGl0YWwpIFRqCjAgLTE4IFRkCihBQkRNIENvbXBsaWFudCBFbGVjdHJvbmljIEhlYWx0aCBSZWNvcmQgLSBBdXRoZW50aWNhdGVkIGFuZCBEaWdpdGFsbHkgU2lnbmVkKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMTAgMDAwMDAgbiAKMDAwMDAwMDA2MCAwMDAwMCBuIAowMDAwMDAwMTE3IDAwMDAwIG4gCjAwMDAwMDAyMjggMDAwMDAgbiAKMDAwMDAwMDMwMCAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjM2MAolJUVPRg==",
+      "ocrText": "Normal Sinus Rhythm at 74 bpm. Normal axis, PR 156ms, QRS 84ms, QTc 416ms. No acute ischemic ST elevation.",
+      "status": "COMPLETED",
+      "uploadDate": "2026-10-01T03:42:42.208Z",
+      "createdAt": "2026-10-01T03:42:42.208Z"
+    },
+    {
+      "id": "doc-cxr-002",
+      "patientId": "MB-2026-ARV982",
+      "userId": "usr-pat-arv-982",
+      "fileName": "Digital_Chest_XRay_PA_View.pdf",
+      "fileType": "IMAGING",
+      "fileUrl": "/api/documents?id=doc-cxr-002",
+      "downloadUrl": "/api/documents?id=doc-cxr-002&download=true",
+      "fileSize": "220 KB",
+      "fileSizeBytes": 1245,
+      "mimeType": "application/pdf",
+      "filePath": "data/uploads/MB_2026_ARV982/doc-cxr-002_Digital_Chest_XRay_PA_View.pdf",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA3MDEgPj4Kc3RyZWFtCkJUCi9GMSAxNiBUZgo0MCA3NTAgVGQKKEFQRVggSEVBTFRIQ0FSRSAmIE1FRElCUklER0UgQUkgLSBPRkZJQ0lBTCBDTElOSUNBTCBSRUNPUkQpIFRqCi9GMSAxMiBUZgowIC0zMCBUZAooRG9jdW1lbnQgVGl0bGU6IERpZ2l0YWwgQ2hlc3QgWC1SYXkgUEEgVmlldykgVGoKMCAtMjAgVGQKKFBhdGllbnQgTmFtZTogQWFyYXYgU2hhcm1hKSBUagowIC0yMCBUZAooUGF0aWVudCBVbmlxdWUgSUQ6IE1CLTIwMjYtQVJWOTgyKSBUagowIC0yMCBUZAooRG9jdW1lbnQgVHlwZTogSU1BR0lORykgVGoKMCAtMjAgVGQKKERhdGUgJiBUaW1lOiAzLzEwLzIwMjYsIDk6MTI6NDIgYW0pIFRqCjAgLTMwIFRkCihDTElOSUNBTCBSRVBPUlQgU1VNTUFSWSAmIEZJTkRJTkdTOikgVGoKL0YxIDEwIFRmCjAgLTIwIFRkCihCaWxhdGVyYWwgbHVuZyBmaWVsZHMgY2xlYXIuIE5vcm1hbCBicm9uY2hvdmFzY3VsYXIgbWFya2luZ3MuIE5vcm1hbCBjYXJkaWFjIHNpbGhvdWV0dGUuIE5vIHBsZXVyYWwgZWZmdXNpb24uKSBUagowIC00MCBUZAooVmVyaWZpZWQgYnk6IERyLiBWaWtyYW0gTWFsaG90cmEsIE1EIENhcmRpb2xvZ3kgfCBBcGV4IE11bHRpLVNwZWNpYWx0eSBIb3NwaXRhbCkgVGoKMCAtMTggVGQKKEFCRE0gQ29tcGxpYW50IEVsZWN0cm9uaWMgSGVhbHRoIFJlY29yZCAtIEF1dGhlbnRpY2F0ZWQgYW5kIERpZ2l0YWxseSBTaWduZWQpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxMCAwMDAwMCBuIAowMDAwMDAwMDYwIDAwMDAwIG4gCjAwMDAwMDAxMTcgMDAwMDAgbiAKMDAwMDAwMDIyOCAwMDAwMCBuIAowMDAwMDAwMzAwIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMzYwCiUlRU9G",
+      "ocrText": "Bilateral lung fields clear. Normal bronchovascular markings. Normal cardiac silhouette. No pleural effusion.",
+      "status": "COMPLETED",
+      "uploadDate": "2026-10-01T03:42:42.207Z",
+      "createdAt": "2026-10-01T03:42:42.207Z"
+    },
+    {
+      "id": "doc-cbc-001",
+      "patientId": "MB-2026-ARV982",
+      "userId": "usr-pat-arv-982",
+      "fileName": "Complete_Blood_Count_Report.pdf",
+      "fileType": "LAB_REPORT",
+      "fileUrl": "/api/documents?id=doc-cbc-001",
+      "downloadUrl": "/api/documents?id=doc-cbc-001&download=true",
+      "fileSize": "145 KB",
+      "fileSizeBytes": 1256,
+      "mimeType": "application/pdf",
+      "filePath": "data/uploads/MB_2026_ARV982/doc-cbc-001_Complete_Blood_Count_Report.pdf",
+      "fileData": "data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA3MTIgPj4Kc3RyZWFtCkJUCi9GMSAxNiBUZgo0MCA3NTAgVGQKKEFQRVggSEVBTFRIQ0FSRSAmIE1FRElCUklER0UgQUkgLSBPRkZJQ0lBTCBDTElOSUNBTCBSRUNPUkQpIFRqCi9GMSAxMiBUZgowIC0zMCBUZAooRG9jdW1lbnQgVGl0bGU6IENvbXBsZXRlIEJsb29kIENvdW50ICBDQkMgIHdpdGggRGlmZmVyZW50aWFsKSBUagowIC0yMCBUZAooUGF0aWVudCBOYW1lOiBBYXJhdiBTaGFybWEpIFRqCjAgLTIwIFRkCihQYXRpZW50IFVuaXF1ZSBJRDogTUItMjAyNi1BUlY5ODIpIFRqCjAgLTIwIFRkCihEb2N1bWVudCBUeXBlOiBMQUJfUkVQT1JUKSBUagowIC0yMCBUZAooRGF0ZSAmIFRpbWU6IDMvMTAvMjAyNiwgOToxMjo0MiBhbSkgVGoKMCAtMzAgVGQKKENMSU5JQ0FMIFJFUE9SVCBTVU1NQVJZICYgRklORElOR1M6KSBUagovRjEgMTAgVGYKMCAtMjAgVGQKKEhlbW9nbG9iaW46IDE0LjIgZy9kTCwgUGxhdGVsZXRzOiAyNDUsMDAwIC9tY0wsIFRMQzogNyw4MDAgL21jTCwgUkJDOiA0LjggbWlsbGlvbi9tY0wuIE5vcm1hbCByYW5nZS4pIFRqCjAgLTQwIFRkCihWZXJpZmllZCBieTogRHIuIFZpa3JhbSBNYWxob3RyYSwgTUQgQ2FyZGlvbG9neSB8IEFwZXggTXVsdGktU3BlY2lhbHR5IEhvc3BpdGFsKSBUagowIC0xOCBUZAooQUJETSBDb21wbGlhbnQgRWxlY3Ryb25pYyBIZWFsdGggUmVjb3JkIC0gQXV0aGVudGljYXRlZCBhbmQgRGlnaXRhbGx5IFNpZ25lZCkgVGoKRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDEwIDAwMDAwIG4gCjAwMDAwMDAwNjAgMDAwMDAgbiAKMDAwMDAwMDExNyAwMDAwMCBuIAowMDAwMDAwMjI4IDAwMDAwIG4gCjAwMDAwMDAzMDAgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgozNjAKJSVFT0Y=",
+      "ocrText": "Hemoglobin: 14.2 g/dL, Platelets: 245,000 /mcL, TLC: 7,800 /mcL, RBC: 4.8 million/mcL. Normal range.",
+      "status": "COMPLETED",
+      "uploadDate": "2026-10-01T03:42:42.191Z",
+      "createdAt": "2026-10-01T03:42:42.192Z"
+    }
+  ],
   "aiReports": [],
   "clinicalNotes": [],
   "assignments": [],
@@ -99,12 +295,168 @@
   "notifications": [],
   "auditLogs": [],
   "accessRequests": [],
-  "trustedHospitals": [],
-  "sessions": [],
-  "emergencies": [],
-  "appointments": [],
+  "trustedHospitals": [
+    {
+      "id": "trust-arv-apex-01",
+      "patientId": "MB-2026-ARV982",
+      "patientProfileId": "pat-arv-982",
+      "hospitalId": "HOSP-2026-PUNE01",
+      "hospitalName": "Apex Multi-Specialty Hospital & Trauma Center",
+      "hospitalAddress": "Plot 45, Senapati Bapat Road, Shivajinagar, Pune",
+      "hospitalCity": "Pune",
+      "grantedAt": "2026-10-03T03:42:42.220Z",
+      "status": "ACTIVE",
+      "allowEmergencyAlert": true,
+      "allowMedicalHistory": true,
+      "ambulanceAvailable": true
+    }
+  ],
+  "sessions": [
+    {
+      "id": "session-arv-001",
+      "patientId": "MB-2026-ARV982",
+      "encounterId": "enc-arv-2026-01",
+      "patientName": "Aarav Sharma",
+      "patientAge": 36,
+      "patientGender": "MALE",
+      "patientPhone": "9820123456",
+      "startedAt": "2026-10-03T00:42:42.221Z",
+      "completedAt": "2026-10-03T01:42:42.221Z",
+      "status": "EMERGENCY_TRIGGERED",
+      "triagePriority": "RED",
+      "triageRationale": "🚨 CRITICAL RED FLAG DETECTED: Acute substernal chest pressure radiating to left arm with diaphoresis. High clinical concern for Acute Coronary Syndrome.",
+      "chiefComplaint": "Acute chest tightness with radiation to left shoulder and mild dyspnea",
+      "originalLanguage": "en",
+      "originalPatientStatement": "I have severe pressure in the center of my chest radiating down my left arm for the past 45 minutes.",
+      "translatedSummary": "Severe central chest pressure radiating to left arm accompanied by diaphoresis and mild shortness of breath.",
+      "selectedHospitalId": "HOSP-2026-PUNE01",
+      "selectedDepartmentId": "dept-cardio-01",
+      "targetDoctorId": "doc-apex-001",
+      "redFlagsDetected": [
+        "Acute Central Chest Pain",
+        "Radiation to Left Arm",
+        "Diaphoresis",
+        "Shortness of Breath"
+      ],
+      "isRedFlagTriggered": true,
+      "conversationMessages": [
+        {
+          "id": "msg-1",
+          "sender": "bot",
+          "text": "Hello Aarav. I am your MediBridge AI Clinical Assistant. What symptoms are you experiencing right now?",
+          "timestamp": "2026-10-03T03:12:42.221Z"
+        },
+        {
+          "id": "msg-2",
+          "sender": "user",
+          "text": "I have severe pressure in the center of my chest radiating down my left arm for the past 45 minutes.",
+          "timestamp": "2026-10-03T03:14:42.221Z"
+        },
+        {
+          "id": "msg-3",
+          "sender": "bot",
+          "text": "🚨 Critical Red Flag Alert Triggered! Your symptoms indicate potential cardiac ischemia. Emergency alert dispatched to Apex Multi-Specialty Hospital. Emergency team notified.",
+          "timestamp": "2026-10-03T03:15:42.221Z"
+        }
+      ],
+      "shortReport": {
+        "chiefComplaint": {
+          "mainReason": "Acute substernal chest pressure radiating to left arm",
+          "duration": "45 minutes",
+          "severity": "CRITICAL / RED",
+          "progression": "Sudden onset during rest",
+          "bodySites": [
+            "Retrosternal chest",
+            "Left arm / shoulder"
+          ]
+        },
+        "historyOfPresentIllness": "36-year-old male with sudden onset retrosternal squeezing chest pain, 8/10 severity, radiating to left shoulder and arm. Accompanied by mild cold sweat and shortness of breath. No relief with rest.",
+        "redFlags": {
+          "detected": true,
+          "items": [
+            "Acute Central Chest Pain",
+            "Radiation to Left Arm",
+            "Diaphoresis"
+          ],
+          "actionTaken": "Emergency alert dispatched immediately to Apex Multi-Specialty Hospital & Trauma Center."
+        },
+        "summary": {
+          "text": "Patient exhibits classic presentation of acute coronary syndrome. Emergency alert and clinical telemetry dispatched to Apex Multi-Specialty Hospital."
+        }
+      }
+    }
+  ],
+  "emergencies": [
+    {
+      "id": "emg-arv-apex-001",
+      "caseId": "session-arv-001",
+      "sessionId": "session-arv-001",
+      "patientId": "MB-2026-ARV982",
+      "patientName": "Aarav Sharma",
+      "patientAge": 36,
+      "patientGender": "MALE",
+      "patientPhone": "9820123456",
+      "hospitalId": "HOSP-2026-PUNE01",
+      "hospitalName": "Apex Multi-Specialty Hospital & Trauma Center",
+      "priority": "RED",
+      "severity": "CRITICAL",
+      "redFlags": [
+        "Acute Central Chest Pain",
+        "Radiation to Left Arm",
+        "Diaphoresis"
+      ],
+      "redFlagDetails": "Acute Central Chest Pain, Radiation to Left Arm, Diaphoresis",
+      "triggerReason": "Clinical red flags triggered during AI intake chat",
+      "originalMessage": "I have severe pressure in the center of my chest radiating down my left arm for the past 45 minutes.",
+      "detectedLanguage": "en",
+      "detectedEmergencyConcern": "Acute cardiac ischemia / ACS protocol",
+      "status": "DISPATCHED",
+      "timestamp": "2026-10-03T03:42:42.221Z",
+      "liveLocation": {
+        "lat": 18.5314,
+        "lng": 73.8446,
+        "address": "Flat 402, Green Glen Layout, Bellandur, Pune",
+        "city": "Pune"
+      },
+      "ambulanceAssigned": {
+        "vehicleNumber": "MH-12-APEX-108",
+        "driverName": "Santosh Shinde (Advanced Life Support Unit)",
+        "driverPhone": "+91 98224 45566",
+        "etaMinutes": 4,
+        "currentVitals": {
+          "bp": "158/96 mmHg",
+          "pulse": 104,
+          "spo2": 94,
+          "temp": "98.6°F",
+          "respiratoryRate": 24
+        },
+        "liveCoordinates": {
+          "lat": 18.5314,
+          "lng": 73.8446
+        }
+      }
+    }
+  ],
+  "appointments": [
+    {
+      "id": "apt-arv-apex-01",
+      "patientId": "MB-2026-ARV982",
+      "patientName": "Aarav Sharma",
+      "hospitalId": "HOSP-2026-PUNE01",
+      "hospitalName": "Apex Multi-Specialty Hospital & Trauma Center",
+      "departmentName": "Cardiology & ICU",
+      "doctorId": "doc-apex-001",
+      "doctorName": "Dr. Vikram Malhotra",
+      "date": "2026-10-03",
+      "timeSlot": "11:00 AM",
+      "status": "CONFIRMED",
+      "reason": "Acute Chest Pain Evaluation & Coronary Risk Stratification",
+      "notes": "Priority OPD / Emergency triage fast-track",
+      "createdAt": "2026-10-03T03:42:42.221Z"
+    }
+  ],
   "verificationCodes": {},
   "patientQrs": [],
   "version": 3,
-  "lastUpdated": "2026-10-02T16:36:45.657Z"
+  "lastUpdated": "2026-10-03T03:42:42.221Z"
 }

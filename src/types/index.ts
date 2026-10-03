@@ -14,6 +14,7 @@ export interface User {
   avatarUrl?: string;
   isEmailVerified?: boolean;
   patientId?: string;
+  hospitalId?: string;
   createdAt: string;
 }
 
@@ -43,6 +44,8 @@ export interface PatientProfile {
   allergies?: string[];
   chronicConditions?: string[];
   currentMedications?: string[];
+  status?: string;
+  password?: string;
   isEmailVerified?: boolean;
   createdAt?: string;
 }
@@ -489,18 +492,24 @@ export interface AccessRequest {
 export interface HospitalAccount {
   id: string;
   userId: string; // linked User record (role: HOSPITAL_ADMIN)
+  hospitalId?: string;
   hospitalName: string;
   registrationId: string; // e.g. DH-MH-2024-00491
   address: string;
   city: string;
+  state?: string;
+  pincode?: string;
   location: string; // area/locality e.g. "Vashi, Navi Mumbai"
+  phone?: string;
   emergencyContact: string;
   email: string;
+  password?: string;
   ambulanceAvailable: boolean;
   departments: string[];
   licenseNumber?: string;
   linkedHospitalId?: string; // optional link to existing Hospital (capacity) record
   coordinates?: { lat: number; lng: number };
+  status?: string;
   createdAt: string;
 }
 

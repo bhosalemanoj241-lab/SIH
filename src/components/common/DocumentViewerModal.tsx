@@ -103,7 +103,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             </div>
           ) : (
             <iframe
-              src={fileUrl}
+              src={document.fileData || fileUrl}
               title={fileName}
               className="w-full h-[540px] border-0 rounded-2xl bg-white shadow-inner"
             />
