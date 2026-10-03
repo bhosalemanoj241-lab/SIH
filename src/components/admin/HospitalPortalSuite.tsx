@@ -5,7 +5,7 @@ import {
   Siren, Clock, Sparkles, HeartPulse, Stethoscope, ChevronRight,
   Plus, RefreshCw, Send, Check, Eye, Filter, ArrowUpRight,
   SlidersHorizontal, Download, FileSpreadsheet, Zap, Radio,
-  Shield, CheckCheck, Trash2, Edit3, XCircle, Lock, ShieldAlert, MapPin
+  Shield, CheckCheck, Trash2, Edit3, XCircle, Lock, ShieldAlert, MapPin, Pill
 } from 'lucide-react';
 
 import { db } from '../../services/mockDatabase';
@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { cloudDataService, syncRelay } from '../../services/firebaseService';
 import { cloudDb } from '../../services/cloudDatabaseEngine';
+import { AIIntakeEngine } from '../../services/aiIntakeEngine';
 import { PatientProfile, ClinicalSession, MedicalDocument, Hospital, AccessRequest, EmergencyAlert, Appointment } from '../../types';
 import { PreArrivalQueue } from '../doctor/PreArrivalQueue';
 import { Modal } from '../common/Modal';
@@ -2234,13 +2235,38 @@ export const HospitalPortalSuite: React.FC = () => {
                   Age: {viewingSession.patientAge || '—'} • Gender: {viewingSession.patientGender || '—'} • Phone: {viewingSession.patientPhone || '—'}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-xs font-black uppercase px-3 py-1 rounded-full border ${
                   viewingSession.triagePriority === 'RED' ? 'bg-red-100 text-red-800 border-red-300' :
                   viewingSession.triagePriority === 'ORANGE' ? 'bg-amber-100 text-amber-800 border-amber-300' :
                   'bg-teal-100 text-teal-800 border-teal-300'
                 }`}>
-                  Triage Priority: {viewingSession.triagePriority}
+                  Triage: {viewingSession.triagePriority}
+                </span>
+
+                <span className={`text-xs font-bold px-3 py-1 rounded-full border flex items-center gap-1 ${
+                  viewingSession.verificationStatus === 'APPROVED'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : viewingSession.verificationStatus === 'UNAPPROVED'
+                    ? 'bg-red-100 text-red-800 border-red-300'
+                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                }`}>
+                  {viewingSession.verificationStatus === 'APPROVED' ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Approved by Doctor</span>
+                    </>
+                  ) : viewingSession.verificationStatus === 'UNAPPROVED' ? (
+                    <>
+                      <XCircle className="w-3.5 h-3.5 text-red-600" />
+                      <span>Unapproved by Doctor</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Pending Doctor Review</span>
+                    </>
+                  )}
                 </span>
               </div>
             </div>
@@ -2303,14 +2329,154 @@ export const HospitalPortalSuite: React.FC = () => {
               </div>
             )}
 
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setViewingSession(null)}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition border border-slate-300"
-              >
-                Close Report
-              </button>
+            {/* AI Recommended Medicines with Live Status */}
+            {((viewingSession.recommendedMedicines && viewingSession.recommendedMedicines.length > 0) || (viewingSession.shortReport?.recommendedMedicines && viewingSession.shortReport.recommendedMedicines.length > 0)) && (
+              <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-extrabold text-teal-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <Pill className="w-4 h-4 text-teal-600" />
+                    <span>AI Recommended Medicines &amp; Dosages</span>
+                  </h5>
+                  <span className="text-[10px] font-bold bg-white text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full">
+                    Physician Review Required
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(viewingSession.recommendedMedicines || viewingSession.shortReport?.recommendedMedicines || []).map((med, idx) => (
+                    <div key={idx} className="p-3 bg-white rounded-xl border border-teal-100 shadow-2xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <strong className="text-xs text-slate-900">{med.name}</strong>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          med.status === 'APPROVED' || viewingSession.verificationStatus === 'APPROVED'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : med.status === 'UNAPPROVED' || viewingSession.verificationStatus === 'UNAPPROVED'
+                            ? 'bg-red-100 text-red-800 border-red-300'
+                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                        }`}>
+                          {med.status === 'APPROVED' || viewingSession.verificationStatus === 'APPROVED' ? '✅ Approved' : med.status === 'UNAPPROVED' || viewingSession.verificationStatus === 'UNAPPROVED' ? '❌ Unapproved' : '⏳ Pending'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 flex justify-between">
+                        <span>{med.dosage || 'As directed'}</span>
+                        <span className="text-slate-400 font-mono">{med.timing || 'After meals'}</span>
+                      </div>
+                      {med.warnings && (
+                        <p className="text-[10px] text-amber-800 bg-amber-50 p-1 rounded border border-amber-200">
+                          ⚠️ {med.warnings}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Doctor Verification Actions (Approve / Unapprove) */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-teal-600" />
+                  <span className="text-xs font-bold text-slate-900">
+                    Attending Physician Verification • Dr. Vikram Malhotra ({currentHospitalName})
+                  </span>
+                </div>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase border ${
+                  viewingSession.verificationStatus === 'APPROVED'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : viewingSession.verificationStatus === 'UNAPPROVED'
+                    ? 'bg-red-100 text-red-800 border-red-300'
+                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                }`}>
+                  Status: {viewingSession.verificationStatus || 'PENDING_PHYSICIAN_REVIEW'}
+                </span>
+              </div>
+
+              {viewingSession.doctorVerificationNotes && (
+                <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs text-slate-700">
+                  <strong className="text-slate-900 block mb-0.5">Doctor Verification Notes:</strong>
+                  {viewingSession.doctorVerificationNotes}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-200">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated: ClinicalSession = {
+                        ...viewingSession,
+                        status: 'UNAPPROVED',
+                        verificationStatus: 'UNAPPROVED',
+                        verifiedByDoctorId: 'doc-vikram',
+                        verifiedByDoctorName: 'Dr. Vikram Malhotra',
+                        doctorVerificationNotes: 'Unapproved by physician. In-person clinical assessment required before starting medicines.',
+                        verifiedAt: new Date().toISOString(),
+                        recommendedMedicines: (viewingSession.recommendedMedicines || []).map(m => ({ ...m, status: 'UNAPPROVED' as const }))
+                      };
+                      db.saveClinicalSession(updated);
+                      await AIIntakeEngine.saveSessionToCloud(updated);
+                      try {
+                        await fetch('/api/patients', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'save_session', session: updated })
+                        });
+                      } catch {}
+                      syncRelay.publish('clinical_session_updated', updated);
+                      syncRelay.publish(`patient_session_update_${updated.patientId}`, updated);
+                      syncRelay.publish('medibridge_db_update', { type: 'clinical_sessions', data: updated });
+                      setViewingSession(updated);
+                      showToast('Intake Unapproved', 'Marked UNAPPROVED. Patient notified on dashboard.', 'TRIAGE');
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>UNAPPROVE</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated: ClinicalSession = {
+                        ...viewingSession,
+                        status: 'APPROVED',
+                        verificationStatus: 'APPROVED',
+                        verifiedByDoctorId: 'doc-vikram',
+                        verifiedByDoctorName: 'Dr. Vikram Malhotra',
+                        doctorVerificationNotes: 'Approved after clinical review. Regimen validated for patient safe use.',
+                        verifiedAt: new Date().toISOString(),
+                        recommendedMedicines: (viewingSession.recommendedMedicines || []).map(m => ({ ...m, status: 'APPROVED' as const }))
+                      };
+                      db.saveClinicalSession(updated);
+                      await AIIntakeEngine.saveSessionToCloud(updated);
+                      try {
+                        await fetch('/api/patients', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'save_session', session: updated })
+                        });
+                      } catch {}
+                      syncRelay.publish('clinical_session_updated', updated);
+                      syncRelay.publish(`patient_session_update_${updated.patientId}`, updated);
+                      syncRelay.publish('medibridge_db_update', { type: 'clinical_sessions', data: updated });
+                      setViewingSession(updated);
+                      showToast('Intake & Medicines Approved', 'Report APPROVED by Dr. Vikram Malhotra. Live on Patient Dashboard!', 'VERIFICATION');
+                    }}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>APPROVE REPORT &amp; MEDICINES</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingSession(null)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition"
+                >
+                  Close Report
+                </button>
+              </div>
             </div>
           </div>
         </Modal>

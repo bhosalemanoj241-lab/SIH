@@ -279,13 +279,29 @@ export interface ClinicalSession {
   patientPhone: string;
   startedAt: string;
   completedAt?: string;
-  status: 'IN_PROGRESS' | 'COMPLETED' | 'EMERGENCY_TRIGGERED' | 'VERIFIED';
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'EMERGENCY_TRIGGERED' | 'VERIFIED' | 'APPROVED' | 'UNAPPROVED';
+  verificationStatus?: 'PENDING_PHYSICIAN_REVIEW' | 'APPROVED' | 'UNAPPROVED' | 'VERIFIED_BY_PHYSICIAN' | 'EDITED_AND_VERIFIED' | 'REJECTED';
   triagePriority: TriagePriority;
   triageRationale: string;
   chiefComplaint: string;
   selectedHospitalId?: string;
   selectedDepartmentId?: string;
   targetDoctorId?: string;
+  trustedHospitalId?: string;
+  trustedHospitalName?: string;
+  verifiedByDoctorId?: string;
+  verifiedByDoctorName?: string;
+  doctorVerificationNotes?: string;
+  verifiedAt?: string;
+  recommendedMedicines?: Array<{
+    name: string;
+    dosage?: string;
+    timing?: string;
+    duration?: string;
+    indication?: string;
+    warnings?: string;
+    status?: 'APPROVED' | 'UNAPPROVED' | 'PENDING';
+  }>;
   redFlagsDetected: string[];
   isRedFlagTriggered: boolean;
   emergencyAlertId?: string;
@@ -338,6 +354,15 @@ export interface PhysicianShortReport {
     source: ClinicalSourceTag;
   };
   relevantFindings: ClinicalSourceItem[];
+  recommendedMedicines?: Array<{
+    name: string;
+    dosage?: string;
+    timing?: string;
+    duration?: string;
+    indication?: string;
+    warnings?: string;
+    status?: 'APPROVED' | 'UNAPPROVED' | 'PENDING';
+  }>;
   redFlags?: {
     detected: boolean;
     flags: string[];
@@ -387,7 +412,18 @@ export interface ClinicalHistorySummary {
   dashavidhaPariksha?: DashavidhaPariksha;
   diagnosis?: string;
   treatmentRemarks?: string;
-  verificationStatus: 'PENDING_PHYSICIAN_REVIEW' | 'VERIFIED_BY_PHYSICIAN' | 'EDITED_AND_VERIFIED' | 'REJECTED';
+  verificationStatus: 'PENDING_PHYSICIAN_REVIEW' | 'APPROVED' | 'UNAPPROVED' | 'VERIFIED_BY_PHYSICIAN' | 'EDITED_AND_VERIFIED' | 'REJECTED';
+  trustedHospitalId?: string;
+  trustedHospitalName?: string;
+  recommendedMedicines?: Array<{
+    name: string;
+    dosage?: string;
+    timing?: string;
+    duration?: string;
+    indication?: string;
+    warnings?: string;
+    status?: 'APPROVED' | 'UNAPPROVED' | 'PENDING';
+  }>;
   verifiedByDoctorId?: string;
   verifiedByDoctorName?: string;
   doctorRegistrationNumber?: string;

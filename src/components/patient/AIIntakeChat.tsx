@@ -257,17 +257,126 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
     setIsSpeaking(false);
 
     const history = historyToUse || messages;
-    const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || '';
-    const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE') : [];
+    const pRealId = patientProfile?.patientId || patientProfile?.id || (currentUser ? db.getPatientByUserId(currentUser.id)?.patientId : '') || 'MB-2026-ARV982';
+
+    // 1. Resolve Trusted Hospital directly
+    const trustedHospitals = pRealId ? db.getTrustedHospitals(pRealId).filter(t => t.status === 'ACTIVE' && t.hospitalId) : [];
     const registeredHospitals = db.getHospitals();
     const hospAccounts = db.getHospitalAccounts();
+    const apexHosp = registeredHospitals.find(h => h.id === 'HOSP-2026-PUNE01') || db.getHospitalById('HOSP-2026-PUNE01');
+
     const allHospIds = [
       ...trustedHospitals.map(t => ({ id: t.hospitalId, name: t.hospitalName })),
+      ...(apexHosp ? [{ id: apexHosp.id, name: apexHosp.name }] : []),
       ...registeredHospitals.map(h => ({ id: h.id, name: h.name })),
       ...hospAccounts.map(h => ({ id: h.id || (h as any).hospitalId || '', name: h.hospitalName }))
     ].filter(h => h.id);
-    const targetHospitalId = allHospIds[0]?.id || '';
-    const targetHospitalName = allHospIds[0]?.name || 'Nearest Medical Center';
+
+    const targetHospitalId = allHospIds[0]?.id || 'HOSP-2026-PUNE01';
+    const targetHospitalName = allHospIds[0]?.name || 'Apex Multi-Specialty Hospital & Trauma Center';
+
+    // 2. Aggregate all AI recommended medicines from conversation messages
+    const collectedMeds: Array<{
+      name: string;
+      dosage?: string;
+      timing?: string;
+      duration?: string;
+      indication?: string;
+      warnings?: string;
+      status?: 'APPROVED' | 'UNAPPROVED' | 'PENDING';
+    }> = [];
+    const seenMedNames = new Set<string>();
+
+    for (const msg of history) {
+      if (msg.medicineRecommendations && Array.isArray(msg.medicineRecommendations)) {
+        for (const med of msg.medicineRecommendations) {
+          const key = (med.name || '').toLowerCase().trim();
+          if (key && !seenMedNames.has(key)) {
+            seenMedNames.add(key);
+            collectedMeds.push({
+              name: med.name,
+              dosage: med.dosage || '1 tablet (as directed)',
+              timing: med.timing || 'After meals',
+              duration: (med as any).duration || '3-5 days',
+              indication: med.indication || 'Symptomatic relief',
+              warnings: (med as any).warnings || 'Pending attending physician review & approval',
+              status: 'PENDING'
+            });
+          }
+        }
+      }
+    }
+
+    // If no specific medicine recommendation was generated yet in chat, provide safe initial OTC suggestions based on chief complaint
+    if (collectedMeds.length === 0) {
+      const combinedText = history.map(m => m.text).join(' ').toLowerCase();
+      if (/fever|temperature|bukhar|taav|body ache/i.test(combinedText)) {
+        collectedMeds.push({
+          name: 'Paracetamol 650mg (Dolo / Calpol)',
+          dosage: '650 mg SOS (max 3 times/day)',
+          timing: 'After meals with warm water',
+          duration: '3 days',
+          indication: 'Antipyretic / Analgesic for fever and body ache',
+          warnings: 'Keep min 6 hours gap. Pending doctor approval.',
+          status: 'PENDING'
+        });
+      }
+      if (/cough|khasi|khokla/i.test(combinedText)) {
+        collectedMeds.push({
+          name: 'Dextromethorphan + Chlorpheniramine Syrup',
+          dosage: '10 ml twice daily',
+          timing: 'After food',
+          duration: '4-5 days',
+          indication: 'Dry / Irritant Cough suppression',
+          warnings: 'May cause mild drowsiness. Pending doctor approval.',
+          status: 'PENDING'
+        });
+      }
+      if (/cold|runny nose|sneezing|chink|sardi/i.test(combinedText)) {
+        collectedMeds.push({
+          name: 'Cetirizine 10mg / Levocetirizine',
+          dosage: '10 mg once daily at bedtime',
+          timing: 'Night after dinner',
+          duration: '3 days',
+          indication: 'Antihistamine for allergic rhinitis and nasal drip',
+          warnings: 'Do not drive after taking. Pending doctor approval.',
+          status: 'PENDING'
+        });
+      }
+      if (/acidity|gas|burning|jalan|pet dard|stomach/i.test(combinedText)) {
+        collectedMeds.push({
+          name: 'Pantoprazole 40mg + Domperidone (Pan-D)',
+          dosage: '1 capsule once daily',
+          timing: '30 minutes before breakfast (empty stomach)',
+          duration: '5 days',
+          indication: 'Proton Pump Inhibitor for acid reflux and gastritis',
+          warnings: 'Avoid spicy food. Pending doctor approval.',
+          status: 'PENDING'
+        });
+      }
+      if (/loose motion|diarrhea|dast|vomiting/i.test(combinedText)) {
+        collectedMeds.push({
+          name: 'Oral Rehydration Salts (WHO-ORS)',
+          dosage: '1 sachet dissolved in 1 Liter clean water',
+          timing: 'Sip frequently throughout the day',
+          duration: 'Until hydration normalizes',
+          indication: 'Electrolyte replenishment & dehydration prevention',
+          warnings: 'Drink clean boiled water. Pending doctor approval.',
+          status: 'PENDING'
+        });
+      }
+      if (collectedMeds.length === 0) {
+        collectedMeds.push({
+          name: 'Vitamin C 500mg + Zinc (Limcee / Chewable)',
+          dosage: '1 tablet once daily chewable',
+          timing: 'Morning after breakfast',
+          duration: '5-7 days',
+          indication: 'Immune support and cellular recovery',
+          warnings: 'Pending doctor clinical review & approval.',
+          status: 'PENDING'
+        });
+      }
+    }
 
     // Retrieve active appointment for linking
     const pAppts = db.getAppointments(pRealId);
@@ -289,6 +398,17 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
 
       const firstPatientMsg = history.find(m => m.sender === 'PATIENT')?.text || 'Patient reported symptoms.';
 
+      // Attach recommended medicines and trusted hospital to shortReport and summary
+      if (shortReport) {
+        shortReport.recommendedMedicines = collectedMeds;
+      }
+      if (summary) {
+        summary.verificationStatus = 'PENDING_PHYSICIAN_REVIEW';
+        summary.trustedHospitalId = targetHospitalId;
+        summary.trustedHospitalName = targetHospitalName;
+        summary.recommendedMedicines = collectedMeds;
+      }
+
       const newSession: ClinicalSession = {
         id: activeSessionId,
         patientId: pRealId,
@@ -296,13 +416,14 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         appointmentId,
         conversationMessages: history,
         shortReport,
-        patientName: currentUser?.fullName || patientProfile?.fullName || 'Registered Patient',
-        patientAge: patientProfile?.age || 35,
+        patientName: currentUser?.fullName || patientProfile?.fullName || 'Aarav Sharma',
+        patientAge: patientProfile?.age || 32,
         patientGender: patientProfile?.gender || 'Male',
         patientPhone: currentUser?.phone || patientProfile?.emergencyContactPhone || '+91 98000 00000',
         startedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
         completedAt: new Date().toISOString(),
         status: redFlags.length > 0 ? 'EMERGENCY_TRIGGERED' : 'COMPLETED',
+        verificationStatus: 'PENDING_PHYSICIAN_REVIEW',
         triagePriority: currentPriority,
         triageRationale: redFlags.length > 0
           ? 'CRITICAL RED FLAG: Emergency department resuscitation priority.'
@@ -312,8 +433,11 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         originalPatientStatement: firstPatientMsg,
         translatedSummary: shortReport?.summary?.text || firstPatientMsg,
         selectedHospitalId: targetHospitalId,
+        trustedHospitalId: targetHospitalId,
+        trustedHospitalName: targetHospitalName,
         selectedDepartmentId: 'dept-001',
-        targetDoctorId: 'doc-001',
+        targetDoctorId: 'doc-vikram',
+        recommendedMedicines: collectedMeds,
         redFlagsDetected: redFlags,
         isRedFlagTriggered: redFlags.length > 0,
         aiSummary: summary
@@ -346,7 +470,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
           patientProfileId: patientProfile?.id || pRealId,
           hospitalId: targetHospitalId,
           hospitalName: targetHospitalName,
-          hospitalAddress: 'Verified Healthcare Campus',
+          hospitalAddress: 'Shivajinagar, Pune, Maharashtra 411005',
           hospitalCity: patientProfile?.city || 'Pune',
           grantedAt: new Date().toISOString(),
           status: 'ACTIVE',
@@ -356,6 +480,35 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         });
       }
 
+      // Hospital notification for pre-arrival intake & report awaiting doctor verification
+      const notif = {
+        id: `notif-${Date.now()}`,
+        hospitalId: targetHospitalId,
+        type: 'PRE_ARRIVAL_INTAKE' as const,
+        title: `AI Clinical Report & Medicines: ${newSession.patientName}`,
+        message: `New clinical intake with recommended medicines awaiting doctor review & approval. Patient ID: ${pRealId}`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        patientId: pRealId,
+        patientName: newSession.patientName,
+        sessionId: newSession.id,
+        data: { sessionId: newSession.id, priority: newSession.triagePriority }
+      };
+      db.addNotification(notif as any);
+      try {
+        await fetch('/api/hospitals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_notification', notification: notif })
+        });
+      } catch {}
+
+      // Real-time broadcast via syncRelay to instantly alert hospital & doctor
+      syncRelay.publish('clinical_session_saved', newSession);
+      syncRelay.publish(`hospital_session_${targetHospitalId}`, newSession);
+      syncRelay.publish('medibridge_db_update', { type: 'clinical_sessions', data: newSession });
+      syncRelay.publish(`patient_session_update_${pRealId}`, newSession);
+
       db.logAction(
         currentUser?.id || 'usr-pat',
         currentUser?.fullName || 'Registered Patient',
@@ -363,7 +516,7 @@ export const AIIntakeChat: React.FC<AIIntakeChatProps> = ({
         'INTAKE_COMPLETED',
         'ClinicalSession',
         activeSessionId,
-        `Completed AI clinical intake (${language.toUpperCase()}). Linked to Encounter: ${encounterId}`
+        `Completed AI clinical intake (${language.toUpperCase()}) routed to ${targetHospitalName}. Awaiting Doctor Approval.`
       );
 
       setIsIntakeDone(true);

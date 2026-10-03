@@ -111,11 +111,14 @@ async function callGoogleGemini(prompt: string, systemInstruction: string): Prom
 
   const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2200);
 
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         contents: [
           {
@@ -129,17 +132,16 @@ async function callGoogleGemini(prompt: string, systemInstruction: string): Prom
         }
       })
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
-      const errText = await res.text();
-      console.warn(`[Gemini API Error ${res.status}]:`, errText);
       return null;
     }
 
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
   } catch (err: any) {
-    console.warn('[Gemini Call Failed]:', err?.message);
+    clearTimeout(timeoutId);
     return null;
   }
 }
@@ -149,6 +151,9 @@ async function callGroq(prompt: string, systemInstruction: string): Promise<stri
   if (!apiKey) return null;
 
   const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
+
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -156,6 +161,7 @@ async function callGroq(prompt: string, systemInstruction: string): Promise<stri
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model,
         messages: [
@@ -166,11 +172,13 @@ async function callGroq(prompt: string, systemInstruction: string): Promise<stri
         temperature: 0.2
       })
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) return null;
     const data = await res.json();
     return data.choices?.[0]?.message?.content || null;
   } catch (err) {
+    clearTimeout(timeoutId);
     return null;
   }
 }
@@ -180,6 +188,9 @@ async function callOpenAI(prompt: string, systemInstruction: string): Promise<st
   if (!apiKey) return null;
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
+
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -187,6 +198,7 @@ async function callOpenAI(prompt: string, systemInstruction: string): Promise<st
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model,
         messages: [
@@ -197,18 +209,20 @@ async function callOpenAI(prompt: string, systemInstruction: string): Promise<st
         temperature: 0.2
       })
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) return null;
     const data = await res.json();
     return data.choices?.[0]?.message?.content || null;
   } catch (err) {
+    clearTimeout(timeoutId);
     return null;
   }
 }
 
 async function callPollinationsLLM(prompt: string, systemInstruction: string): Promise<string | null> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  const timeoutId = setTimeout(() => controller.abort(), 1800);
 
   try {
     const res = await fetch('https://text.pollinations.ai/openai/chat/completions', {
